@@ -276,7 +276,8 @@ let idCounter = 100;
 export const nextId = (prefix: string) => `${prefix}_${idCounter++}`;
 
 const NOW = "2026-07-16T09:00:00.000Z";
-const IMG = (slug: string) => `https://images.unsplash.com/${slug}?w=800&h=500&fit=crop&auto=format`;
+const IMG = (slug: string) =>
+  `https://images.unsplash.com/${slug}?w=800&h=500&fit=crop&auto=format`;
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
 
 function makeUser(
@@ -302,7 +303,11 @@ function makeUser(
   };
 }
 
-function makeVerification(userId: string, status: PersistedVerificationStatus, last4: string): MockVerification {
+function makeVerification(
+  userId: string,
+  status: PersistedVerificationStatus,
+  last4: string,
+): MockVerification {
   return {
     id: nextId("ekyc"),
     userId,
@@ -319,8 +324,15 @@ function makeVerification(userId: string, status: PersistedVerificationStatus, l
 }
 
 function makeQuota(userId: string): MockQuota {
-  // ERD defaults: 1 free listing, 2 optimizer uses, 3 free offers.
-  return { id: nextId("quota"), userId, freeListingsLeft: 1, optimizerUsesLeft: 2, freeOffersLeft: 3, lastResetDate: null };
+  // Frontend product rule: each new listing starts with up to 3 optimizer uses.
+  return {
+    id: nextId("quota"),
+    userId,
+    freeListingsLeft: 1,
+    optimizerUsesLeft: 3,
+    freeOffersLeft: 3,
+    lastResetDate: null,
+  };
 }
 
 interface PropertySeed {
@@ -379,12 +391,46 @@ function seed(): MockDb {
     makeUser("usr_tenant", "أحمد محمود", "tenant@example.com", "tenant", "01011112222"),
     makeUser("usr_tenant2", "سارة إبراهيم", "tenant2@example.com", "tenant", "01033334444"),
     makeUser("usr_landlord", "محمد السيد", "landlord@example.com", "landlord", "01055556666"),
-    makeUser("usr_landlord2", "خالد عبد العزيز", "landlord2@example.com", "landlord", "01077778888"),
-    makeUser("usr_admin", "مشرف المنصة", "admin@example.com", "admin", "01099990000", "super-admin"),
+    makeUser(
+      "usr_landlord2",
+      "خالد عبد العزيز",
+      "landlord2@example.com",
+      "landlord",
+      "01077778888",
+    ),
+    makeUser(
+      "usr_admin",
+      "مشرف المنصة",
+      "admin@example.com",
+      "admin",
+      "01099990000",
+      "super-admin",
+    ),
     // Scoped admins — restored per conflicts.md B2-R, no ERD entity.
-    makeUser("usr_admin_kyc", "ياسمين فؤاد", "kyc@example.com", "admin", "01099991111", "kyc-reviewer"),
-    makeUser("usr_admin_support", "عمرو شاكر", "support@example.com", "admin", "01099992222", "customer-support"),
-    makeUser("usr_admin_readonly", "هبة السيد", "readonly@example.com", "admin", "01099993333", "read-only"),
+    makeUser(
+      "usr_admin_kyc",
+      "ياسمين فؤاد",
+      "kyc@example.com",
+      "admin",
+      "01099991111",
+      "kyc-reviewer",
+    ),
+    makeUser(
+      "usr_admin_support",
+      "عمرو شاكر",
+      "support@example.com",
+      "admin",
+      "01099992222",
+      "customer-support",
+    ),
+    makeUser(
+      "usr_admin_readonly",
+      "هبة السيد",
+      "readonly@example.com",
+      "admin",
+      "01099993333",
+      "read-only",
+    ),
   ];
 
   const verifications: MockVerification[] = [];
@@ -431,7 +477,8 @@ function seed(): MockDb {
       areaM2: 55,
       isFurnished: true,
       propertyAroundServices: "كافيهات، مطاعم، كورنيش، مواصلات",
-      description: "ستوديو مفروش حديث التشطيب على المشاية السفلية، إطلالة مميزة، يصلح لفرد أو اثنين.",
+      description:
+        "ستوديو مفروش حديث التشطيب على المشاية السفلية، إطلالة مميزة، يصلح لفرد أو اثنين.",
       image: IMG("photo-1502672260266-1c1ef2d93688"),
     }),
     makeProperty({
@@ -445,7 +492,8 @@ function seed(): MockDb {
       bathrooms: 3,
       areaM2: 320,
       propertyAroundServices: "هدوء، مساحات خضراء، جراج",
-      description: "فيلا دورين بحديقة خاصة في جديلة، تشطيب فاخر، مناسبة لعائلة كبيرة تبحث عن الهدوء.",
+      description:
+        "فيلا دورين بحديقة خاصة في جديلة، تشطيب فاخر، مناسبة لعائلة كبيرة تبحث عن الهدوء.",
       image: IMG("photo-1560448204-e02f11c3d0e2"),
     }),
     makeProperty({
@@ -539,15 +587,57 @@ function seed(): MockDb {
   /* ---- non-ERD seed (conflicts.md B2-R) ---- */
 
   const auditLog: MockAuditEntry[] = [
-    { id: "aud_1", actorId: "usr_admin", actorName: "مشرف المنصة", action: "property:approve prop_1", subjectId: "prop_1", at: ago(3 * 60 * 60_000) },
-    { id: "aud_2", actorId: "usr_admin", actorName: "مشرف المنصة", action: "kyc:review usr_landlord", subjectId: "usr_landlord", at: ago(5 * 60 * 60_000) },
-    { id: "aud_3", actorId: "usr_admin", actorName: "مشرف المنصة", action: "request:approve req_1", subjectId: "req_1", at: ago(26 * 60 * 60_000) },
+    {
+      id: "aud_1",
+      actorId: "usr_admin",
+      actorName: "مشرف المنصة",
+      action: "property:approve prop_1",
+      subjectId: "prop_1",
+      at: ago(3 * 60 * 60_000),
+    },
+    {
+      id: "aud_2",
+      actorId: "usr_admin",
+      actorName: "مشرف المنصة",
+      action: "kyc:review usr_landlord",
+      subjectId: "usr_landlord",
+      at: ago(5 * 60 * 60_000),
+    },
+    {
+      id: "aud_3",
+      actorId: "usr_admin",
+      actorName: "مشرف المنصة",
+      action: "request:approve req_1",
+      subjectId: "req_1",
+      at: ago(26 * 60 * 60_000),
+    },
   ];
 
   const loginHistory: MockLoginEntry[] = [
-    { id: "lgn_1", adminId: "usr_admin", adminName: "مشرف المنصة", ip: "197.54.12.8", at: ago(20 * 60_000), success: true },
-    { id: "lgn_2", adminId: "usr_admin_kyc", adminName: "ياسمين فؤاد", ip: "156.203.44.19", at: ago(2 * 60 * 60_000), success: true },
-    { id: "lgn_3", adminId: "usr_admin", adminName: "مشرف المنصة", ip: "41.35.7.201", at: ago(9 * 60 * 60_000), success: false },
+    {
+      id: "lgn_1",
+      adminId: "usr_admin",
+      adminName: "مشرف المنصة",
+      ip: "197.54.12.8",
+      at: ago(20 * 60_000),
+      success: true,
+    },
+    {
+      id: "lgn_2",
+      adminId: "usr_admin_kyc",
+      adminName: "ياسمين فؤاد",
+      ip: "156.203.44.19",
+      at: ago(2 * 60 * 60_000),
+      success: true,
+    },
+    {
+      id: "lgn_3",
+      adminId: "usr_admin",
+      adminName: "مشرف المنصة",
+      ip: "41.35.7.201",
+      at: ago(9 * 60 * 60_000),
+      success: false,
+    },
   ];
 
   const tickets: MockTicket[] = [
@@ -560,8 +650,22 @@ function seed(): MockDb {
       createdAt: ago(40 * 60_000),
       lastMessageAt: ago(35 * 60_000),
       messages: [
-        { id: "sm_1", author: "user", authorName: "محمد السيد", content: "دفعت رسوم إعلان جديد ولم يتغير الرصيد.", internal: false, at: ago(40 * 60_000) },
-        { id: "sm_2", author: "ai", authorName: "المساعد الآلي", content: "تحديث الرصيد يتم عبر بوابة الدفع وقد يستغرق دقائق. سأحوّلك لموظف دعم للمتابعة.", internal: false, at: ago(35 * 60_000) },
+        {
+          id: "sm_1",
+          author: "user",
+          authorName: "محمد السيد",
+          content: "دفعت رسوم إعلان جديد ولم يتغير الرصيد.",
+          internal: false,
+          at: ago(40 * 60_000),
+        },
+        {
+          id: "sm_2",
+          author: "ai",
+          authorName: "المساعد الآلي",
+          content: "تحديث الرصيد يتم عبر بوابة الدفع وقد يستغرق دقائق. سأحوّلك لموظف دعم للمتابعة.",
+          internal: false,
+          at: ago(35 * 60_000),
+        },
       ],
     },
     {
@@ -573,9 +677,30 @@ function seed(): MockDb {
       createdAt: ago(3 * 60 * 60_000),
       lastMessageAt: ago(50 * 60_000),
       messages: [
-        { id: "sm_3", author: "user", authorName: "خالد عبد العزيز", content: "طلب التوثيق قيد المراجعة من يومين، هل من مشكلة؟", internal: false, at: ago(3 * 60 * 60_000) },
-        { id: "sm_4", author: "admin", authorName: "عمرو شاكر", content: "طلبك في قائمة المراجعة وسيتم الرد خلال 24 ساعة.", internal: false, at: ago(60 * 60_000) },
-        { id: "sm_5", author: "admin", authorName: "عمرو شاكر", content: "صورة البطاقة غير واضحة — نطلب إعادة الرفع إذا لم تتحسن.", internal: true, at: ago(50 * 60_000) },
+        {
+          id: "sm_3",
+          author: "user",
+          authorName: "خالد عبد العزيز",
+          content: "طلب التوثيق قيد المراجعة من يومين، هل من مشكلة؟",
+          internal: false,
+          at: ago(3 * 60 * 60_000),
+        },
+        {
+          id: "sm_4",
+          author: "admin",
+          authorName: "عمرو شاكر",
+          content: "طلبك في قائمة المراجعة وسيتم الرد خلال 24 ساعة.",
+          internal: false,
+          at: ago(60 * 60_000),
+        },
+        {
+          id: "sm_5",
+          author: "admin",
+          authorName: "عمرو شاكر",
+          content: "صورة البطاقة غير واضحة — نطلب إعادة الرفع إذا لم تتحسن.",
+          internal: true,
+          at: ago(50 * 60_000),
+        },
       ],
     },
   ];

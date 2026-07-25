@@ -380,7 +380,7 @@ export function dispatch(
         id: nextId("quota"),
         userId: u.id,
         freeListingsLeft: 1,
-        optimizerUsesLeft: 2,
+        optimizerUsesLeft: 3,
         freeOffersLeft: 3,
         lastResetDate: null,
       });
@@ -674,6 +674,7 @@ export function dispatch(
       }),
     );
     quota.freeListingsLeft -= 1;
+    quota.optimizerUsesLeft = 3;
     announceQueueItem(propertyQueueItem(property));
     return ok({ property: toDetail(property, user) });
   }
