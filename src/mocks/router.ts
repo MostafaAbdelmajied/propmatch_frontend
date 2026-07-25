@@ -635,7 +635,29 @@ export function dispatch(
     if (!quota || quota.freeListingsLeft <= 0)
       return quotaExhausted("NEW_LISTING", PRICES.NEW_LISTING);
 
-    const b = body as CreatePropertyRequest;
+    const b =
+      body instanceof FormData
+        ? ({
+            title: String(body.get("title") ?? ""),
+            description: String(body.get("description") ?? ""),
+            governorate: String(body.get("governorate") ?? ""),
+            city: String(body.get("city") ?? ""),
+            district: String(body.get("district") ?? ""),
+            manualAddress: String(body.get("manualAddress") ?? ""),
+            propertyType: String(body.get("propertyType") ?? "APARTMENT"),
+            propertyAroundServices: String(body.get("propertyAroundServices") ?? ""),
+            rentAmount: Number(body.get("rentAmount")),
+            areaM2: Number(body.get("areaM2")),
+            bedrooms: Number(body.get("bedrooms")),
+            bathrooms: Number(body.get("bathrooms")),
+            isFurnished: body.get("isFurnished") === "true",
+            hasElevator: body.get("hasElevator") === "true",
+            hasParking: body.get("hasParking") === "true",
+            images: body
+              .getAll("images")
+              .map((_, index) => `/public/properties/mock-${index + 1}.jpg`),
+          } as CreatePropertyRequest)
+        : (body as CreatePropertyRequest);
     const property: MockProperty = {
       id: nextId("prop"),
       ownerId: user.id,

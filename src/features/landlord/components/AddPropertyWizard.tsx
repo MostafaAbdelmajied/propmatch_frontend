@@ -35,6 +35,7 @@ type StepKey = keyof typeof stepFields;
 const stepKeys: StepKey[] = ["propertyDetails", "mediaAndDescription"];
 const PROPERTY_DRAFT_STORAGE_KEY = "propmatch:add-property-draft";
 const MAX_PROPERTY_IMAGES = 10;
+const MAX_PROPERTY_IMAGE_SIZE = 5 * 1024 * 1024;
 const MAX_DESCRIPTION_OPTIMIZATIONS = 3;
 const PROPERTY_IMAGE_ACCEPT = ".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp";
 
@@ -82,7 +83,6 @@ function AddPropertyWizardContent() {
   });
   const [step, setStep] = useState(0);
   const [draftRestored, setDraftRestored] = useState(false);
-  const [isPreparingImages, setIsPreparingImages] = useState(false);
   const [optimizerUsesLeft, setOptimizerUsesLeft] = useState(MAX_DESCRIPTION_OPTIMIZATIONS);
   const create = useCreateProperty();
   const [paywall, setPaywall] = useState<PaymentType | null>(null);
@@ -136,38 +136,24 @@ function AddPropertyWizardContent() {
     if (await form.trigger(fields)) setStep((s) => Math.min(s + 1, steps.length - 1));
   }
 
-  async function submit(values: AddPropertyForm) {
-    setIsPreparingImages(true);
-    let images: string[];
-    try {
-      images = await Promise.all(values.images.map(readFileAsDataUrl));
-    } catch {
-      toast("error", "تعذر تجهيز الصور المختارة. حاول اختيارها مرة أخرى");
-      setIsPreparingImages(false);
-      return;
-    }
-    setIsPreparingImages(false);
-
-    create.mutate(
-      { ...values, images },
-      {
-        onSuccess: () => {
-          window.localStorage.removeItem(PROPERTY_DRAFT_STORAGE_KEY);
-          // ERD: PROPERTY.status defaults to PENDING — admin must approve (PRO-04).
-          toast("success", "تم إرسال إعلانك للمراجعة");
-          router.push("/landlord");
-        },
-        onError: (e) => {
-          if (e.code === "VERIFICATION_REQUIRED") {
-            toast("info", e.message);
-          } else if (e.code === "QUOTA_EXHAUSTED") {
-            setPaywall(e.paymentType ?? "NEW_LISTING");
-          } else {
-            toast("error", e.message);
-          }
-        },
+  function submit(values: AddPropertyForm) {
+    create.mutate(values, {
+      onSuccess: () => {
+        window.localStorage.removeItem(PROPERTY_DRAFT_STORAGE_KEY);
+        // ERD: PROPERTY.status defaults to PENDING — admin must approve (PRO-04).
+        toast("success", "تم إرسال إعلانك للمراجعة");
+        router.push("/landlord");
       },
-    );
+      onError: (e) => {
+        if (e.code === "VERIFICATION_REQUIRED") {
+          toast("info", e.message);
+        } else if (e.code === "QUOTA_EXHAUSTED") {
+          setPaywall(e.paymentType ?? "NEW_LISTING");
+        } else {
+          toast("error", e.message);
+        }
+      },
+    });
   }
 
   return (
@@ -211,7 +197,7 @@ function AddPropertyWizardContent() {
               <ArrowLeft className="size-4" aria-hidden />
             </Button>
           ) : (
-            <Button type="submit" loading={isPreparingImages || create.isPending}>
+            <Button type="submit" loading={create.isPending}>
               <Check className="size-4" aria-hidden />
               إرسال للمراجعة
             </Button>
@@ -492,12 +478,15 @@ function MediaAndDescriptionStep({
     const supported = selected.filter((file) =>
       ["image/jpeg", "image/png", "image/webp"].includes(file.type),
     );
+    const withinSizeLimit = supported.filter((file) => file.size <= MAX_PROPERTY_IMAGE_SIZE);
     const remainingSlots = MAX_PROPERTY_IMAGES - images.length;
-    const nextImages = [...images, ...supported.slice(0, remainingSlots)];
+    const nextImages = [...images, ...withinSizeLimit.slice(0, remainingSlots)];
 
     if (supported.length !== selected.length) {
       toast("error", "يُسمح فقط بصور JPG وJPEG وPNG وWEBP");
-    } else if (supported.length > remainingSlots) {
+    } else if (withinSizeLimit.length !== supported.length) {
+      toast("error", "يجب ألا يتجاوز حجم الصورة الواحدة 5 ميجابايت");
+    } else if (withinSizeLimit.length > remainingSlots) {
       toast("info", "يمكنك إضافة 10 صور كحد أقصى");
     }
 
@@ -687,7 +676,7 @@ function MediaAndDescriptionStep({
           </span>
           <span className="text-small font-bold text-primary">اختر صور العقار</span>
           <span className="text-caption text-muted">
-            JPG أو JPEG أو PNG أو WEBP — بحد أقصى 10 صور
+            JPG أو JPEG أو PNG أو WEBP — حتى 5 ميجابايت للصورة وبحد أقصى 10 صور
           </span>
           <input
             type="file"
@@ -817,15 +806,6 @@ function PropertyImagePreview({
       </button>
     </article>
   );
-}
-
-function readFileAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
 }
 
 const Toggle = function Toggle({

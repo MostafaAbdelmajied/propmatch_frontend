@@ -71,4 +71,17 @@ describe("add property wizard schema", () => {
 
     expect(result.success).toBe(false);
   });
+
+  it("rejects an image larger than five megabytes", () => {
+    const result = addPropertyFormSchema.safeParse({
+      ...validValues,
+      images: [
+        new File([new Uint8Array(5 * 1024 * 1024 + 1)], "large.jpg", {
+          type: "image/jpeg",
+        }),
+      ],
+    });
+
+    expect(result.success).toBe(false);
+  });
 });
