@@ -18,7 +18,7 @@ export default async function RootLayout({
 
   return (
     <html lang="ar" dir="rtl" className="h-full antialiased" suppressHydrationWarning>
-      <body className="min-h-full flex flex-col bg-background text-ink font-sans">
+      <body className="min-h-full flex flex-col bg-background text-ink font-sans" suppressHydrationWarning>
         <NextIntlClientProvider locale="ar" messages={messages}>
           <Providers>{children}</Providers>
         </NextIntlClientProvider>
