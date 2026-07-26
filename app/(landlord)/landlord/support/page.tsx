@@ -1,5 +1,5 @@
-import { CustomerSupportWidget } from "@/src/features/support/components/CustomerSupportWidget";
+import { UnifiedAiAssistant } from "@/src/features/support/components/UnifiedAiAssistant";
 
 export default function LandlordSupportPage() {
-  return <CustomerSupportWidget />;
+  return <UnifiedAiAssistant />;
 }

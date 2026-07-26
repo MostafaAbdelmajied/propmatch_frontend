@@ -1,5 +1,6 @@
 import { AdminLogoutButton } from "@/src/components/nav/AdminLogoutButton";
 import { AdminNavLinks } from "@/src/components/nav/AdminNavLinks";
+import { AdminLogoutButton } from "@/src/components/nav/AdminLogoutButton";
 import { NotificationBell } from "@/src/components/nav/RoleNav";
 import { Logo } from "@/src/components/ui/Logo";
 import { requireSession } from "@/src/lib/api/serverSession";

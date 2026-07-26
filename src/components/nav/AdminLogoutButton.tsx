@@ -12,7 +12,7 @@ export function AdminLogoutButton() {
       onClick={() => logout.mutate()}
       disabled={logout.isPending}
       className="text-muted hover:text-ink transition-colors disabled:opacity-50"
-      aria-label="خروج"
+      aria-label="تسجيل الخروج"
       title="تسجيل الخروج"
     >
       <LogOut className="size-5" aria-hidden />

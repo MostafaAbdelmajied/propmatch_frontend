@@ -7,7 +7,6 @@ import { Bell, BellOff, BadgeCheck, Home, Sparkles, Star, CreditCard, FileText, 
 import { api } from "@/src/lib/api/browserClient";
 import { cn } from "@/src/utils/cn";
 import { formatNumber, formatRelativeTime } from "@/src/utils/format";
-import { usePollWhileOffline } from "@/src/lib/socket/RealtimeProvider";
 import type { NotificationType, NotificationsResponse } from "@/src/lib/api/contracts/notification";
 
 /**
@@ -33,18 +32,12 @@ export function NotificationBell() {
   const qc = useQueryClient();
   const notificationsEnabled = process.env.NEXT_PUBLIC_NOTIFICATIONS_ENABLED !== "false";
 
-  // PRO-06: live over the socket; polls only while it's down.
-  const refetchInterval = usePollWhileOffline(20_000);
-
   const { data } = useQuery({
     queryKey: ["notifications"],
     queryFn: () => api.get<NotificationsResponse>("notifications"),
     enabled: notificationsEnabled,
-    refetchInterval: notificationsEnabled ? refetchInterval : false,
   });
 
-  // Read state is server-owned — the old build only flipped a local flag, so
-  // the badge came back on every refetch.
   const markAllRead = useMutation({
     mutationFn: () => api.post<{ ok: boolean }>("notifications/read-all"),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }),

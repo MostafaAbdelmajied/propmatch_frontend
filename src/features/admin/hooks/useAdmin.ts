@@ -1,17 +1,16 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, isApiClientError } from "@/src/lib/api/browserClient";
-import { usePollWhileOffline } from "@/src/lib/socket/RealtimeProvider";
 import type {
-  AdminQueuesResponse,
   AdminPropertyReviewDetail,
+  AdminQueuesResponse,
   AdminReviewDetail,
   AdminStats,
   AdminTenantRequestDetail,
   KycReviewDetail,
   ReviewDecision,
 } from "@/src/lib/api/contracts/admin";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 export function useAdminStats() {
   return useQuery({
@@ -21,16 +20,14 @@ export function useAdminStats() {
 }
 
 /**
- * Live queue (PRO-06). New items arrive over the socket and are pushed into
- * this cache by `useRealtime`; polling is the documented fallback for when the
- * socket is down (design spec: WebSocket, degrade to polling).
+ * Live queue (PRO-06). Driven 100% by WebSockets (Socket.IO).
+ * New items arrive over `SOCKET_EVENTS.adminQueueItem` and are pushed directly
+ * into the query cache by `useRealtime`.
  */
 export function useAdminQueues() {
-  const refetchInterval = usePollWhileOffline(3000);
   return useQuery({
     queryKey: ["admin", "queues"],
     queryFn: () => api.get<AdminQueuesResponse>("admin/queues"),
-    refetchInterval,
   });
 }
 
