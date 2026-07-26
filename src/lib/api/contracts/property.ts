@@ -72,6 +72,36 @@ export const PropertySummarySchema = z.object({
 });
 export type PropertySummary = z.infer<typeof PropertySummarySchema>;
 
+/** Backend-owned, deterministic explanation for a semantic property result. */
+export const SemanticMatchReasonSchema = z.object({
+  code: z.enum([
+    "LOCATION_MENTION_MATCH",
+    "PROPERTY_TYPE_MENTION_MATCH",
+    "BEDROOM_MENTION_MATCH",
+    "FURNISHING_MENTION_MATCH",
+    "MATCHES_SEARCH_INTENT",
+  ]),
+  text: z.string(),
+});
+export type SemanticMatchReason = z.infer<typeof SemanticMatchReasonSchema>;
+
+/** Narrow semantic-search extension; ordinary property cards remain unchanged. */
+export const SemanticPropertySearchItemSchema = PropertySummarySchema.extend({
+  semanticSimilarity: z.number(),
+  matchReasons: z.array(SemanticMatchReasonSchema).max(3),
+});
+export type SemanticPropertySearchItem = z.infer<typeof SemanticPropertySearchItemSchema>;
+
+export const SemanticPropertySearchResponseSchema = z.object({
+  items: z.array(SemanticPropertySearchItemSchema),
+  total: z.number().int().nonnegative(),
+  resultCount: z.number().int().nonnegative(),
+  page: z.literal(1),
+  pageSize: z.number().int().min(1).max(20),
+  reason: z.literal("NO_RELEVANT_SEMANTIC_MATCH").optional(),
+});
+export type SemanticPropertySearchResponse = z.infer<typeof SemanticPropertySearchResponseSchema>;
+
 export const PropertyDetailSchema = PropertySummarySchema.extend({
   description: z.string(),
   propertyAroundServices: z.string().nullable(),
