@@ -2,11 +2,13 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/src/lib/api/browserClient";
+import { SemanticPropertySearchResponseSchema } from "@/src/lib/api/contracts/property";
 import type {
   PropertyDetail,
   PropertySearchQuery,
   PropertySummary,
   SemanticPropertySearchInput,
+  SemanticPropertySearchResponse,
 } from "@/src/lib/api/contracts/property";
 
 interface Paginated<T> {
@@ -45,7 +47,11 @@ export function useSemanticPropertySearch(input: SemanticPropertySearchInput | n
     queryKey: ["properties", "semantic-search", query, limit],
     queryFn: () => {
       const params = new URLSearchParams({ query: query ?? "", limit: String(limit) });
-      return api.get<Paginated<PropertySummary>>(`properties/search/semantic?${params.toString()}`);
+      return api
+        .get<unknown>(`properties/search/semantic?${params.toString()}`)
+        .then((response): SemanticPropertySearchResponse =>
+          SemanticPropertySearchResponseSchema.parse(response),
+        );
     },
     enabled: query.length >= 2 && query.length <= 300 && limit >= 1 && limit <= 20,
     retry: false,

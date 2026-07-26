@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import { useApprovedProperties, useSemanticPropertySearch } from "../hooks/useProperties";
@@ -9,14 +9,51 @@ import { PropertyCardSkeleton } from "@/src/components/ui/Skeleton";
 import { EmptyState, ErrorState } from "@/src/components/ui/States";
 import { Button } from "@/src/components/ui/Button";
 import { formatNumber } from "@/src/utils/format";
-import type { PropertySearchQuery } from "@/src/lib/api/contracts/property";
+import { isApiClientError } from "@/src/lib/api/browserClient";
+import type {
+  PropertySearchQuery,
+  SemanticPropertySearchItem,
+} from "@/src/lib/api/contracts/property";
 import { FavoriteButton } from "./FavoriteButton";
 import { SearchFilters } from "./SearchFilters";
 
 const semanticSearchLimit = 10;
+const noRelevantSemanticMatchReason = "NO_RELEVANT_SEMANTIC_MATCH";
+
+function SemanticPropertyCard({
+  property,
+  onClick,
+  actionSlot,
+}: {
+  property: SemanticPropertySearchItem;
+  onClick: () => void;
+  actionSlot: React.ReactNode;
+}) {
+  return (
+    <div className="overflow-hidden rounded-card border border-hairline bg-surface shadow-card">
+      <PropertyCard
+        property={property}
+        onClick={onClick}
+        actionSlot={actionSlot}
+        className="border-0 shadow-none"
+      />
+      {property.matchReasons.length > 0 && (
+        <div className="border-t border-hairline px-4 py-3">
+          <p className="text-caption font-semibold text-muted">أسباب الظهور في النتائج</p>
+          <ul className="mt-1.5 space-y-1 text-small text-ink">
+            {property.matchReasons.map((reason) => (
+              <li key={reason.code}>{reason.text}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function TenantBrowse() {
   const router = useRouter();
+  const semanticInputRef = useRef<HTMLInputElement>(null);
   const [semanticInput, setSemanticInput] = useState("");
   const [semanticQuery, setSemanticQuery] = useState<string | null>(null);
   const [semanticValidation, setSemanticValidation] = useState<string | null>(null);
@@ -30,6 +67,17 @@ export function TenantBrowse() {
   const trimmedSemanticInput = semanticInput.trim();
   const semanticInputIsValid =
     trimmedSemanticInput.length >= 2 && trimmedSemanticInput.length <= 300;
+  const semanticError = isApiClientError(semanticSearch.error) ? semanticSearch.error : null;
+  const semanticUnavailable =
+    semanticError?.statusCode === 503 ||
+    (semanticError?.body &&
+      typeof semanticError.body === "object" &&
+      "code" in semanticError.body &&
+      semanticError.body.code === "SEMANTIC_SEARCH_UNAVAILABLE");
+  const hasNoRelevantSemanticMatch =
+    isSemanticMode &&
+    semanticSearch.data?.items.length === 0 &&
+    semanticSearch.data.reason === noRelevantSemanticMatchReason;
 
   function semanticValidationMessage(value: string) {
     if (value.length < 2) return "اكتب حرفين على الأقل للبحث.";
@@ -40,7 +88,7 @@ export function TenantBrowse() {
   function submitSemanticSearch(e: React.FormEvent) {
     e.preventDefault();
     const validationMessage = semanticValidationMessage(trimmedSemanticInput);
-    if (validationMessage) {
+    if (validationMessage || semanticSearch.isFetching) {
       setSemanticValidation(validationMessage);
       return;
     }
@@ -53,6 +101,10 @@ export function TenantBrowse() {
     setSemanticInput("");
     setSemanticQuery(null);
     setSemanticValidation(null);
+  }
+
+  function focusSemanticSearchInput() {
+    semanticInputRef.current?.focus();
   }
 
   return (
@@ -77,6 +129,7 @@ export function TenantBrowse() {
               aria-hidden
             />
             <input
+              ref={semanticInputRef}
               value={semanticInput}
               onChange={(e) => {
                 setSemanticInput(e.target.value);
@@ -120,7 +173,11 @@ export function TenantBrowse() {
       {activeSearch.isError ? (
         isSemanticMode ? (
           <EmptyState
-            title="البحث الذكي غير متاح مؤقتًا. حاول مرة أخرى بعد قليل."
+            title={
+              semanticUnavailable
+                ? "خدمة البحث الذكي غير متاحة مؤقتًا. حاول مرة أخرى بعد قليل."
+                : "تعذر إتمام البحث الذكي. حاول مرة أخرى بعد قليل."
+            }
             action={
               <div className="flex flex-wrap justify-center gap-2">
                 <Button size="sm" onClick={() => semanticSearch.refetch()}>
@@ -148,15 +205,34 @@ export function TenantBrowse() {
         </>
       ) : !activeSearch.data || activeSearch.data.items.length === 0 ? (
         isSemanticMode ? (
-          <EmptyState
-            title="لم نجد عقارات مطابقة لوصفك حاليًا."
-            description="جرّب تعديل الوصف أو استخدام مواصفات أكثر عمومية."
-            action={
-              <Button size="sm" variant="ghost" onClick={clearSemanticSearch}>
-                مسح البحث
-              </Button>
-            }
-          />
+          hasNoRelevantSemanticMatch ? (
+            <EmptyState
+              title="ملقيناش عقار مناسب كفاية لطلبك"
+              description="البحث اكتمل، لكن ما لقيناش عقار مناسب كفاية. جرّب تضيف تفاصيل أكتر أو توسّع طلبك."
+              action={
+                <div className="flex flex-col items-center gap-4">
+                  <ul className="list-disc space-y-1 ps-5 text-start text-small text-muted">
+                    <li>حدّد المدينة أو المنطقة بشكل أوضح</li>
+                    <li>اكتب نوع العقار وعدد الغرف</li>
+                    <li>راجع الشروط الاختيارية اللي ممكن توسّعها</li>
+                  </ul>
+                  <Button size="sm" onClick={focusSemanticSearchInput}>
+                    عدّل طلبك وجرّب تاني
+                  </Button>
+                </div>
+              }
+            />
+          ) : (
+            <EmptyState
+              title="لم نجد عقارات مطابقة لوصفك حاليًا."
+              description="جرّب تعديل الوصف أو استخدام مواصفات أكثر عمومية."
+              action={
+                <Button size="sm" variant="ghost" onClick={clearSemanticSearch}>
+                  مسح البحث
+                </Button>
+              }
+            />
+          )
         ) : (
           <EmptyState
             title="لا توجد عقارات مطابقة"
@@ -167,14 +243,23 @@ export function TenantBrowse() {
         <>
           <p className="text-caption text-muted">{formatNumber(activeSearch.data.total)} عقار</p>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {activeSearch.data.items.map((property) => (
-              <PropertyCard
-                key={property.id}
-                property={property}
-                onClick={() => router.push(`/tenant/properties/${property.id}`)}
-                actionSlot={<FavoriteButton propertyId={property.id} />}
-              />
-            ))}
+            {isSemanticMode
+              ? semanticSearch.data!.items.map((property) => (
+                  <SemanticPropertyCard
+                    key={property.id}
+                    property={property}
+                    onClick={() => router.push(`/tenant/properties/${property.id}`)}
+                    actionSlot={<FavoriteButton propertyId={property.id} />}
+                  />
+                ))
+              : normalBrowse.data!.items.map((property) => (
+                  <PropertyCard
+                    key={property.id}
+                    property={property}
+                    onClick={() => router.push(`/tenant/properties/${property.id}`)}
+                    actionSlot={<FavoriteButton propertyId={property.id} />}
+                  />
+                ))}
           </div>
         </>
       )}
