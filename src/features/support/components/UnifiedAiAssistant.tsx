@@ -52,7 +52,9 @@ const LEGAL_PROPOSED_MESSAGES = [
   "كيف يتم توثيق شروط فسخ العقد وإخلائه قانونياً؟",
 ];
 
-let localId = 0;
+function makeUniqueId(prefix: string): string {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+}
 
 function analyzeSentiment(message: string): { isFrustrated: boolean; score: number } {
   const angryKeywords = [
@@ -82,27 +84,32 @@ const FormattedMarkdownText = React.memo(function FormattedMarkdownText({ text }
     }
 
     // Markdown Table Parser (| header | header |)
-    if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
+    if (trimmed.startsWith("|")) {
       const tableLines: string[] = [];
-      while (i < lines.length && lines[i].trim().startsWith("|") && lines[i].trim().endsWith("|")) {
+      while (i < lines.length && lines[i].trim().startsWith("|")) {
         tableLines.push(lines[i].trim());
         i++;
       }
 
       if (tableLines.length >= 2) {
-        const headers = tableLines[0].split("|").slice(1, -1).map((h) => h.trim());
-        const hasDivider = tableLines[1].includes("---");
-        const bodyRows = (hasDivider ? tableLines.slice(2) : tableLines.slice(1)).map((row) =>
-          row.split("|").slice(1, -1).map((c) => c.trim())
-        );
+        const splitRow = (rowStr: string) => {
+          let parts = rowStr.split("|");
+          if (parts[0] === "") parts = parts.slice(1);
+          if (parts[parts.length - 1] === "") parts = parts.slice(0, -1);
+          return parts.map((cell) => cell.trim());
+        };
+
+        const headers = splitRow(tableLines[0]);
+        const hasDivider = tableLines[1].includes("---") || tableLines[1].includes("-");
+        const bodyRows = (hasDivider ? tableLines.slice(2) : tableLines.slice(1)).map(splitRow);
 
         elements.push(
-          <div key={`table_${i}`} className="my-2.5 overflow-x-auto rounded-card border border-hairline bg-surface">
+          <div key={`table_${i}`} className="my-3 overflow-x-auto rounded-card border border-hairline bg-surface shadow-xs">
             <table className="w-full text-start text-caption border-collapse">
               <thead>
-                <tr className="border-b border-hairline bg-background font-bold text-ink">
+                <tr className="border-b border-hairline bg-background/80 font-bold text-ink">
                   {headers.map((h, hIdx) => (
-                    <th key={hIdx} className="px-3.5 py-2 text-start border-e border-hairline last:border-e-0">
+                    <th key={hIdx} className="px-3.5 py-2.5 text-start border-e border-hairline last:border-e-0">
                       {renderInlineFormatting(h)}
                     </th>
                   ))}
@@ -110,7 +117,7 @@ const FormattedMarkdownText = React.memo(function FormattedMarkdownText({ text }
               </thead>
               <tbody>
                 {bodyRows.map((r, rIdx) => (
-                  <tr key={rIdx} className="border-b border-hairline/60 last:border-b-0 hover:bg-background/40">
+                  <tr key={rIdx} className="border-b border-hairline/60 last:border-b-0 hover:bg-background/50 transition-colors">
                     {r.map((cell, cIdx) => (
                       <td key={cIdx} className="px-3.5 py-2 border-e border-hairline/60 last:border-e-0">
                         {renderInlineFormatting(cell)}
@@ -124,6 +131,13 @@ const FormattedMarkdownText = React.memo(function FormattedMarkdownText({ text }
         );
         continue;
       }
+    }
+
+    // Horizontal rule (--- or *** or ___)
+    if (/^[-*_]{3,}$/.test(trimmed)) {
+      elements.push(<hr key={`hr_${i}`} className="my-3 border-t border-hairline/80" />);
+      i++;
+      continue;
     }
 
     // Headers
@@ -285,8 +299,8 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
       }
     }
 
-    const replyId = `ai_reply_${localId++}`;
-    const userMsg: ChatMessage = { id: `user_msg_${localId++}`, role: "user", content: trimmed };
+    const replyId = makeUniqueId("ai_reply");
+    const userMsg: ChatMessage = { id: makeUniqueId("user_msg"), role: "user", content: trimmed };
 
     if (mode === "LEGAL") {
       setLegalMessages((m) => [...m, userMsg]);
@@ -330,6 +344,9 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
         setLegalMessages((m) => m.map((msg) => (msg.id === replyId ? { ...msg, declined: done.declined } : msg)));
       } else {
         setSupportMessages((m) => m.map((msg) => (msg.id === replyId ? { ...msg, declined: done.declined } : msg)));
+        if (done.escalated) {
+          setFrustrated(true);
+        }
       }
     } catch {
       const fallbackMsg: ChatMessage = {
@@ -626,7 +643,9 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
-                      sendMessage(input);
+                      if (input.trim() && !typing) {
+                        sendMessage(input);
+                      }
                     }
                   }}
                   placeholder={
@@ -691,9 +710,9 @@ function UserTicketThread({ id, onBack }: { id: string; onBack: () => void }) {
   if (isLoading) return <Skeleton className="h-64 w-full" />;
   if (isError || !ticket) return <div className="p-4">تعذر تحميل التذكرة.</div>;
 
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!text.trim()) return;
+  function handleSubmit(e?: React.FormEvent) {
+    e?.preventDefault();
+    if (!text.trim() || reply.isPending) return;
     reply.mutate(
       { content: text.trim() },
       {
@@ -747,14 +766,14 @@ function UserTicketThread({ id, onBack }: { id: string; onBack: () => void }) {
       </div>
 
       {ticket.status !== "closed" ? (
-        <form onSubmit={submit} className="flex gap-2">
+        <form onSubmit={handleSubmit} className="flex gap-2">
           <input
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
-                submit(e);
+                handleSubmit();
               } else if (e.key === "Escape") {
                 onBack();
               }
