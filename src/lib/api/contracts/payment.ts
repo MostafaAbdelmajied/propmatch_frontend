@@ -3,6 +3,7 @@ import { z } from "zod";
 /** Products that can be purchased under the revised, broker-free plan. */
 export const PaymentTypeSchema = z.enum([
   "PREMIUM_OWNER",
+  "OWNER_PLUS",
   "BOOST_LISTING",
   "AI_ADDON",
   "DOCS_PACK",
@@ -11,6 +12,7 @@ export type PaymentType = z.infer<typeof PaymentTypeSchema>;
 
 export const paymentTypeLabels: Record<PaymentType, string> = {
   PREMIUM_OWNER: "اشتراك المالك المميز",
+  OWNER_PLUS: "اشتراك مالك بلس",
   BOOST_LISTING: "تمييز إعلان عقاري",
   AI_ADDON: "حزمة الذكاء الاصطناعي",
   DOCS_PACK: "حزمة تنظيم المستندات",
@@ -18,6 +20,7 @@ export const paymentTypeLabels: Record<PaymentType, string> = {
 
 export const paymentTypePrices: Record<PaymentType, number> = {
   PREMIUM_OWNER: 999,
+  OWNER_PLUS: 499,
   BOOST_LISTING: 349,
   AI_ADDON: 199,
   DOCS_PACK: 299,
@@ -68,7 +71,7 @@ export type PaymentTransaction = z.infer<typeof PaymentTransactionSchema>;
 
 /** Server-authoritative owner plan and usage snapshot. */
 export const UserQuotaSchema = z.object({
-  planType: z.enum(["FREE", "PREMIUM"]),
+  planType: z.enum(["FREE", "OWNER_PLUS", "PREMIUM"]),
   planExpiresAt: z.string().nullable(),
   maxActiveListings: z.number().int().positive(),
   activeUnitCount: z.number().int().nonnegative(),

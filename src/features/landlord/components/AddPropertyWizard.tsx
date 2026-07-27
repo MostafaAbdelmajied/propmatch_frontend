@@ -551,7 +551,11 @@ function MediaAndDescriptionStep({
   }
 
   async function runOptimize() {
-    if (optimizerUsesLeft <= 0 || optimize.isStreaming) return;
+    if (optimize.isStreaming) return;
+    if (optimizerUsesLeft <= 0) {
+      onAiPaywall();
+      return;
+    }
     const original = description || "عقار للإيجار";
     setPrevious(original);
     const { description: _desc, images: _images, ...context } = form.getValues();
@@ -566,7 +570,7 @@ function MediaAndDescriptionStep({
         "success",
         remainingAfterUse > 0
           ? `تم تحسين الوصف — متبقي ${remainingAfterUse}`
-          : "تم تحسين الوصف — لا توجد استخدامات أخرى متاحة",
+          : "تم تحسين الوصف — انتهى رصيد الذكاء الاصطناعي",
       );
     } catch (e) {
       const err = e as ActionError;
@@ -604,10 +608,9 @@ function MediaAndDescriptionStep({
             size="sm"
             onClick={runOptimize}
             loading={optimize.isStreaming}
-            disabled={optimize.isStreaming || optimizerUsesLeft <= 0}
           >
             <Sparkles className="size-4" aria-hidden />
-            {optimizerUsesLeft > 0 ? "تحسين الوصف بالذكاء الاصطناعي" : "تم استخدام محاولات التحسين"}
+            {optimizerUsesLeft > 0 ? "تحسين الوصف بالذكاء الاصطناعي" : "شراء حزمة الذكاء الاصطناعي (10 استخدامات)"}
           </Button>
         </div>
       </div>
@@ -633,16 +636,16 @@ function MediaAndDescriptionStep({
             <p className="text-small font-bold text-ink">
               {optimizerUsesLeft > 0
                 ? `متبقي ${optimizerUsesLeft} استخدام`
-                : "لا توجد استخدامات ذكاء اصطناعي متاحة"}
+                : "انتهى رصيد الذكاء الاصطناعي الحالي"}
             </p>
             <p className="mt-0.5 text-caption text-muted">
-              تتضمن الخطة المميزة {PREMIUM_INCLUDED_AI_USES} استخدامات، ويمكن شراء حزمة إضافية.
+              يمكنك استخدام الرصيد الحالي أو شراء حزمة إضافية (10 استخدامات بـ 199 ج.م).
             </p>
           </div>
         </div>
         <div className="flex gap-1.5" aria-label={`${optimizerUsesLeft} محاولات تحسين متبقية`}>
           {Array.from(
-            { length: Math.max(PREMIUM_INCLUDED_AI_USES, optimizerUsesLeft) },
+            { length: Math.max(1, optimizerUsesLeft) },
             (_, index) => (
               <span
                 key={index}

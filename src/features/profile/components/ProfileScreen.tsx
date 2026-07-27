@@ -1,28 +1,30 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import {
-  User as UserIcon,
-  Mail,
-  Phone,
-  LogOut,
-  ShieldAlert,
-  Crown,
-  Building2,
-  FileCheck2,
-  Sparkles,
-  HelpCircle,
-  Check,
-} from "lucide-react";
-import Link from "next/link";
-import { useSession, useLogout } from "@/src/features/auth/hooks/useSession";
-import { useQuota } from "@/src/features/landlord/hooks/useLandlord";
-import { VerifiedBadge } from "@/src/components/ui/VerifiedBadge";
+import { cn } from "@/src/utils/cn";
+
 import { Button } from "@/src/components/ui/Button";
 import { Skeleton } from "@/src/components/ui/Skeleton";
+import { VerifiedBadge } from "@/src/components/ui/VerifiedBadge";
+import { useLogout, useSession } from "@/src/features/auth/hooks/useSession";
+import { useQuota } from "@/src/features/landlord/hooks/useLandlord";
 import { PaymentSheet } from "@/src/features/payments/PaymentSheet";
 import type { PaymentType } from "@/src/lib/api/contracts/payment";
+import {
+  Building2,
+  Check,
+  Crown,
+  FileCheck2,
+  HelpCircle,
+  LogOut,
+  Mail,
+  Phone,
+  ShieldAlert,
+  Sparkles,
+  User as UserIcon,
+} from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 export function ProfileScreen() {
   const router = useRouter();
@@ -49,14 +51,43 @@ export function ProfileScreen() {
 
       {/* User Info Card */}
       <div className="flex flex-col gap-4 rounded-card border border-hairline bg-surface p-5 shadow-card">
-        <div className="flex items-center gap-3">
-          <span className="flex size-14 items-center justify-center rounded-full bg-primary-tint text-primary">
-            <UserIcon className="size-7" aria-hidden />
-          </span>
-          <div>
-            <p className="text-title font-bold text-ink">{user.fullName}</p>
-            <VerifiedBadge status={user.verificationStatus} />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="flex size-14 items-center justify-center rounded-full bg-primary-tint text-primary">
+              <UserIcon className="size-7" aria-hidden />
+            </span>
+            <div>
+              <p className="text-title font-bold text-ink">{user.fullName}</p>
+              <VerifiedBadge status={user.verificationStatus} />
+            </div>
           </div>
+
+          {/* Current Active Plan Badge for Landlords */}
+          {isLandlord && (
+            <div className="flex flex-col items-end gap-1">
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-pill px-3 py-1 text-caption font-bold shadow-xs",
+                  quota?.planType === "PREMIUM" && "bg-amber-500/15 text-amber-600 border border-amber-500/30",
+                  quota?.planType === "OWNER_PLUS" && "bg-primary-tint text-primary border border-primary/30",
+                  (quota?.planType === "FREE" || !quota?.planType) && "bg-background text-muted border border-hairline",
+                )}
+              >
+                {quota?.planType === "PREMIUM" && <Crown className="size-3.5" />}
+                {quota?.planType === "OWNER_PLUS" && <Sparkles className="size-3.5" />}
+                {quota?.planType === "PREMIUM"
+                  ? "الخطة الـ Premium"
+                  : quota?.planType === "OWNER_PLUS"
+                  ? "خطة Plus"
+                  : "الخطة المجانية"}
+              </span>
+              {quota?.planExpiresAt && (
+                <span className="text-[10px] text-muted font-medium">
+                  تجدد في {new Date(quota.planExpiresAt).toLocaleDateString("ar-EG")}
+                </span>
+              )}
+            </div>
+          )}
         </div>
         <div className="flex flex-col gap-2 border-t border-hairline pt-3 text-small text-body-text">
           <p className="flex items-center gap-2">
@@ -117,56 +148,78 @@ export function ProfileScreen() {
             </div>
           )}
 
-          {/* Current Quotas Cards */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div className="flex flex-col gap-1 rounded-card border border-hairline bg-surface p-4 shadow-xs">
-              <div className="flex items-center gap-2 text-muted text-caption font-semibold">
-                <Building2 className="size-4 text-primary" />
-                الوحدات النشطة
+          {/* Current Quotas Cards with Progress Bars */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            {/* Active Listings Progress Bar */}
+            <div className="flex flex-col gap-2 rounded-card border border-hairline bg-surface p-4 shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-caption font-semibold text-muted">
+                  <Building2 className="size-4 text-primary" />
+                  الوحدات العقارية  
+                </span>
+                <span className="text-caption font-bold text-ink">
+                  {quota?.activeUnitCount ?? 0} / {quota?.maxActiveListings ?? 1}
+                </span>
               </div>
-              {isQuotaLoading ? (
-                <Skeleton className="h-7 w-12" />
-              ) : (
-                <p className="text-title font-bold text-ink">
-                  {quota?.activeUnitCount ?? 0}
-                  <span className="text-caption font-normal text-muted">
-                    {" "}
-                    من {quota?.maxActiveListings ?? 1}
-                  </span>
-                </p>
-              )}
+              <div className="h-2.5 w-full rounded-pill bg-hairline overflow-hidden">
+                <div
+                  className="h-full bg-primary transition-all duration-500"
+                  style={{
+                    width: `${Math.min(100, (((quota?.activeUnitCount ?? 0) / (quota?.maxActiveListings ?? 1)) * 100))}%`,
+                  }}
+                />
+              </div>
+              <span className="text-[11px] text-muted">
+                الحد الأقصى المسموح به في خطتك الحالية
+              </span>
             </div>
 
-            <div className="flex flex-col gap-1 rounded-card border border-hairline bg-surface p-4 shadow-xs">
-              <div className="flex items-center gap-2 text-muted text-caption font-semibold">
-                <FileCheck2 className="size-4 text-trust-blue" />
-                العروض المباشرة
+            {/* Direct Tenant Offers Progress Bar */}
+            <div className="flex flex-col gap-2 rounded-card border border-hairline bg-surface p-4 shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-caption font-semibold text-muted">
+                  <FileCheck2 className="size-4 text-trust-blue" />
+                  عروض الإيجار للمستأجرين
+                </span>
+                <span className="text-caption font-bold text-ink">
+                  {quota?.freeOffersLeft ?? 0} المتبقي
+                </span>
               </div>
-              {isQuotaLoading ? (
-                <Skeleton className="h-7 w-12" />
-              ) : (
-                <p className="text-title font-bold text-ink">
-                  {quota?.offersUnlimited ? "غير محدودة" : (quota?.freeOffersLeft ?? 3)}
-                  {!quota?.offersUnlimited && (
-                    <span className="text-caption font-normal text-muted"> عرض متبقٍ</span>
-                  )}
-                </p>
-              )}
+              <div className="h-2.5 w-full rounded-pill bg-hairline overflow-hidden">
+                <div
+                  className="h-full bg-trust-blue transition-all duration-500"
+                  style={{
+                    width: `${Math.min(100, (((quota?.freeOffersLeft ?? 0) / (quota?.planType === "PREMIUM" ? 50 : quota?.planType === "OWNER_PLUS" ? 10 : 3)) * 100))}%`,
+                  }}
+                />
+              </div>
+              <span className="text-[11px] text-muted">
+                تُرحّل الاستخدامات غير المستهلكة للشهر القادم
+              </span>
             </div>
 
-            <div className="flex flex-col gap-1 rounded-card border border-hairline bg-surface p-4 shadow-xs">
-              <div className="flex items-center gap-2 text-muted text-caption font-semibold">
-                <Sparkles className="size-4 text-accent" />
-                محسن الوصف بالذكاء
+            {/* AI Optimizer Progress Bar */}
+            <div className="flex flex-col gap-2 rounded-card border border-hairline bg-surface p-4 shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-caption font-semibold text-muted">
+                  <Sparkles className="size-4 text-accent" />
+                  محسن الوصف الذكي
+                </span>
+                <span className="text-caption font-bold text-ink">
+                  {quota?.optimizerUsesLeft ?? 0} المتبقي
+                </span>
               </div>
-              {isQuotaLoading ? (
-                <Skeleton className="h-7 w-12" />
-              ) : (
-                <p className="text-title font-bold text-ink">
-                  {quota?.optimizerUsesLeft ?? 0}{" "}
-                  <span className="text-caption font-normal text-muted">استخدام</span>
-                </p>
-              )}
+              <div className="h-2.5 w-full rounded-pill bg-hairline overflow-hidden">
+                <div
+                  className="h-full bg-accent transition-all duration-500"
+                  style={{
+                    width: `${Math.min(100, (((quota?.optimizerUsesLeft ?? 0) / (quota?.planType === "PREMIUM" ? 20 : quota?.planType === "OWNER_PLUS" ? 10 : 3)) * 100))}%`,
+                  }}
+                />
+              </div>
+              <span className="text-[11px] text-muted">
+                تُرحّل الاستخدامات غير المستهلكة للشهر القادم
+              </span>
             </div>
           </div>
 
@@ -174,12 +227,12 @@ export function ProfileScreen() {
           <div className="flex flex-col gap-3">
             <h3 className="text-title font-bold text-ink">خطط اشتراك المالك المتاحة</h3>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               {/* Free Owner Plan */}
               <div className="flex flex-col justify-between rounded-card border border-hairline bg-surface p-4 shadow-xs">
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-body font-bold text-ink">المالك المجاني</span>
+                    <span className="text-body font-bold text-ink">الخطة المجانية</span>
                     <span className="rounded-pill bg-background px-2 py-0.5 text-caption font-semibold text-muted">
                       مجاناً
                     </span>
@@ -189,15 +242,16 @@ export function ProfileScreen() {
                   </p>
                   <ul className="flex flex-col gap-2 text-caption text-body-text mb-4">
                     <li className="flex items-center gap-1.5">
-                      <Check className="size-3.5 text-success shrink-0" /> وحدة عقارية نشطة واحدة
+                      <Check className="size-3.5 text-success shrink-0" /> وحدة عقارية نشطة واحدة (1)
                     </li>
                     <li className="flex items-center gap-1.5">
-                      <Check className="size-3.5 text-success shrink-0" /> 3 عروض مباشرة على طلبات
-                      المستأجرين
+                      <Check className="size-3.5 text-success shrink-0" /> 3 عروض إيجار مباشرة شهرياً
                     </li>
                     <li className="flex items-center gap-1.5">
-                      <Check className="size-3.5 text-success shrink-0" /> المطابقة الأساسية
-                      وتحليلات محدودة
+                      <Check className="size-3.5 text-success shrink-0" /> 3 استخدامات محسن الذكاء الاصطناعي
+                    </li>
+                    <li className="flex items-center gap-1.5">
+                      <Check className="size-3.5 text-success shrink-0" /> إنشاء وتصدير عقود PDF مجاناً
                     </li>
                   </ul>
                 </div>
@@ -208,11 +262,52 @@ export function ProfileScreen() {
                 )}
               </div>
 
+              {/* Owner Plus Plan */}
+              <div className="flex flex-col justify-between rounded-card border-2 border-primary bg-primary-tint/20 p-4 shadow-xs relative">
+                <span className="absolute -top-3 right-4 rounded-pill bg-primary px-2.5 py-0.5 text-[11px] font-bold text-white">
+                  الأكثر إقبالاً
+                </span>
+                <div>
+                  <div className="flex items-center justify-between mb-2 mt-1">
+                    <span className="text-body font-bold text-primary">خطة Plus</span>
+                  </div>
+                  <p className="text-h2 font-extrabold text-ink mb-3">
+                    499 <span className="text-caption font-normal text-muted">ج.م / شهرياً</span>
+                  </p>
+                  <ul className="flex flex-col gap-2 text-caption text-body-text mb-4">
+                    <li className="flex items-center gap-1.5">
+                      <Check className="size-3.5 text-primary shrink-0" /> حتى 3 وحدات عقارية نشطة
+                    </li>
+                    <li className="flex items-center gap-1.5">
+                      <Check className="size-3.5 text-primary shrink-0" /> 10 عروض إيجار مباشرة للمستأجرين
+                    </li>
+                    <li className="flex items-center gap-1.5">
+                      <Check className="size-3.5 text-primary shrink-0" /> 10 استخدامات محسن الذكاء الاصطناعي
+                    </li>
+                    <li className="flex items-center gap-1.5">
+                      <Check className="size-3.5 text-primary shrink-0" /> تنبيهات أولوية للطلبات المناسبة
+                    </li>
+                  </ul>
+                </div>
+                {quota?.planType === "OWNER_PLUS" ? (
+                  <span className="rounded-card bg-primary-tint py-2 text-center text-caption font-bold text-primary">
+                    الخطة الحالية
+                  </span>
+                ) : (
+                  <Button
+                    size="sm"
+                    onClick={() => setActivePaymentType("OWNER_PLUS")}
+                  >
+                    اشترك مقابل 499 ج.م شهرياً
+                  </Button>
+                )}
+              </div>
+
               {/* Premium Owner Plan */}
               <div className="flex flex-col justify-between rounded-card border border-hairline bg-surface p-4 shadow-xs">
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-body font-bold text-ink">المالك المميز</span>
+                    <span className="text-body font-bold text-ink">الخطة الـ Premium</span>
                   </div>
                   <p className="text-h2 font-extrabold text-ink mb-3">
                     999 <span className="text-caption font-normal text-muted">ج.م / شهرياً</span>
@@ -222,12 +317,13 @@ export function ProfileScreen() {
                       <Check className="size-3.5 text-success shrink-0" /> حتى 5 وحدات عقارية نشطة
                     </li>
                     <li className="flex items-center gap-1.5">
-                      <Check className="size-3.5 text-success shrink-0" /> عروض مباشرة غير محدودة
-                      على طلبات المستأجرين
+                      <Check className="size-3.5 text-success shrink-0" /> 50 عرض إيجار مباشر للمستأجرين
                     </li>
                     <li className="flex items-center gap-1.5">
-                      <Check className="size-3.5 text-success shrink-0" /> 5 استخدامات ذكاء اصطناعي
-                      مشمولة
+                      <Check className="size-3.5 text-success shrink-0" /> 20 استخدام محسن الذكاء الاصطناعي
+                    </li>
+                    <li className="flex items-center gap-1.5">
+                      <Check className="size-3.5 text-success shrink-0" /> تحليلات متقدمة وجدولة المعاينات
                     </li>
                   </ul>
                 </div>
@@ -244,43 +340,6 @@ export function ProfileScreen() {
                     اشترك مقابل 999 ج.م شهرياً
                   </Button>
                 )}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-3">
-            <h3 className="text-title font-bold text-ink">خدمات اختيارية</h3>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="flex flex-col justify-between gap-4 rounded-card border border-hairline bg-surface p-4">
-                <div>
-                  <p className="font-bold text-ink">حزمة الذكاء الاصطناعي</p>
-                  <p className="mt-1 text-small text-muted">
-                    استخدام واحد لمهمة محددة مثل تحسين وصف العقار أو اكتشاف البيانات الناقصة.
-                  </p>
-                </div>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => setActivePaymentType("AI_ADDON")}
-                >
-                  شراء استخدام مقابل 199 ج.م
-                </Button>
-              </div>
-              <div className="flex flex-col justify-between gap-4 rounded-card border border-hairline bg-surface p-4">
-                <div>
-                  <p className="font-bold text-ink">حزمة تنظيم المستندات</p>
-                  <p className="mt-1 text-small text-muted">
-                    قوائم مراجعة وقوالب قابلة للتعديل وتنظيم للمستندات وتصدير PDF. دعم إداري وليس
-                    استشارة قانونية.
-                  </p>
-                </div>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => setActivePaymentType("DOCS_PACK")}
-                >
-                  شراء الحزمة مقابل 299 ج.م
-                </Button>
               </div>
             </div>
           </div>
