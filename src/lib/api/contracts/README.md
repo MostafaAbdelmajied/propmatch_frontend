@@ -32,3 +32,6 @@ Rules:
   client never hides PII it already holds — see `docs/analysis/rbac.md`.
 - Every endpoint the app calls must have a matching handler in
   `src/mocks/router.ts` so frontend work and tests never block on the backend.
+- `tenantRequest.ts` also defines the optional, non-persistent extraction DTOs
+  used through `/api/backend/tenant/requests/extract`; only the normal tenant
+  request create contract saves data.
