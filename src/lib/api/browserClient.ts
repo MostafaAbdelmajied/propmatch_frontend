@@ -70,7 +70,7 @@ export function isApiClientError(e: unknown): e is ApiClientError {
 
 export type StreamChunk =
   | { type: "token"; value: string }
-  | { type: "done"; id: string; declined?: boolean };
+  | { type: "done"; id: string; declined?: boolean; escalated?: boolean };
 
 export interface StreamHandlers {
   onToken: (value: string) => void;
