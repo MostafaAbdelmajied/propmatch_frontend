@@ -16,8 +16,12 @@ import { useEffect, useRef, useState } from "react";
 type Phase = "form" | "creating_checkout" | "checkout" | "checking" | "success" | "error";
 
 const FALLBACK_AMOUNTS: Record<PaymentType, number> = {
+  PREMIUM_OWNER: 999,
+  OWNER_PLUS: 499,
+  BOOST_LISTING: 349,
+  AI_ADDON: 199,
+  DOCS_PACK: 299,
   NEW_LISTING: 100,
-  BOOST_LISTING: 75,
   REFILL_MATCHES: 30,
   OFFER_PACK: 50,
 };
