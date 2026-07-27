@@ -89,13 +89,9 @@ const quotaExhausted = (paymentType: PaymentType, priceEgp: number) =>
 
 const PRICES: Record<PaymentType, number> = {
   PREMIUM_OWNER: 999,
-  OWNER_PLUS: 499,
   BOOST_LISTING: 349,
   AI_ADDON: 199,
   DOCS_PACK: 299,
-  NEW_LISTING: 100,
-  REFILL_MATCHES: 30,
-  OFFER_PACK: 50,
 };
 
 /* ------------------------------ projections ------------------------------ */
@@ -383,9 +379,13 @@ export function dispatch(
       db.quotas.push({
         id: nextId("quota"),
         userId: u.id,
-        freeListingsLeft: 1,
-        optimizerUsesLeft: 3,
+        planType: "FREE",
+        planExpiresAt: null,
+        maxActiveListings: 1,
+        freeListingsLeft: 0,
+        optimizerUsesLeft: 0,
         freeOffersLeft: 3,
+        documentationPackCredits: 0,
         lastResetDate: null,
       });
     }
@@ -677,8 +677,22 @@ export function dispatch(
     if (user.role !== "landlord") return forbidden();
     if (!isVerified(user.id)) return needsVerification();
     const quota = quotaFor(user.id);
-    if (!quota || quota.freeListingsLeft <= 0)
-      return quotaExhausted("NEW_LISTING", PRICES.NEW_LISTING);
+    const premiumActive =
+      quota?.planType === "PREMIUM" &&
+      Boolean(quota.planExpiresAt && new Date(quota.planExpiresAt) > new Date());
+    const activeLimit = premiumActive ? 5 : 1;
+    const activeCount = db.properties.filter(
+      (property) =>
+        property.ownerId === user.id &&
+        (property.status === "PENDING" || property.status === "APPROVED"),
+    ).length;
+    if (!quota || activeCount >= activeLimit) {
+      return codedErr(403, "PLAN_LIMIT_REACHED", "وصلت إلى الحد الأقصى للوحدات النشطة في خطتك", {
+        trigger: "payment",
+        paymentType: "PREMIUM_OWNER",
+        priceEgp: PRICES.PREMIUM_OWNER,
+      });
+    }
 
     const b =
       body instanceof FormData
@@ -740,8 +754,6 @@ export function dispatch(
         isCover: i === 0,
       }),
     );
-    quota.freeListingsLeft -= 1;
-    quota.optimizerUsesLeft = 3;
     announceQueueItem(propertyQueueItem(property));
     return ok({ property: toDetail(property, user) });
   }
@@ -754,8 +766,7 @@ export function dispatch(
     if (!user) return unauth();
     if (user.role !== "landlord") return forbidden();
     const quota = quotaFor(user.id);
-    if (!quota || quota.optimizerUsesLeft <= 0)
-      return quotaExhausted("REFILL_MATCHES", PRICES.REFILL_MATCHES);
+    if (!quota || quota.optimizerUsesLeft <= 0) return quotaExhausted("AI_ADDON", PRICES.AI_ADDON);
     const b = body as { description: string };
     if (b.description.length > 2000) return err(400, "الوصف أطول من المسموح");
     quota.optimizerUsesLeft -= 1;
@@ -884,7 +895,12 @@ export function dispatch(
     if (user.role !== "landlord") return forbidden();
     if (!isVerified(user.id)) return needsVerification();
     const quota = quotaFor(user.id);
-    if (!quota || quota.freeOffersLeft <= 0) return quotaExhausted("OFFER_PACK", PRICES.OFFER_PACK);
+    const premiumActive =
+      quota?.planType === "PREMIUM" &&
+      Boolean(quota.planExpiresAt && new Date(quota.planExpiresAt) > new Date());
+    if (!premiumActive && (!quota || quota.freeOffersLeft <= 0)) {
+      return quotaExhausted("PREMIUM_OWNER", PRICES.PREMIUM_OWNER);
+    }
 
     const b = body as CreateOfferRequest;
     const request = db.tenantRequests.find(
@@ -909,7 +925,7 @@ export function dispatch(
       updatedAt: new Date().toISOString(),
     };
     db.offers.push(offer);
-    quota.freeOffersLeft -= 1;
+    if (!premiumActive) quota.freeOffersLeft -= 1;
     notify(
       request.tenantId,
       "NEW_OFFER_RECEIVED",
@@ -1032,6 +1048,21 @@ export function dispatch(
             freeListingsLeft: q.freeListingsLeft,
             optimizerUsesLeft: q.optimizerUsesLeft,
             freeOffersLeft: q.freeOffersLeft,
+            planType:
+              q.planType === "PREMIUM" && q.planExpiresAt && new Date(q.planExpiresAt) > new Date()
+                ? "PREMIUM"
+                : "FREE",
+            planExpiresAt: q.planExpiresAt,
+            maxActiveListings: q.planType === "PREMIUM" ? 5 : 1,
+            activeUnitCount: db.properties.filter(
+              (property) =>
+                property.ownerId === user.id &&
+                (property.status === "PENDING" || property.status === "APPROVED"),
+            ).length,
+            offersUnlimited:
+              q.planType === "PREMIUM" &&
+              Boolean(q.planExpiresAt && new Date(q.planExpiresAt) > new Date()),
+            documentationPackCredits: q.documentationPackCredits,
             lastResetDate: q.lastResetDate,
           }
         : null,

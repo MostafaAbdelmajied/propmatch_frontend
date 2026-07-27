@@ -16,8 +16,7 @@ import type { MockResponse } from "./router";
  */
 
 export type StreamChunk =
-  | { type: "token"; value: string }
-  | { type: "done"; id: string; declined?: boolean };
+  { type: "token"; value: string } | { type: "done"; id: string; declined?: boolean };
 
 export interface StreamRoute {
   /** Set when a gate rejected the request — send this as JSON instead. */
@@ -82,20 +81,20 @@ export function dispatchStream(
     if (!user) return { error: err(401, "غير مصرح") };
     if (user.role !== "landlord") return { error: err(403, "غير مسموح") };
 
+    const { description } = (body ?? {}) as { description?: string };
+    if (!description?.trim()) return { error: err(400, "الوصف مطلوب") };
+    if (description.length > 2000) return { error: err(400, "الوصف أطول من المسموح") };
+
     const quota = quotaFor(user.id);
     if (!quota || quota.optimizerUsesLeft <= 0) {
       return {
         error: codedErr(403, "QUOTA_EXHAUSTED", "انتهت محاولاتك المجانية", {
           trigger: "payment",
-          paymentType: "REFILL_MATCHES",
-          priceEgp: 30,
+          paymentType: "AI_ADDON",
+          priceEgp: 199,
         }),
       };
     }
-
-    const { description } = (body ?? {}) as { description?: string };
-    if (!description?.trim()) return { error: err(400, "الوصف مطلوب") };
-    if (description.length > 2000) return { error: err(400, "الوصف أطول من المسموح") };
 
     // Spent up-front, matching the buffered endpoint. A user who disconnects
     // mid-stream still consumed the generation.

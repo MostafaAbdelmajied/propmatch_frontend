@@ -25,8 +25,8 @@ export interface SendOfferSheetProps {
 
 /**
  * PRO-13 — the landlord pitches one of their APPROVED properties against a
- * tenant request. Costs one `free_offers_left`; the backend rejects with
- * QUOTA_EXHAUSTED once spent, which opens the OFFER_PACK paywall (PRO-18).
+ * tenant request. For a Free Owner this consumes one of three free direct
+ * offers. Premium owners can initiate offers without a quota.
  */
 export function SendOfferSheet({ request, onClose }: SendOfferSheetProps) {
   const router = useRouter();
@@ -72,7 +72,12 @@ export function SendOfferSheet({ request, onClose }: SendOfferSheetProps) {
     setErrors({});
     send.mutate(parsed.data, {
       onSuccess: (res) => {
-        toast("success", `تم إرسال عرضك — المتبقي: ${res.freeOffersLeft}`);
+        toast(
+          "success",
+          quota.data?.offersUnlimited
+            ? "تم إرسال عرضك"
+            : `تم إرسال عرضك — المتبقي: ${res.freeOffersLeft}`,
+        );
         reset();
       },
       onError: (e) => {
@@ -80,7 +85,7 @@ export function SendOfferSheet({ request, onClose }: SendOfferSheetProps) {
           toast("info", "وثّق هويتك أولًا لإرسال العروض");
           router.push("/landlord/verify");
         } else if (e.code === "QUOTA_EXHAUSTED") {
-          setPaywall(e.paymentType ?? "OFFER_PACK");
+          setPaywall("PREMIUM_OWNER");
         } else {
           toast("error", e.message);
         }
@@ -90,7 +95,12 @@ export function SendOfferSheet({ request, onClose }: SendOfferSheetProps) {
 
   return (
     <>
-      <Sheet open={request !== null} onClose={reset} title="إرسال عرض" dismissible={!send.isPending}>
+      <Sheet
+        open={request !== null}
+        onClose={reset}
+        title="إرسال عرض"
+        dismissible={!send.isPending}
+      >
         {request && (
           <div className="flex flex-col gap-4">
             <div className="rounded-control bg-primary-tint px-4 py-3">
@@ -107,7 +117,9 @@ export function SendOfferSheet({ request, onClose }: SendOfferSheetProps) {
                 title="لا يوجد عقار معتمد"
                 description="تحتاج عقارًا واحدًا على الأقل تمت الموافقة عليه قبل إرسال العروض."
                 action={
-                  <Button onClick={() => router.push("/landlord/properties/new")}>أضف عقارًا</Button>
+                  <Button onClick={() => router.push("/landlord/properties/new")}>
+                    أضف عقارًا
+                  </Button>
                 }
               />
             ) : (
@@ -144,8 +156,17 @@ export function SendOfferSheet({ request, onClose }: SendOfferSheetProps) {
                   onChange={(e) => setPitchMessage(e.target.value)}
                   error={errors.pitchMessage}
                 />
-                {quota.data && (
-                  <QuotaChip remaining={quota.data.freeOffersLeft} label="عروض مجانية متبقية" className="self-start" />
+                {quota.data && !quota.data.offersUnlimited && (
+                  <QuotaChip
+                    remaining={quota.data.freeOffersLeft}
+                    label="عروض مباشرة مجانية متبقية"
+                    className="self-start"
+                  />
+                )}
+                {quota.data?.offersUnlimited && (
+                  <span className="self-start rounded-pill bg-success-tint px-3 py-1 text-caption font-bold text-success">
+                    عروض مباشرة غير محدودة ضمن الخطة المميزة
+                  </span>
                 )}
                 <Button size="lg" block onClick={submit} loading={send.isPending}>
                   <Send className="size-4" aria-hidden />
@@ -160,10 +181,10 @@ export function SendOfferSheet({ request, onClose }: SendOfferSheetProps) {
       <PaymentSheet
         open={paywall !== null}
         onClose={() => setPaywall(null)}
-        paymentType={paywall ?? "OFFER_PACK"}
+        paymentType={paywall ?? "PREMIUM_OWNER"}
         onActivated={() => {
           setPaywall(null);
-          toast("success", "تم تحديث رصيدك — أرسل عرضك الآن");
+          toast("success", "تم تفعيل الخطة المميزة — أرسل عرضك الآن");
           quota.refetch();
         }}
       />

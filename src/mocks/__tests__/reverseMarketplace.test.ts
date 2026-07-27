@@ -79,7 +79,9 @@ describe("gates on posting a tenant request", () => {
     expect((res.body as { status: string }).status).toBe("PENDING");
 
     // Unapproved requests must not reach landlords.
-    const browsable = call("GET", "/landlord/requests", landlord()).body as { items: { id: string }[] };
+    const browsable = call("GET", "/landlord/requests", landlord()).body as {
+      items: { id: string }[];
+    };
     const id = (res.body as { id: string }).id;
     expect(browsable.items.map((r) => r.id)).not.toContain(id);
   });
@@ -88,8 +90,12 @@ describe("gates on posting a tenant request", () => {
 describe("full flow: request → approval → offer → accept → reveal", () => {
   it("reveals the owner's contact only after the tenant accepts, and connects the match", () => {
     // 1. Tenant posts a request; admin approves it (anti-spam, SRS 3.2.2).
-    const created = call("POST", "/tenant/requests", tenant2(), validRequest()).body as { id: string };
-    const approved = call("POST", `/admin/requests/${created.id}/review`, admin(), { decision: "approve" });
+    const created = call("POST", "/tenant/requests", tenant2(), validRequest()).body as {
+      id: string;
+    };
+    const approved = call("POST", `/admin/requests/${created.id}/review`, admin(), {
+      decision: "approve",
+    });
     expect(approved.status).toBe(200);
 
     // 2. The landlord now sees it, scored against their own properties.
@@ -118,7 +124,11 @@ describe("full flow: request → approval → offer → accept → reveal", () =
     // 4. The tenant accepts → contact revealed + MATCH_CONNECTION CONNECTED.
     const accept = call("POST", `/tenant/offers/${offerId}/accept`, tenant2());
     expect(accept.status).toBe(200);
-    const revealed = accept.body as { ownerPhoneNumber: string; ownerName: string; manualAddress: string };
+    const revealed = accept.body as {
+      ownerPhoneNumber: string;
+      ownerName: string;
+      manualAddress: string;
+    };
     expect(revealed.ownerPhoneNumber).toBe("01055556666");
     expect(revealed.ownerName).toBe("محمد السيد");
     expect(revealed.manualAddress).toEqual(expect.any(String));
@@ -128,15 +138,22 @@ describe("full flow: request → approval → offer → accept → reveal", () =
     expect(after.contactRevealed).toBe(true);
     expect(after.ownerPhoneNumber).toBe("01055556666");
 
-    const connection = call("GET", "/properties/prop_1/connection", tenant2()).body as { status: string };
+    const connection = call("GET", "/properties/prop_1/connection", tenant2()).body as {
+      status: string;
+    };
     expect(connection.status).toBe("CONNECTED");
 
     // ...and accepting fulfils the request so it stops drawing offers.
-    const mine = call("GET", "/tenant/requests", tenant2()).body as { items: { id: string; status: string }[] };
+    const mine = call("GET", "/tenant/requests", tenant2()).body as {
+      items: { id: string; status: string }[];
+    };
     expect(mine.items.find((r) => r.id === created.id)!.status).toBe("FULFILLED");
 
     // 6. Crucially, the reveal is per-connection — an unrelated tenant sees nothing.
-    const other = call("GET", "/properties/prop_1", auth("tenant@example.com")).body as Record<string, unknown>;
+    const other = call("GET", "/properties/prop_1", auth("tenant@example.com")).body as Record<
+      string,
+      unknown
+    >;
     expect(other.contactRevealed).toBe(false);
     expect(other.ownerPhoneNumber).toBeNull();
   });
@@ -153,7 +170,11 @@ describe("full flow: request → approval → offer → accept → reveal", () =
     const second = makeApprovedRequest();
     const paywalled = call("POST", "/landlord/offers", landlord(), offerFor(second));
     expect(paywalled.status).toBe(403);
-    expect(paywalled.body).toMatchObject({ code: "QUOTA_EXHAUSTED", paymentType: "OFFER_PACK", trigger: "payment" });
+    expect(paywalled.body).toMatchObject({
+      code: "QUOTA_EXHAUSTED",
+      paymentType: "PREMIUM_OWNER",
+      trigger: "payment",
+    });
   });
 });
 
@@ -185,7 +206,9 @@ function validRequest() {
 
 /** A fresh APPROVED request the landlord hasn't offered on yet. */
 function makeApprovedRequest(): string {
-  const created = call("POST", "/tenant/requests", tenant2(), validRequest()).body as { id: string };
+  const created = call("POST", "/tenant/requests", tenant2(), validRequest()).body as {
+    id: string;
+  };
   call("POST", `/admin/requests/${created.id}/review`, admin(), { decision: "approve" });
   return created.id;
 }

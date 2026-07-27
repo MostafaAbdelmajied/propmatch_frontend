@@ -27,7 +27,8 @@ import type { PaymentType } from "@/src/lib/api/contracts/payment";
 export function ProfileScreen() {
   const router = useRouter();
   const { data: user, isLoading } = useSession();
-  const { data: quota, isLoading: isQuotaLoading } = useQuota();
+  const quotaQuery = useQuota();
+  const { data: quota, isLoading: isQuotaLoading } = quotaQuery;
   const logout = useLogout();
 
   const [activePaymentType, setActivePaymentType] = useState<PaymentType | null>(null);
@@ -71,9 +72,14 @@ export function ProfileScreen() {
 
       {/* Verification CTA */}
       {user.verificationStatus !== "APPROVED" && user.role !== "admin" && (
-        <Link href="/verify" className="flex items-center gap-3 rounded-card border border-pending/30 bg-pending-tint px-4 py-3 hover:bg-pending-tint/80 transition-colors">
+        <Link
+          href="/verify"
+          className="flex items-center gap-3 rounded-card border border-pending/30 bg-pending-tint px-4 py-3 hover:bg-pending-tint/80 transition-colors"
+        >
           <ShieldAlert className="size-5 text-pending" aria-hidden />
-          <span className="flex-1 text-small font-semibold text-pending">وثّق حسابك لتفعيل كل المزايا</span>
+          <span className="flex-1 text-small font-semibold text-pending">
+            وثّق حسابك لتفعيل كل المزايا
+          </span>
           <span className="text-small text-pending">←</span>
         </Link>
       )}
@@ -99,10 +105,14 @@ export function ProfileScreen() {
           {/* Explanation Banner for Offers */}
           {showOfferInfo && (
             <div className="rounded-card border border-trust-blue/30 bg-trust-blue-tint p-4 text-small text-ink">
-              <p className="font-bold text-trust-blue mb-1">💡 ما هي عروض الإيجار (Offers)؟</p>
+              <p className="mb-1 flex items-center gap-1.5 font-bold text-trust-blue">
+                <HelpCircle className="size-4" aria-hidden />
+                ما هي العروض المباشرة؟
+              </p>
               <p className="leading-relaxed">
-                عروض الإيجار هي مقترحات رسمية يرسلها المالك مباشرة للمستأجرين الذين ينشرون طلباً للبحث عن سكن.
-                يتضمن العرض العقار المقترح، قيمة الإيجار الشهري، مبلغ التأمين، وتاريخ بدء العقد.
+                العرض المباشر هو عرض يرسله المالك إلى مستأجر على طلبه المنشور، ويشمل العقار المقترح
+                والسعر والرسالة. يحصل المالك المجاني على 3 عروض مباشرة، وتصبح غير محدودة في الخطة
+                المميزة.
               </p>
             </div>
           )}
@@ -112,13 +122,17 @@ export function ProfileScreen() {
             <div className="flex flex-col gap-1 rounded-card border border-hairline bg-surface p-4 shadow-xs">
               <div className="flex items-center gap-2 text-muted text-caption font-semibold">
                 <Building2 className="size-4 text-primary" />
-                الوحدات المتاحة
+                الوحدات النشطة
               </div>
               {isQuotaLoading ? (
                 <Skeleton className="h-7 w-12" />
               ) : (
                 <p className="text-title font-bold text-ink">
-                  {quota?.freeListingsLeft ?? 1} <span className="text-caption font-normal text-muted">وحدة</span>
+                  {quota?.activeUnitCount ?? 0}
+                  <span className="text-caption font-normal text-muted">
+                    {" "}
+                    من {quota?.maxActiveListings ?? 1}
+                  </span>
                 </p>
               )}
             </div>
@@ -126,13 +140,16 @@ export function ProfileScreen() {
             <div className="flex flex-col gap-1 rounded-card border border-hairline bg-surface p-4 shadow-xs">
               <div className="flex items-center gap-2 text-muted text-caption font-semibold">
                 <FileCheck2 className="size-4 text-trust-blue" />
-                عروض الإيجار
+                العروض المباشرة
               </div>
               {isQuotaLoading ? (
                 <Skeleton className="h-7 w-12" />
               ) : (
                 <p className="text-title font-bold text-ink">
-                  {quota?.freeOffersLeft ?? 3} <span className="text-caption font-normal text-muted">عرض</span>
+                  {quota?.offersUnlimited ? "غير محدودة" : (quota?.freeOffersLeft ?? 3)}
+                  {!quota?.offersUnlimited && (
+                    <span className="text-caption font-normal text-muted"> عرض متبقٍ</span>
+                  )}
                 </p>
               )}
             </div>
@@ -146,7 +163,8 @@ export function ProfileScreen() {
                 <Skeleton className="h-7 w-12" />
               ) : (
                 <p className="text-title font-bold text-ink">
-                  {quota?.optimizerUsesLeft ?? 3} <span className="text-caption font-normal text-muted">استخدام</span>
+                  {quota?.optimizerUsesLeft ?? 0}{" "}
+                  <span className="text-caption font-normal text-muted">استخدام</span>
                 </p>
               )}
             </div>
@@ -155,61 +173,113 @@ export function ProfileScreen() {
           {/* Subscription Plans Section */}
           <div className="flex flex-col gap-3">
             <h3 className="text-title font-bold text-ink">خطط اشتراك المالك المتاحة</h3>
-            
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               {/* Free Owner Plan */}
               <div className="flex flex-col justify-between rounded-card border border-hairline bg-surface p-4 shadow-xs">
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-body font-bold text-ink">المؤجر المجاني</span>
-                    <span className="rounded-pill bg-background px-2 py-0.5 text-caption font-semibold text-muted">مجاناً</span>
+                    <span className="text-body font-bold text-ink">المالك المجاني</span>
+                    <span className="rounded-pill bg-background px-2 py-0.5 text-caption font-semibold text-muted">
+                      مجاناً
+                    </span>
                   </div>
-                  <p className="text-h2 font-extrabold text-ink mb-3">0 <span className="text-caption font-normal text-muted">ج.م / شهرياً</span></p>
+                  <p className="text-h2 font-extrabold text-ink mb-3">
+                    0 <span className="text-caption font-normal text-muted">ج.م / شهرياً</span>
+                  </p>
                   <ul className="flex flex-col gap-2 text-caption text-body-text mb-4">
-                    <li className="flex items-center gap-1.5"><Check className="size-3.5 text-success shrink-0" /> وحدة عقارية نشطة واحدة</li>
-                    <li className="flex items-center gap-1.5"><Check className="size-3.5 text-success shrink-0" /> 3 عروض إيجار للمستأجرين</li>
-                    <li className="flex items-center gap-1.5"><Check className="size-3.5 text-success shrink-0" /> 3 تحسينات وصف بالذكاء الاصطناعي</li>
+                    <li className="flex items-center gap-1.5">
+                      <Check className="size-3.5 text-success shrink-0" /> وحدة عقارية نشطة واحدة
+                    </li>
+                    <li className="flex items-center gap-1.5">
+                      <Check className="size-3.5 text-success shrink-0" /> 3 عروض مباشرة على طلبات
+                      المستأجرين
+                    </li>
+                    <li className="flex items-center gap-1.5">
+                      <Check className="size-3.5 text-success shrink-0" /> المطابقة الأساسية
+                      وتحليلات محدودة
+                    </li>
                   </ul>
                 </div>
-                <span className="text-center rounded-card bg-background py-2 text-caption font-bold text-muted">الخطة الحالية</span>
-              </div>
-
-              {/* Owner Plus Plan */}
-              <div className="relative flex flex-col justify-between rounded-card border-2 border-primary bg-primary-tint/20 p-4 shadow-sm">
-                <span className="absolute -top-3 start-4 rounded-pill bg-primary px-2.5 py-0.5 text-caption font-bold text-white shadow-xs">الأكثر شعبية</span>
-                <div>
-                  <div className="flex items-center justify-between mb-2 mt-1">
-                    <span className="text-body font-bold text-primary">مالك بلس (Owner Plus)</span>
-                  </div>
-                  <p className="text-h2 font-extrabold text-ink mb-3">499 <span className="text-caption font-normal text-muted">ج.م / شهرياً</span></p>
-                  <ul className="flex flex-col gap-2 text-caption text-body-text mb-4">
-                    <li className="flex items-center gap-1.5"><Check className="size-3.5 text-primary shrink-0" /> حتى 3 وحدات عقارية نشطة</li>
-                    <li className="flex items-center gap-1.5"><Check className="size-3.5 text-primary shrink-0" /> 10 عروض إيجار للمستأجرين</li>
-                    <li className="flex items-center gap-1.5"><Check className="size-3.5 text-primary shrink-0" /> 10 تحسينات وصف بالذكاء الاصطناعي</li>
-                    <li className="flex items-center gap-1.5"><Check className="size-3.5 text-primary shrink-0" /> تنبيهات أولوية للطلبات المناسبة</li>
-                  </ul>
-                </div>
-                <Button size="sm" onClick={() => setActivePaymentType("OWNER_PLUS")}>
-                  اشترك الآن (499 ج.م)
-                </Button>
+                {quota?.planType === "FREE" && (
+                  <span className="rounded-card bg-background py-2 text-center text-caption font-bold text-muted">
+                    الخطة الحالية
+                  </span>
+                )}
               </div>
 
               {/* Premium Owner Plan */}
               <div className="flex flex-col justify-between rounded-card border border-hairline bg-surface p-4 shadow-xs">
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-body font-bold text-ink">مالك بريميوم (Premium)</span>
+                    <span className="text-body font-bold text-ink">المالك المميز</span>
                   </div>
-                  <p className="text-h2 font-extrabold text-ink mb-3">999 <span className="text-caption font-normal text-muted">ج.م / شهرياً</span></p>
+                  <p className="text-h2 font-extrabold text-ink mb-3">
+                    999 <span className="text-caption font-normal text-muted">ج.م / شهرياً</span>
+                  </p>
                   <ul className="flex flex-col gap-2 text-caption text-body-text mb-4">
-                    <li className="flex items-center gap-1.5"><Check className="size-3.5 text-success shrink-0" /> حتى 5 وحدات عقارية نشطة</li>
-                    <li className="flex items-center gap-1.5"><Check className="size-3.5 text-success shrink-0" /> عروض إيجار وتواصل غير محدود</li>
-                    <li className="flex items-center gap-1.5"><Check className="size-3.5 text-success shrink-0" /> حزمة ذكاء اصطناعي احترافية</li>
-                    <li className="flex items-center gap-1.5"><Check className="size-3.5 text-success shrink-0" /> تحليلات المزايدة وجدولة المعاينات</li>
+                    <li className="flex items-center gap-1.5">
+                      <Check className="size-3.5 text-success shrink-0" /> حتى 5 وحدات عقارية نشطة
+                    </li>
+                    <li className="flex items-center gap-1.5">
+                      <Check className="size-3.5 text-success shrink-0" /> عروض مباشرة غير محدودة
+                      على طلبات المستأجرين
+                    </li>
+                    <li className="flex items-center gap-1.5">
+                      <Check className="size-3.5 text-success shrink-0" /> 5 استخدامات ذكاء اصطناعي
+                      مشمولة
+                    </li>
                   </ul>
                 </div>
-                <Button variant="secondary" size="sm" onClick={() => setActivePaymentType("PREMIUM_OWNER")}>
-                  اشترك بريميوم (999 ج.م)
+                {quota?.planType === "PREMIUM" ? (
+                  <span className="rounded-card bg-success-tint py-2 text-center text-caption font-bold text-success">
+                    الخطة الحالية
+                  </span>
+                ) : (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setActivePaymentType("PREMIUM_OWNER")}
+                  >
+                    اشترك مقابل 999 ج.م شهرياً
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <h3 className="text-title font-bold text-ink">خدمات اختيارية</h3>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="flex flex-col justify-between gap-4 rounded-card border border-hairline bg-surface p-4">
+                <div>
+                  <p className="font-bold text-ink">حزمة الذكاء الاصطناعي</p>
+                  <p className="mt-1 text-small text-muted">
+                    استخدام واحد لمهمة محددة مثل تحسين وصف العقار أو اكتشاف البيانات الناقصة.
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setActivePaymentType("AI_ADDON")}
+                >
+                  شراء استخدام مقابل 199 ج.م
+                </Button>
+              </div>
+              <div className="flex flex-col justify-between gap-4 rounded-card border border-hairline bg-surface p-4">
+                <div>
+                  <p className="font-bold text-ink">حزمة تنظيم المستندات</p>
+                  <p className="mt-1 text-small text-muted">
+                    قوائم مراجعة وقوالب قابلة للتعديل وتنظيم للمستندات وتصدير PDF. دعم إداري وليس
+                    استشارة قانونية.
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setActivePaymentType("DOCS_PACK")}
+                >
+                  شراء الحزمة مقابل 299 ج.م
                 </Button>
               </div>
             </div>
@@ -228,6 +298,10 @@ export function ProfileScreen() {
           paymentType={activePaymentType}
           open={!!activePaymentType}
           onClose={() => setActivePaymentType(null)}
+          onActivated={() => {
+            setActivePaymentType(null);
+            quotaQuery.refetch();
+          }}
         />
       )}
     </div>

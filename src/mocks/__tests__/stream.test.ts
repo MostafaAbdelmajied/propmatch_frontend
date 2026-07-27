@@ -45,7 +45,9 @@ describe("route matching", () => {
 
 describe("legal chatbot stream (PRO-17)", () => {
   it("streams an on-topic answer in pieces that rebuild it exactly", async () => {
-    const route = dispatchStream("POST", "/legal-chat/stream", tenant(), { message: "ما هي مدة الإخطار قبل إنهاء العقد؟" })!;
+    const route = dispatchStream("POST", "/legal-chat/stream", tenant(), {
+      message: "ما هي مدة الإخطار قبل إنهاء العقد؟",
+    })!;
     expect(route.error).toBeUndefined();
 
     const { text, count, done } = await collect(route.chunks!);
@@ -56,7 +58,9 @@ describe("legal chatbot stream (PRO-17)", () => {
   });
 
   it("streams the off-topic decline and flags it on the terminal chunk", async () => {
-    const route = dispatchStream("POST", "/legal-chat/stream", tenant(), { message: "ما هو أفضل مطعم؟" })!;
+    const route = dispatchStream("POST", "/legal-chat/stream", tenant(), {
+      message: "ما هو أفضل مطعم؟",
+    })!;
     const { text, done } = await collect(route.chunks!);
 
     expect(text).toContain("أقدر أساعدك فقط");
@@ -70,7 +74,9 @@ describe("legal chatbot stream (PRO-17)", () => {
   });
 
   it("rejects an empty message", () => {
-    expect(dispatchStream("POST", "/legal-chat/stream", tenant(), { message: "  " })!.error?.status).toBe(400);
+    expect(
+      dispatchStream("POST", "/legal-chat/stream", tenant(), { message: "  " })!.error?.status,
+    ).toBe(400);
   });
 });
 
@@ -78,7 +84,9 @@ describe("description optimizer stream (PRO-10)", () => {
   const path = "/landlord/properties/draft/optimize-description/stream";
 
   it("streams the optimized text and spends one generation", async () => {
-    const before = db.quotas.find((q) => q.userId === "usr_landlord")!.optimizerUsesLeft;
+    const quota = db.quotas.find((q) => q.userId === "usr_landlord")!;
+    quota.optimizerUsesLeft = 1;
+    const before = quota.optimizerUsesLeft;
 
     const route = dispatchStream("POST", path, landlord(), { description: "شقة واسعة" })!;
     const { text } = await collect(route.chunks!);
@@ -98,7 +106,7 @@ describe("description optimizer stream (PRO-10)", () => {
     expect(route.error?.status).toBe(403);
     expect(route.error?.body).toMatchObject({
       code: "QUOTA_EXHAUSTED",
-      paymentType: "REFILL_MATCHES",
+      paymentType: "AI_ADDON",
       trigger: "payment",
     });
   });
