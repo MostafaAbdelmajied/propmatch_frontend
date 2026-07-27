@@ -4,7 +4,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/src/lib/api/browserClient";
 import { isVerificationRequired, toActionError, type ActionError } from "@/src/lib/api/actionError";
 import { verificationQueryKey } from "@/src/features/ekyc/hooks/useKyc";
-import type { CreateTenantRequest, TenantRequest } from "@/src/lib/api/contracts/tenantRequest";
+import {
+  ExtractTenantRequestSchema,
+  TenantRequestExtractionResponseSchema,
+  type CreateTenantRequest,
+  type ExtractTenantRequest,
+  type TenantRequest,
+  type TenantRequestExtractionResponse,
+} from "@/src/lib/api/contracts/tenantRequest";
 
 /** PRO-05 — the tenant side of the reverse marketplace. */
 
@@ -37,10 +44,27 @@ export function useCreateTenantRequest() {
   });
 }
 
+/** Optional, non-persistent form assistance. Saving still uses useCreateTenantRequest. */
+export function useExtractTenantRequest() {
+  return useMutation<TenantRequestExtractionResponse, ActionError, ExtractTenantRequest>({
+    retry: false,
+    mutationFn: async (body) => {
+      try {
+        const input = ExtractTenantRequestSchema.parse(body);
+        const response = await api.post<unknown>("tenant/requests/extract", input);
+        return TenantRequestExtractionResponseSchema.parse(response);
+      } catch (e) {
+        throw toActionError(e);
+      }
+    },
+  });
+}
+
 export function useCloseTenantRequest() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (requestId: string) => api.post<{ ok: boolean }>(`tenant/requests/${requestId}/close`),
+    mutationFn: (requestId: string) =>
+      api.post<{ ok: boolean }>(`tenant/requests/${requestId}/close`),
     onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
   });
 }

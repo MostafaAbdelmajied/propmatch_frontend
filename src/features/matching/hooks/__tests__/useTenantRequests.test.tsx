@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import { api } from "@/src/lib/api/browserClient";
-import { useCreateTenantRequest } from "../useTenantRequests";
+import { useCreateTenantRequest, useExtractTenantRequest } from "../useTenantRequests";
 
 jest.mock("@/src/lib/api/browserClient", () => {
   const actual = jest.requireActual("@/src/lib/api/browserClient");
@@ -44,7 +44,12 @@ describe("useCreateTenantRequest", () => {
     mockedPost.mockRejectedValue(apiError("VERIFICATION_REQUIRED"));
     const { wrapper, refetch } = setup();
     let resolveRefetch: (() => void) | undefined;
-    refetch.mockImplementation(() => new Promise<void>((resolve) => { resolveRefetch = resolve; }));
+    refetch.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveRefetch = resolve;
+        }),
+    );
     const { result } = renderHook(() => useCreateTenantRequest(), { wrapper });
 
     let settled = false;
@@ -52,7 +57,9 @@ describe("useCreateTenantRequest", () => {
       settled = true;
       return error;
     });
-    await waitFor(() => expect(refetch).toHaveBeenCalledWith({ queryKey: ["verification"], exact: true }));
+    await waitFor(() =>
+      expect(refetch).toHaveBeenCalledWith({ queryKey: ["verification"], exact: true }),
+    );
     expect(mockedPost).toHaveBeenCalledTimes(1);
     expect(settled).toBe(false);
     resolveRefetch?.();
@@ -65,20 +72,70 @@ describe("useCreateTenantRequest", () => {
     const { wrapper, refetch } = setup();
     const { result } = renderHook(() => useCreateTenantRequest(), { wrapper });
 
-    await expect(result.current.mutateAsync(request)).rejects.toMatchObject({ code: "CAPABILITY_REQUIRED" });
+    await expect(result.current.mutateAsync(request)).rejects.toMatchObject({
+      code: "CAPABILITY_REQUIRED",
+    });
     expect(mockedPost).toHaveBeenCalledTimes(1);
     expect(refetch).not.toHaveBeenCalled();
   });
 
-  it.each([400, 500])("does not refetch verification for %i + VERIFICATION_REQUIRED", async (statusCode) => {
-    mockedPost.mockRejectedValue(apiError("VERIFICATION_REQUIRED", statusCode));
-    const { wrapper, refetch } = setup();
-    const { result } = renderHook(() => useCreateTenantRequest(), { wrapper });
+  it.each([400, 500])(
+    "does not refetch verification for %i + VERIFICATION_REQUIRED",
+    async (statusCode) => {
+      mockedPost.mockRejectedValue(apiError("VERIFICATION_REQUIRED", statusCode));
+      const { wrapper, refetch } = setup();
+      const { result } = renderHook(() => useCreateTenantRequest(), { wrapper });
 
-    await expect(result.current.mutateAsync(request)).rejects.toMatchObject({
-      statusCode,
-      code: "VERIFICATION_REQUIRED",
+      await expect(result.current.mutateAsync(request)).rejects.toMatchObject({
+        statusCode,
+        code: "VERIFICATION_REQUIRED",
+      });
+      expect(refetch).not.toHaveBeenCalled();
+    },
+  );
+});
+
+describe("useExtractTenantRequest", () => {
+  beforeEach(() => mockedPost.mockReset());
+
+  function setup() {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    return { wrapper };
+  }
+
+  it("uses the generic authenticated BFF route and validates the extraction response", async () => {
+    mockedPost.mockResolvedValue({
+      originalText: "شقة مفروشة",
+      suggestions: {
+        minBudget: 7000,
+        maxBudget: null,
+        preferredLocations: "حي الجامعة",
+        propertyType: "APARTMENT",
+        requiredBedrooms: 2,
+        needsFurnished: true,
+        flexibilityScore: 6,
+        lifestyleRequirements: "هادئة",
+      },
+      missingFields: ["maxBudget"],
     });
-    expect(refetch).not.toHaveBeenCalled();
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useExtractTenantRequest(), { wrapper });
+
+    await expect(result.current.mutateAsync({ text: "  شقة مفروشة  " })).resolves.toMatchObject({
+      suggestions: { minBudget: 7000, needsFurnished: true },
+      missingFields: ["maxBudget"],
+    });
+    expect(mockedPost).toHaveBeenCalledWith("tenant/requests/extract", { text: "شقة مفروشة" });
+  });
+
+  it("does not send blank text to the backend", async () => {
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useExtractTenantRequest(), { wrapper });
+
+    await expect(result.current.mutateAsync({ text: "   " })).rejects.toBeDefined();
+    expect(mockedPost).not.toHaveBeenCalled();
   });
 });
