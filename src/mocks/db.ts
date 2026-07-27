@@ -170,20 +170,30 @@ export interface MockReview {
   createdAt: string;
 }
 
-/** ERD: LEASE_CONTRACT. */
+/** ERD: LEASE_CONTRACT — one per CONNECTED match connection. Handshake
+ * model: landlord drafts/edits while "drafting", locks it to "reviewing",
+ * tenant approves ("generated", the only status with a real pdfUrl) or
+ * rejects back to "drafting" with a changeRequestNote. */
 export interface MockLeaseContract {
   id: string;
+  matchConnectionId: string;
+  status: "drafting" | "reviewing" | "generated";
+  changeRequestNote: string | null;
   generatedByUserId: string;
   ownerName: string;
-  ownerNationalId: string;
+  ownerNationalId: string | null;
   tenantName: string;
-  tenantNationalId: string;
+  tenantNationalId: string | null;
   rentAmount: number;
   propertyAddress: string;
   startDate: string;
   endDate: string;
-  customClauses: string | null;
-  pdfUrl: string;
+  customClauses: string[];
+  witness1Name: string | null;
+  witness1NationalId: string | null;
+  witness2Name: string | null;
+  witness2NationalId: string | null;
+  pdfUrl: string | null;
   createdAt: string;
 }
 

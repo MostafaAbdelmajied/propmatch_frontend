@@ -8,7 +8,6 @@ import type {
 import { adminRoleLabels, ROLE_CAPABILITIES } from "@/src/lib/api/contracts/admin";
 import type { LoginRequest, RegisterRequest } from "@/src/lib/api/contracts/auth";
 import type { Capability } from "@/src/lib/api/contracts/common";
-import type { CreateLeaseContract } from "@/src/lib/api/contracts/contract";
 import type { CreateOfferRequest } from "@/src/lib/api/contracts/offer";
 import type { CreatePartnerLeadRequest } from "@/src/lib/api/contracts/partnerLead";
 import type { PaymentType } from "@/src/lib/api/contracts/payment";
@@ -31,6 +30,7 @@ import {
   tokensFor,
   toPublicUser,
   verificationStatusFor,
+  type MockLeaseContract,
   type MockOffer,
   type MockProperty,
   type MockReview,
@@ -78,6 +78,24 @@ const forbidden = (message = "غير مسموح") => err(403, message);
 /** Progressive verification (SRS 3.1/3.4) — one gate, one message. */
 const needsVerification = () =>
   codedErr(403, "VERIFICATION_REQUIRED", "وثّق هويتك أولًا لإتمام هذا الإجراء");
+
+/** National IDs never leave the mock backend in full outside the PDF itself. */
+function maskNationalId(id: string): string {
+  return id.length <= 4 ? id : `${"*".repeat(id.length - 4)}${id.slice(-4)}`;
+}
+function maskLeaseContract(contract: MockLeaseContract) {
+  return {
+    ...contract,
+    ownerNationalId: contract.ownerNationalId ? maskNationalId(contract.ownerNationalId) : null,
+    tenantNationalId: contract.tenantNationalId ? maskNationalId(contract.tenantNationalId) : null,
+    witness1NationalId: contract.witness1NationalId
+      ? maskNationalId(contract.witness1NationalId)
+      : null,
+    witness2NationalId: contract.witness2NationalId
+      ? maskNationalId(contract.witness2NationalId)
+      : null,
+  };
+}
 
 /** Quota exhausted → paywall (PRO-18). */
 const quotaExhausted = (paymentType: PaymentType, priceEgp: number) =>
@@ -1035,24 +1053,165 @@ export function dispatch(
   }
 
   /* --------------------------- contracts (PRO-15) ------------------------ */
-  if (path === "/contracts/prefill" && method === "GET") {
+  /* Generation is tied to a CONNECTED match — only its two real parties may
+   * generate/view it. Names, national IDs, and the address are derived from
+   * the match/property/verification records, never accepted from the client
+   * (mirrors the real backend's lease-contracts module). */
+  if (seg[0] === "matches" && seg[2] === "contract" && seg[3] === "prefill" && method === "GET") {
     if (!user) return unauth();
-    const v = db.verifications.find((x) => x.userId === user.id && x.status === "APPROVED");
-    return ok({ fullName: v ? user.fullName : null, nationalId: v ? v.nationalId : null });
+    const match = db.matchConnections.find(
+      (m) => m.id === seg[1] && m.status === "CONNECTED" && (m.tenantId === user.id || m.ownerId === user.id),
+    );
+    if (!match) return err(404, "غير موجود");
+    const owner = db.users.find((u) => u.id === match.ownerId)!;
+    const tenant = db.users.find((u) => u.id === match.tenantId)!;
+    const property = db.properties.find((p) => p.id === match.propertyId)!;
+    const ownerV = db.verifications.find((v) => v.userId === owner.id);
+    const tenantV = db.verifications.find((v) => v.userId === tenant.id);
+    return ok({
+      ownerName: owner.fullName,
+      ownerNationalId: ownerV?.nationalId ? maskNationalId(ownerV.nationalId) : null,
+      tenantName: tenant.fullName,
+      tenantNationalId: tenantV?.nationalId ? maskNationalId(tenantV.nationalId) : null,
+      propertyAddress: `${property.district}، ${property.manualAddress}`,
+      suggestedRentAmount: property.rentAmount,
+    });
   }
-  if (path === "/contracts" && method === "POST") {
+  if (seg[0] === "matches" && seg[2] === "contract" && seg.length === 3 && method === "GET") {
     if (!user) return unauth();
-    const b = body as CreateLeaseContract;
-    const contract = {
-      id: nextId("lease"),
-      generatedByUserId: user.id,
-      ...b,
-      customClauses: b.customClauses ?? null,
-      pdfUrl: `https://cdn.example.com/contracts/${nextId("pdf")}.pdf`,
-      createdAt: new Date().toISOString(),
+    const match = db.matchConnections.find(
+      (m) => m.id === seg[1] && m.status === "CONNECTED" && (m.tenantId === user.id || m.ownerId === user.id),
+    );
+    if (!match) return err(404, "غير موجود");
+    const existing = db.leaseContracts.find((c) => c.matchConnectionId === match.id);
+    if (!existing) return err(404, "غير موجود");
+    return ok(maskLeaseContract(existing));
+  }
+  /* Handshake model — landlord drafts (repeatable while "drafting") ->
+   * sends for review (locks it) -> tenant approves (only path that
+   * produces a pdfUrl, generatedByUserId becomes the tenant) or rejects
+   * back to "drafting" with a note (mirrors the real backend). */
+  if (seg[0] === "matches" && seg[2] === "contract" && seg[3] === "draft" && method === "POST") {
+    if (!user) return unauth();
+    const match = db.matchConnections.find(
+      (m) => m.id === seg[1] && m.status === "CONNECTED" && m.ownerId === user.id,
+    );
+    if (!match) return err(404, "غير موجود");
+    const existing = db.leaseContracts.find((c) => c.matchConnectionId === match.id);
+    if (existing && existing.status !== "drafting") {
+      return codedErr(409, "DRAFT_LOCKED", "العقد بانتظار مراجعة المستأجر، لا يمكن تعديله الآن");
+    }
+    const owner = db.users.find((u) => u.id === match.ownerId)!;
+    const tenant = db.users.find((u) => u.id === match.tenantId)!;
+    const property = db.properties.find((p) => p.id === match.propertyId)!;
+    const b = body as {
+      rentAmount?: number;
+      startDate: string;
+      endDate: string;
+      customClauses?: string[];
+      witness1Name?: string;
+      witness1NationalId?: string;
+      witness2Name?: string;
+      witness2NationalId?: string;
     };
-    db.leaseContracts.push(contract);
-    return ok(contract);
+    // Belt-and-suspenders: never trust the client alone to have filtered
+    // empty clauses before sending.
+    const customClauses = (b.customClauses ?? []).map((c) => c.trim()).filter((c) => c.length > 0);
+    const contract: MockLeaseContract = {
+      id: existing?.id ?? nextId("lease"),
+      matchConnectionId: match.id,
+      status: "drafting",
+      changeRequestNote: existing?.changeRequestNote ?? null,
+      generatedByUserId: user.id,
+      ownerName: owner.fullName,
+      ownerNationalId: existing?.ownerNationalId ?? null,
+      tenantName: tenant.fullName,
+      tenantNationalId: existing?.tenantNationalId ?? null,
+      propertyAddress: `${property.district}، ${property.manualAddress}`,
+      rentAmount: b.rentAmount ?? property.rentAmount,
+      startDate: b.startDate,
+      endDate: b.endDate,
+      customClauses,
+      witness1Name: b.witness1Name ?? null,
+      witness1NationalId: b.witness1NationalId ?? null,
+      witness2Name: b.witness2Name ?? null,
+      witness2NationalId: b.witness2NationalId ?? null,
+      pdfUrl: null,
+      createdAt: existing?.createdAt ?? new Date().toISOString(),
+    };
+    const existingIndex = db.leaseContracts.findIndex((c) => c.matchConnectionId === match.id);
+    if (existingIndex >= 0) db.leaseContracts[existingIndex] = contract;
+    else db.leaseContracts.push(contract);
+    return ok(maskLeaseContract(contract));
+  }
+  if (seg[0] === "matches" && seg[2] === "contract" && seg[3] === "send-for-review" && method === "POST") {
+    if (!user) return unauth();
+    const match = db.matchConnections.find(
+      (m) => m.id === seg[1] && m.status === "CONNECTED" && m.ownerId === user.id,
+    );
+    if (!match) return err(404, "غير موجود");
+    const contract = db.leaseContracts.find((c) => c.matchConnectionId === match.id);
+    if (!contract) return err(404, "غير موجود");
+    if (contract.status !== "drafting") {
+      return codedErr(409, "NOT_IN_DRAFTING_STATE", "العقد ليس في مرحلة المسودة");
+    }
+    contract.status = "reviewing";
+    contract.changeRequestNote = null;
+    return ok(maskLeaseContract(contract));
+  }
+  if (seg[0] === "matches" && seg[2] === "contract" && seg[3] === "approve" && method === "POST") {
+    if (!user) return unauth();
+    const match = db.matchConnections.find(
+      (m) => m.id === seg[1] && m.status === "CONNECTED" && m.tenantId === user.id,
+    );
+    if (!match) return err(404, "غير موجود");
+    const contract = db.leaseContracts.find((c) => c.matchConnectionId === match.id);
+    if (!contract) return err(404, "غير موجود");
+    if (contract.status !== "reviewing") {
+      return codedErr(409, "NOT_PENDING_TENANT_APPROVAL", "العقد ليس بانتظار موافقة المستأجر");
+    }
+    const owner = db.users.find((u) => u.id === match.ownerId)!;
+    const tenant = db.users.find((u) => u.id === match.tenantId)!;
+    const ownerV = db.verifications.find((v) => v.userId === owner.id);
+    const tenantV = db.verifications.find((v) => v.userId === tenant.id);
+    if (!ownerV?.nationalId || !tenantV?.nationalId) {
+      return codedErr(409, "IDENTITY_NOT_VERIFIED", "لا يمكن الموافقة قبل اكتمال توثيق الهوية لطرفي الصفقة");
+    }
+    contract.ownerNationalId = ownerV.nationalId;
+    contract.tenantNationalId = tenantV.nationalId;
+    contract.generatedByUserId = user.id;
+    contract.pdfUrl = `https://cdn.example.com/contracts/${nextId("pdf")}.pdf`;
+    contract.status = "generated";
+    return ok(maskLeaseContract(contract));
+  }
+  if (seg[0] === "matches" && seg[2] === "contract" && seg[3] === "reject" && method === "POST") {
+    if (!user) return unauth();
+    const match = db.matchConnections.find(
+      (m) => m.id === seg[1] && m.status === "CONNECTED" && m.tenantId === user.id,
+    );
+    if (!match) return err(404, "غير موجود");
+    const contract = db.leaseContracts.find((c) => c.matchConnectionId === match.id);
+    if (!contract) return err(404, "غير موجود");
+    if (contract.status !== "reviewing") {
+      return codedErr(409, "NOT_PENDING_TENANT_APPROVAL", "العقد ليس بانتظار موافقة المستأجر");
+    }
+    const b = body as { note?: string };
+    contract.status = "drafting";
+    contract.changeRequestNote = b.note?.trim() || null;
+    return ok(maskLeaseContract(contract));
+  }
+  /* Canonical, ID-addressed retrieval — mirrors GET /contracts/:id on the
+   * real backend. Never derives "the" contract from just (owner, tenant);
+   * always this exact row. */
+  if (seg[0] === "contracts" && seg.length === 2 && method === "GET") {
+    if (!user) return unauth();
+    const contract = db.leaseContracts.find((c) => c.id === seg[1]);
+    if (!contract) return err(404, "غير موجود");
+    const match = db.matchConnections.find((m) => m.id === contract.matchConnectionId);
+    if (!match || (match.tenantId !== user.id && match.ownerId !== user.id)) {
+      return err(403, "غير مسموح");
+    }
+    return ok(maskLeaseContract(contract));
   }
 
   /* ------------------------- partner leads (PRO-16) ---------------------- */

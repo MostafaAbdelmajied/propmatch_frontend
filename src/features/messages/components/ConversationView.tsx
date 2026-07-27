@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { usePathname } from "next/navigation";
-import { ArrowRight, Send } from "lucide-react";
+import { ArrowRight, FileText, Send } from "lucide-react";
 import { Button } from "@/src/components/ui/Button";
 import {
   useMatchConversations,
@@ -48,10 +48,17 @@ export function ConversationView({ matchConnectionId }: { matchConnectionId: str
         >
           <ArrowRight className="size-5" aria-hidden />
         </Link>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="truncate font-bold text-ink">{summary?.otherParticipantName ?? "المحادثة"}</p>
           {summary?.propertyTitle && <p className="truncate text-small text-muted">{summary.propertyTitle}</p>}
         </div>
+        <Link
+          href={`/contracts/new?matchConnectionId=${matchConnectionId}`}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-control border border-hairline px-3 py-2 text-caption font-semibold text-primary hover:bg-primary-tint"
+        >
+          <FileText className="size-4" aria-hidden />
+          إنشاء عقد إيجار
+        </Link>
       </header>
 
       <section className="flex min-h-72 flex-1 flex-col gap-3 rounded-card border border-hairline bg-background p-4" aria-live="polite">
