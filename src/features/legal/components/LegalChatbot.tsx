@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { Scale, Send, MessageCircle } from "lucide-react";
 import { streamPost } from "@/src/lib/api/browserClient";
-import { cn } from "@/src/utils/cn";
 import type { ChatMessage } from "@/src/lib/api/contracts/support";
+import { cn } from "@/src/utils/cn";
+import { MessageCircle, Scale, Send } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { LegalMarkdown } from "./LegalMarkdown";
 
 const examples = [
@@ -13,9 +13,11 @@ const examples = [
   "ما حقوقي كمستأجر عند تأخر الصيانة؟",
 ];
 
-let localId = 0;
+function makeUniqueId(prefix: string): string {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+}
 
-export function LegalChatbot() {
+export function LegalChatbot({ }: { onBack?: () => void }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
@@ -35,8 +37,11 @@ export function LegalChatbot() {
     if (!trimmed || typing) return;
     setInput("");
 
-    const replyId = `local_${localId++}`;
-    setMessages((m) => [...m, { id: `local_${localId++}`, role: "user", content: trimmed }]);
+    const replyId = makeUniqueId("legal_reply");
+    setMessages((m) => [
+      ...m,
+      { id: makeUniqueId("user_msg"), role: "user", content: trimmed },
+    ]);
     setTyping(true);
 
     let started = false;
@@ -65,7 +70,7 @@ export function LegalChatbot() {
     } catch {
       setMessages((m) => [
         ...m.filter((msg) => msg.id !== replyId || msg.content),
-        { id: `local_${localId++}`, role: "assistant", content: "تعذر الاتصال، حاول مرة أخرى." },
+        { id: makeUniqueId("legal_reply"), role: "assistant", content: "تعذر الاتصال، حاول مرة أخرى." },
       ]);
     } finally {
       setTyping(false);
@@ -115,7 +120,7 @@ export function LegalChatbot() {
           >
             <div
               className={cn(
-                "min-w-0 max-w-[85%] break-words rounded-card px-4 py-2.5 text-body leading-relaxed",
+                "min-w-0 max-w-[85%] wrap-break-word rounded-card px-4 py-2.5 text-body leading-relaxed",
                 m.role === "user"
                   ? "bg-primary text-white"
                   : m.declined

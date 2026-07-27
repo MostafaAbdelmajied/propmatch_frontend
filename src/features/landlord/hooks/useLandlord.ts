@@ -31,16 +31,35 @@ export interface CreatePropertyResult {
   property: PropertyDetail;
 }
 
+export type CreatePropertyUploadInput = Omit<CreatePropertyRequest, "images"> & {
+  images: File[];
+};
+
+export function createPropertyFormData(input: CreatePropertyUploadInput): FormData {
+  const formData = new FormData();
+  const { images, ...fields } = input;
+
+  for (const [field, value] of Object.entries(fields)) {
+    if (value !== undefined) formData.append(field, String(value));
+  }
+  for (const image of images) formData.append("images", image);
+
+  return formData;
+}
+
 /** @deprecated Use `ActionError` from `@/src/lib/api/actionError` — same shape, shared with matching. */
 export type LandlordActionError = ActionError;
 
 export function useCreateProperty() {
   const qc = useQueryClient();
-  return useMutation<CreatePropertyResult, LandlordActionError, CreatePropertyRequest>({
+  return useMutation<CreatePropertyResult, LandlordActionError, CreatePropertyUploadInput>({
     retry: false,
     mutationFn: async (body) => {
       try {
-        return await api.post<CreatePropertyResult>("landlord/properties", body);
+        return await api.postForm<CreatePropertyResult>(
+          "landlord/properties",
+          createPropertyFormData(body),
+        );
       } catch (e) {
         throw toActionError(e);
       }
@@ -71,7 +90,11 @@ export function useStreamOptimizeDescription(propertyId = "draft") {
   const [isStreaming, setIsStreaming] = useState(false);
 
   const run = useCallback(
-    async (description: string, context: Record<string, any>, onToken: (soFar: string) => void): Promise<void> => {
+    async (
+      description: string,
+      context: Record<string, unknown>,
+      onToken: (soFar: string) => void,
+    ): Promise<void> => {
       setIsStreaming(true);
       let text = "";
       try {

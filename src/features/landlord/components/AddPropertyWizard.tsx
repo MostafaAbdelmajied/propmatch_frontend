@@ -13,21 +13,36 @@ import type { PaymentType } from "@/src/lib/api/contracts/payment";
 import { propertyTypeLabels, type PropertyType } from "@/src/lib/api/contracts/property";
 import { cn } from "@/src/utils/cn";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, ArrowRight, Check, Sparkles, Undo2 } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  GripVertical,
+  ImagePlus,
+  Sparkles,
+  Star,
+  Undo2,
+  X,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Controller, useForm, type UseFormReturn } from "react-hook-form";
 import { useCreateProperty, useQuota, useStreamOptimizeDescription } from "../hooks/useLandlord";
 import { addPropertyFormSchema, stepFields, type AddPropertyForm } from "../validation/schemas";
 
-const steps = ["الموقع", "النوع", "التفاصيل", "الوصف"] as const;
+const steps = ["تفاصيل العقار", "الصور والوصف"] as const;
 type StepKey = keyof typeof stepFields;
-const stepKeys: StepKey[] = ["location", "type", "details", "description"];
+const stepKeys: StepKey[] = ["propertyDetails", "mediaAndDescription"];
 const PROPERTY_DRAFT_STORAGE_KEY = "propmatch:add-property-draft";
+const MAX_PROPERTY_IMAGES = 10;
+const MAX_PROPERTY_IMAGE_SIZE = 5 * 1024 * 1024;
+const MAX_DESCRIPTION_OPTIMIZATIONS = 3;
+const PROPERTY_IMAGE_ACCEPT = ".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp";
 
 type PropertyDraft = {
   step: number;
   values: Partial<AddPropertyForm>;
+  optimizerUsesLeft?: number;
 };
 
 const defaults: Partial<AddPropertyForm> = {
@@ -46,7 +61,7 @@ const defaults: Partial<AddPropertyForm> = {
   hasParking: false,
   description: "",
   propertyAroundServices: "",
-  images: ["https://images.unsplash.com/photo-1505691938895-1758d7feb511?w=800&h=500&fit=crop&auto=format"],
+  images: [],
 };
 
 export function AddPropertyWizard() {
@@ -68,6 +83,7 @@ function AddPropertyWizardContent() {
   });
   const [step, setStep] = useState(0);
   const [draftRestored, setDraftRestored] = useState(false);
+  const [optimizerUsesLeft, setOptimizerUsesLeft] = useState(MAX_DESCRIPTION_OPTIMIZATIONS);
   const create = useCreateProperty();
   const [paywall, setPaywall] = useState<PaymentType | null>(null);
 
@@ -79,6 +95,13 @@ function AddPropertyWizardContent() {
         if (draft.values && typeof draft.step === "number") {
           form.reset({ ...defaults, ...draft.values });
           setStep(Math.max(0, Math.min(draft.step, steps.length - 1)));
+          if (
+            typeof draft.optimizerUsesLeft === "number" &&
+            draft.optimizerUsesLeft >= 0 &&
+            draft.optimizerUsesLeft <= MAX_DESCRIPTION_OPTIMIZATIONS
+          ) {
+            setOptimizerUsesLeft(draft.optimizerUsesLeft);
+          }
         }
       }
     } catch {
@@ -94,12 +117,9 @@ function AddPropertyWizardContent() {
     const saveDraft = (values: Partial<AddPropertyForm>) => {
       const valuesToPersist = { ...values };
       delete valuesToPersist.images;
-      const draft: PropertyDraft = { step, values: valuesToPersist };
+      const draft: PropertyDraft = { step, values: valuesToPersist, optimizerUsesLeft };
       try {
-        window.localStorage.setItem(
-          PROPERTY_DRAFT_STORAGE_KEY,
-          JSON.stringify(draft),
-        );
+        window.localStorage.setItem(PROPERTY_DRAFT_STORAGE_KEY, JSON.stringify(draft));
       } catch {
         // A full or unavailable browser storage must not block form use.
       }
@@ -109,7 +129,7 @@ function AddPropertyWizardContent() {
       saveDraft(values);
     });
     return () => subscription.unsubscribe();
-  }, [draftRestored, form, step]);
+  }, [draftRestored, form, optimizerUsesLeft, step]);
 
   async function next() {
     const fields = stepFields[stepKeys[step]] as unknown as (keyof AddPropertyForm)[];
@@ -138,24 +158,36 @@ function AddPropertyWizardContent() {
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-h1 font-bold text-ink">إضافة عقار</h1>
-          <Stepper current={step} />
+      <div className="rounded-card border border-hairline bg-surface p-5 shadow-card">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-h1 font-bold text-ink">إضافة عقار</h1>
+            <p className="mt-1 text-small text-muted">أكمل بيانات عقارك ثم أضف الوصف والصور</p>
+          </div>
+          {quota.data && (
+            <QuotaChip remaining={quota.data.freeListingsLeft} label="إعلانات مجانية متبقية" />
+          )}
         </div>
-        {quota.data && (
-          <QuotaChip remaining={quota.data.freeListingsLeft} label="إعلانات مجانية متبقية" />
-        )}
+        <Stepper current={step} />
       </div>
 
       <form onSubmit={form.handleSubmit(submit)} className="flex flex-col gap-5">
-        {step === 0 && <LocationStep form={form} />}
-        {step === 1 && <TypeStep form={form} />}
-        {step === 2 && <DetailsStep form={form} />}
-        {step === 3 && <DescriptionStep form={form} />}
+        {step === 0 && <PropertyDetailsStep form={form} />}
+        {step === 1 && (
+          <MediaAndDescriptionStep
+            form={form}
+            optimizerUsesLeft={optimizerUsesLeft}
+            onOptimizerUse={() => setOptimizerUsesLeft((uses) => Math.max(0, uses - 1))}
+          />
+        )}
 
         <div className="flex items-center justify-between gap-3">
-          <Button type="button" variant="ghost" disabled={step === 0} onClick={() => setStep((s) => Math.max(0, s - 1))}>
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={step === 0}
+            onClick={() => setStep((s) => Math.max(0, s - 1))}
+          >
             <ArrowRight className="size-4" aria-hidden />
             السابق
           </Button>
@@ -189,20 +221,34 @@ function AddPropertyWizardContent() {
 
 function Stepper({ current }: { current: number }) {
   return (
-    <ol className="mt-3 flex items-center gap-1.5">
+    <ol className="relative mt-6 grid grid-cols-2">
+      <li
+        aria-hidden
+        className={cn(
+          "absolute left-1/4 right-1/4 top-5 h-0.5 -translate-y-1/2 transition-colors",
+          current > 0 ? "bg-primary" : "bg-hairline",
+        )}
+      />
       {steps.map((label, i) => (
-        <li key={label} className="flex flex-1 flex-col items-center gap-1">
+        <li key={label} className="relative z-10 flex flex-col items-center gap-2">
           <span
             className={cn(
-              "flex size-7 items-center justify-center rounded-full text-caption font-bold",
+              "flex size-10 items-center justify-center rounded-full border-4 border-surface text-small font-bold shadow-sm transition-colors",
               i < current && "bg-success text-white",
               i === current && "bg-primary text-white",
-              i > current && "bg-hairline text-muted",
+              i > current && "bg-background text-muted",
             )}
           >
-            {i < current ? <Check className="size-3.5" aria-hidden /> : i + 1}
+            {i < current ? <Check className="size-4" aria-hidden /> : i + 1}
           </span>
-          <span className={cn("text-caption", i === current ? "font-bold text-primary" : "text-muted")}>{label}</span>
+          <span
+            className={cn(
+              "text-center text-small",
+              i === current ? "font-bold text-primary" : "font-medium text-muted",
+            )}
+          >
+            {label}
+          </span>
         </li>
       ))}
     </ol>
@@ -212,10 +258,22 @@ function Stepper({ current }: { current: number }) {
 type StepProps = { form: UseFormReturn<AddPropertyForm> };
 
 function Card({ children }: { children: React.ReactNode }) {
-  return <div className="flex flex-col gap-4 rounded-card border border-hairline bg-surface p-5">{children}</div>;
+  return (
+    <div className="flex flex-col gap-4 rounded-card border border-hairline bg-surface p-5">
+      {children}
+    </div>
+  );
 }
 
-function LocationStep({ form: { watch, setValue, register, formState: { errors } } }: StepProps) {
+function PropertyDetailsStep({
+  form: {
+    watch,
+    setValue,
+    register,
+    control,
+    formState: { errors },
+  },
+}: StepProps) {
   const { data: activeCountries, isLoading } = useActiveRegions();
 
   const selectedGovName = watch("governorate");
@@ -227,7 +285,7 @@ function LocationStep({ form: { watch, setValue, register, formState: { errors }
 
   // Find currently selected governorate
   const currentGov = activeGovernorates.find(
-    (g) => g.nameAr === selectedGovName || g.nameEn === selectedGovName
+    (g) => g.nameAr === selectedGovName || g.nameEn === selectedGovName,
   );
 
   // Active cities under selected governorate
@@ -235,7 +293,7 @@ function LocationStep({ form: { watch, setValue, register, formState: { errors }
 
   // Find currently selected city
   const currentCity = activeCities.find(
-    (c) => c.nameAr === selectedCityName || c.nameEn === selectedCityName
+    (c) => c.nameAr === selectedCityName || c.nameEn === selectedCityName,
   );
 
   // Active districts under selected city
@@ -260,9 +318,7 @@ function LocationStep({ form: { watch, setValue, register, formState: { errors }
     const newGov = e.target.value;
     setValue("governorate", newGov, { shouldValidate: true });
 
-    const newGovObj = activeGovernorates.find(
-      (g) => g.nameAr === newGov || g.nameEn === newGov
-    );
+    const newGovObj = activeGovernorates.find((g) => g.nameAr === newGov || g.nameEn === newGov);
     const firstCityObj = newGovObj?.cities.filter((c) => c.status)[0];
     const firstCity = firstCityObj?.nameAr ?? "";
     setValue("city", firstCity, { shouldValidate: true });
@@ -275,15 +331,41 @@ function LocationStep({ form: { watch, setValue, register, formState: { errors }
     const newCity = e.target.value;
     setValue("city", newCity, { shouldValidate: true });
 
-    const newCityObj = activeCities.find(
-      (c) => c.nameAr === newCity || c.nameEn === newCity
-    );
+    const newCityObj = activeCities.find((c) => c.nameAr === newCity || c.nameEn === newCity);
     const firstDistrict = newCityObj?.districts?.filter((d) => d.status)[0]?.nameAr ?? "";
     setValue("district", firstDistrict, { shouldValidate: true });
   };
 
   return (
     <Card>
+      <Controller
+        control={control}
+        name="propertyType"
+        render={({ field }) => (
+          <ChipGroup
+            label="نوع العقار"
+            options={(Object.keys(propertyTypeLabels) as PropertyType[]).map((v) => ({
+              value: v,
+              label: propertyTypeLabels[v],
+            }))}
+            value={field.value}
+            onChange={field.onChange}
+          />
+        )}
+      />
+      <InputField
+        label="عنوان الإعلان"
+        placeholder="شقة مفروشة قرب جامعة المنصورة"
+        {...register("title")}
+        error={errors.title?.message}
+      />
+      <InputField
+        label="الإيجار الشهري (ج.م)"
+        type="number"
+        inputMode="numeric"
+        {...register("rentAmount", { valueAsNumber: true })}
+        error={errors.rentAmount?.message}
+      />
       <div className="grid gap-3 sm:grid-cols-2">
         <SelectField
           label="المحافظة"
@@ -300,10 +382,10 @@ function LocationStep({ form: { watch, setValue, register, formState: { errors }
             isLoading
               ? "جاري تحميل المدن..."
               : !selectedGovName
-              ? "اختر المحافظة أولاً"
-              : cityOptions.length === 0
-              ? "لا يوجد مدن متاحة"
-              : "اختر المدينة"
+                ? "اختر المحافظة أولاً"
+                : cityOptions.length === 0
+                  ? "لا يوجد مدن متاحة"
+                  : "اختر المدينة"
           }
           value={selectedCityName}
           onChange={handleCityChange}
@@ -333,38 +415,28 @@ function LocationStep({ form: { watch, setValue, register, formState: { errors }
         {...register("manualAddress")}
         error={errors.manualAddress?.message}
       />
-    </Card>
-  );
-}
-
-function TypeStep({ form: { control, register, formState: { errors } } }: StepProps) {
-  return (
-    <Card>
-      <InputField label="عنوان الإعلان" placeholder="شقة مفروشة قرب جامعة المنصورة" {...register("title")} error={errors.title?.message} />
-      <Controller
-        control={control}
-        name="propertyType"
-        render={({ field }) => (
-          <ChipGroup
-            label="نوع العقار"
-            options={(Object.keys(propertyTypeLabels) as PropertyType[]).map((v) => ({ value: v, label: propertyTypeLabels[v] }))}
-            value={field.value}
-            onChange={field.onChange}
-          />
-        )}
-      />
-    </Card>
-  );
-}
-
-function DetailsStep({ form: { register, formState: { errors } } }: StepProps) {
-  return (
-    <Card>
       <div className="grid gap-3 sm:grid-cols-2">
-        <InputField label="الإيجار الشهري (ج.م)" type="number" inputMode="numeric" {...register("rentAmount", { valueAsNumber: true })} error={errors.rentAmount?.message} />
-        <InputField label="المساحة (م²)" type="number" inputMode="numeric" {...register("areaM2", { valueAsNumber: true })} error={errors.areaM2?.message} />
-        <InputField label="عدد غرف النوم" type="number" inputMode="numeric" {...register("bedrooms", { valueAsNumber: true })} error={errors.bedrooms?.message} />
-        <InputField label="عدد الحمّامات" type="number" inputMode="numeric" {...register("bathrooms", { valueAsNumber: true })} error={errors.bathrooms?.message} />
+        <InputField
+          label="المساحة (م²)"
+          type="number"
+          inputMode="numeric"
+          {...register("areaM2", { valueAsNumber: true })}
+          error={errors.areaM2?.message}
+        />
+        <InputField
+          label="عدد غرف النوم"
+          type="number"
+          inputMode="numeric"
+          {...register("bedrooms", { valueAsNumber: true })}
+          error={errors.bedrooms?.message}
+        />
+        <InputField
+          label="عدد الحمّامات"
+          type="number"
+          inputMode="numeric"
+          {...register("bathrooms", { valueAsNumber: true })}
+          error={errors.bathrooms?.message}
+        />
       </div>
       <div className="flex flex-wrap gap-4">
         <Toggle label="مفروش" {...register("isFurnished")} />
@@ -375,16 +447,95 @@ function DetailsStep({ form: { register, formState: { errors } } }: StepProps) {
   );
 }
 
-function DescriptionStep({ form }: StepProps) {
+type MediaAndDescriptionStepProps = StepProps & {
+  optimizerUsesLeft: number;
+  onOptimizerUse: () => void;
+};
+
+function MediaAndDescriptionStep({
+  form,
+  optimizerUsesLeft,
+  onOptimizerUse,
+}: MediaAndDescriptionStepProps) {
   const toast = useToast();
   const optimize = useStreamOptimizeDescription();
   const description = form.watch("description");
+  const images = form.watch("images");
+  const previews = useMemo(
+    () => images.map((file) => ({ file, url: URL.createObjectURL(file) })),
+    [images],
+  );
+  const [draggedImageIndex, setDraggedImageIndex] = useState<number | null>(null);
   // PRO-10 says the landlord reviews the rewrite — so keep what they wrote and
   // let them put it back. Streaming overwrites the field in place, which would
   // otherwise destroy their draft with no way back.
   const [previous, setPrevious] = useState<string | null>(null);
 
+  useEffect(() => () => previews.forEach(({ url }) => URL.revokeObjectURL(url)), [previews]);
+
+  function selectImages(event: React.ChangeEvent<HTMLInputElement>) {
+    const selected = Array.from(event.target.files ?? []);
+    const supported = selected.filter((file) =>
+      ["image/jpeg", "image/png", "image/webp"].includes(file.type),
+    );
+    const withinSizeLimit = supported.filter((file) => file.size <= MAX_PROPERTY_IMAGE_SIZE);
+    const remainingSlots = MAX_PROPERTY_IMAGES - images.length;
+    const nextImages = [...images, ...withinSizeLimit.slice(0, remainingSlots)];
+
+    if (supported.length !== selected.length) {
+      toast("error", "يُسمح فقط بصور JPG وJPEG وPNG وWEBP");
+    } else if (withinSizeLimit.length !== supported.length) {
+      toast("error", "يجب ألا يتجاوز حجم الصورة الواحدة 5 ميجابايت");
+    } else if (withinSizeLimit.length > remainingSlots) {
+      toast("info", "يمكنك إضافة 10 صور كحد أقصى");
+    }
+
+    form.setValue("images", nextImages, {
+      shouldDirty: true,
+      shouldTouch: true,
+      shouldValidate: true,
+    });
+    event.target.value = "";
+  }
+
+  function removeImage(index: number) {
+    form.setValue(
+      "images",
+      images.filter((_, imageIndex) => imageIndex !== index),
+      { shouldDirty: true, shouldTouch: true, shouldValidate: true },
+    );
+  }
+
+  function reorderImages(fromIndex: number, toIndex: number) {
+    if (fromIndex === toIndex) return;
+    const reordered = [...images];
+    const [movedImage] = reordered.splice(fromIndex, 1);
+    reordered.splice(toIndex, 0, movedImage);
+    form.setValue("images", reordered, {
+      shouldDirty: true,
+      shouldTouch: true,
+      shouldValidate: true,
+    });
+  }
+
+  function startDragging(event: React.DragEvent<HTMLElement>, index: number) {
+    setDraggedImageIndex(index);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", String(index));
+  }
+
+  function dropImage(event: React.DragEvent<HTMLElement>, toIndex: number) {
+    event.preventDefault();
+    const transferredIndex = Number(event.dataTransfer.getData("text/plain"));
+    const fromIndex = draggedImageIndex ?? transferredIndex;
+    if (Number.isInteger(fromIndex) && fromIndex >= 0 && fromIndex < images.length) {
+      reorderImages(fromIndex, toIndex);
+    }
+    setDraggedImageIndex(null);
+  }
+
   async function runOptimize() {
+    if (optimizerUsesLeft <= 0 || optimize.isStreaming) return;
     const original = description || "عقار للإيجار";
     setPrevious(original);
     const { description: _desc, images: _images, ...context } = form.getValues();
@@ -393,13 +544,23 @@ function DescriptionStep({ form }: StepProps) {
         form.setValue("description", soFar, { shouldValidate: false }),
       );
       form.trigger("description");
-      toast("success", "تم تحسين الوصف — راجعه قبل الإرسال");
+      onOptimizerUse();
+      const remainingAfterUse = optimizerUsesLeft - 1;
+      toast(
+        "success",
+        remainingAfterUse > 0
+          ? `تم تحسين الوصف — متبقي ${remainingAfterUse} من ${MAX_DESCRIPTION_OPTIMIZATIONS}`
+          : "تم تحسين الوصف — استخدمت المحاولات الثلاث لهذا الإعلان",
+      );
     } catch (e) {
       const err = e as ActionError;
       // Put their text back: a failed rewrite must not cost them their draft.
       form.setValue("description", original, { shouldValidate: true });
       setPrevious(null);
-      toast("error", err.code === "QUOTA_EXHAUSTED" ? "انتهت استخداماتك المجانية للتحسين" : err.message);
+      toast(
+        "error",
+        err.code === "QUOTA_EXHAUSTED" ? "انتهت استخداماتك المجانية للتحسين" : err.message,
+      );
     }
   }
 
@@ -411,9 +572,9 @@ function DescriptionStep({ form }: StepProps) {
 
   return (
     <Card>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <span className="text-small font-semibold text-ink">الوصف</span>
-        <div className="flex items-center gap-1">
+        <div className="flex flex-wrap items-center gap-1">
           {previous !== null && !optimize.isStreaming && (
             <Button type="button" variant="ghost" size="sm" onClick={undo}>
               <Undo2 className="size-4" aria-hidden />
@@ -426,11 +587,51 @@ function DescriptionStep({ form }: StepProps) {
             size="sm"
             onClick={runOptimize}
             loading={optimize.isStreaming}
-            disabled={optimize.isStreaming}
+            disabled={optimize.isStreaming || optimizerUsesLeft <= 0}
           >
             <Sparkles className="size-4" aria-hidden />
-            تحسين الوصف بالذكاء الاصطناعي
+            {optimizerUsesLeft > 0 ? "تحسين الوصف بالذكاء الاصطناعي" : "تم استخدام محاولات التحسين"}
           </Button>
+        </div>
+      </div>
+      <div
+        className={cn(
+          "flex flex-col gap-3 rounded-control border px-4 py-3 sm:flex-row sm:items-center sm:justify-between",
+          optimizerUsesLeft > 0
+            ? "border-primary/20 bg-primary-tint/50"
+            : "border-hairline bg-background",
+        )}
+        role="status"
+      >
+        <div className="flex items-start gap-2.5">
+          <span
+            className={cn(
+              "mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full",
+              optimizerUsesLeft > 0 ? "bg-surface text-primary" : "bg-hairline text-muted",
+            )}
+          >
+            <Sparkles className="size-4" aria-hidden />
+          </span>
+          <div>
+            <p className="text-small font-bold text-ink">
+              {optimizerUsesLeft > 0
+                ? `متبقي ${optimizerUsesLeft} من ${MAX_DESCRIPTION_OPTIMIZATIONS} محاولات`
+                : "انتهت محاولات التحسين لهذا الإعلان"}
+            </p>
+            <p className="mt-0.5 text-caption text-muted">يمكنك تحسين وصف كل إعلان ثلاث مرات فقط</p>
+          </div>
+        </div>
+        <div className="flex gap-1.5" aria-label={`${optimizerUsesLeft} محاولات تحسين متبقية`}>
+          {Array.from({ length: MAX_DESCRIPTION_OPTIMIZATIONS }, (_, index) => (
+            <span
+              key={index}
+              className={cn(
+                "h-2.5 w-8 rounded-pill transition-colors",
+                index < optimizerUsesLeft ? "bg-primary" : "bg-hairline",
+              )}
+              aria-hidden
+            />
+          ))}
         </div>
       </div>
       <TextAreaField
@@ -451,14 +652,166 @@ function DescriptionStep({ form }: StepProps) {
         placeholder="جامعة المنصورة، مواصلات، سوبر ماركت، صيدلية"
         {...form.register("propertyAroundServices")}
       />
-      {form.formState.errors.images && (
-        <p className="text-caption text-error">{form.formState.errors.images.message}</p>
-      )}
+      <div className="flex flex-col gap-4 border-t border-hairline pt-5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-small font-bold text-ink">صور العقار</h2>
+            <p className="mt-1 text-caption text-muted">
+              اسحب الصور لتغيير ترتيب ظهورها في الإعلان
+            </p>
+          </div>
+          <span className="rounded-pill bg-primary-tint px-2.5 py-1 text-caption font-bold text-primary">
+            {images.length} / {MAX_PROPERTY_IMAGES}
+          </span>
+        </div>
+
+        <label
+          className={cn(
+            "group flex cursor-pointer flex-col items-center justify-center gap-2 rounded-card border-2 border-dashed border-primary/30 bg-primary-tint/30 px-4 py-7 text-center transition-colors hover:border-primary hover:bg-primary-tint",
+            images.length >= MAX_PROPERTY_IMAGES && "pointer-events-none opacity-50",
+          )}
+        >
+          <span className="flex size-11 items-center justify-center rounded-full bg-surface text-primary shadow-sm transition-transform group-hover:scale-105">
+            <ImagePlus className="size-5" aria-hidden />
+          </span>
+          <span className="text-small font-bold text-primary">اختر صور العقار</span>
+          <span className="text-caption text-muted">
+            JPG أو JPEG أو PNG أو WEBP — حتى 5 ميجابايت للصورة وبحد أقصى 10 صور
+          </span>
+          <input
+            type="file"
+            accept={PROPERTY_IMAGE_ACCEPT}
+            multiple
+            className="sr-only"
+            disabled={images.length >= MAX_PROPERTY_IMAGES}
+            onChange={selectImages}
+          />
+        </label>
+
+        {previews.length > 0 && (
+          <div className="flex flex-col gap-4">
+            <div>
+              <div className="mb-2 flex items-center gap-2 text-small font-bold text-ink">
+                <Star className="size-4 fill-primary text-primary" aria-hidden />
+                الصورة الرئيسية للإعلان
+              </div>
+              <PropertyImagePreview
+                file={previews[0].file}
+                url={previews[0].url}
+                index={0}
+                isMain
+                isDragging={draggedImageIndex === 0}
+                onDragStart={startDragging}
+                onDragEnd={() => setDraggedImageIndex(null)}
+                onDrop={dropImage}
+                onRemove={removeImage}
+              />
+              <p className="mt-2 text-caption text-muted">
+                هذه أول صورة ستظهر للمستخدمين. اسحب صورة أخرى إلى مكانها لتغييرها.
+              </p>
+            </div>
+
+            {previews.length > 1 && (
+              <div>
+                <p className="mb-2 text-small font-semibold text-ink">باقي صور العقار</p>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {previews.slice(1).map(({ file, url }, previewIndex) => {
+                    const index = previewIndex + 1;
+                    return (
+                      <PropertyImagePreview
+                        key={`${file.name}-${file.lastModified}-${index}`}
+                        file={file}
+                        url={url}
+                        index={index}
+                        isDragging={draggedImageIndex === index}
+                        onDragStart={startDragging}
+                        onDragEnd={() => setDraggedImageIndex(null)}
+                        onDrop={dropImage}
+                        onRemove={removeImage}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+        {form.formState.errors.images && (
+          <p className="text-caption text-error">{form.formState.errors.images.message}</p>
+        )}
+      </div>
     </Card>
   );
 }
 
-const Toggle = function Toggle({ label, ...rest }: React.InputHTMLAttributes<HTMLInputElement> & { label: string }) {
+type PropertyImagePreviewProps = {
+  file: File;
+  url: string;
+  index: number;
+  isMain?: boolean;
+  isDragging: boolean;
+  onDragStart: (event: React.DragEvent<HTMLElement>, index: number) => void;
+  onDragEnd: () => void;
+  onDrop: (event: React.DragEvent<HTMLElement>, index: number) => void;
+  onRemove: (index: number) => void;
+};
+
+function PropertyImagePreview({
+  file,
+  url,
+  index,
+  isMain = false,
+  isDragging,
+  onDragStart,
+  onDragEnd,
+  onDrop,
+  onRemove,
+}: PropertyImagePreviewProps) {
+  return (
+    <article
+      draggable
+      onDragStart={(event) => onDragStart(event, index)}
+      onDragEnd={onDragEnd}
+      onDragOver={(event) => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+      }}
+      onDrop={(event) => onDrop(event, index)}
+      className={cn(
+        "group relative cursor-grab overflow-hidden rounded-card border bg-subtle shadow-sm transition-all active:cursor-grabbing",
+        isMain ? "border-primary/40" : "border-hairline",
+        isDragging && "scale-[0.98] border-primary opacity-50",
+      )}
+      aria-label={`${file.name}، الصورة رقم ${index + 1}`}
+    >
+      {/* A local object URL is intentionally rendered with img; Next Image does not optimize browser blobs. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={url}
+        alt={`معاينة صورة العقار ${index + 1}`}
+        draggable={false}
+        className={cn("w-full object-cover", isMain ? "aspect-[16/8]" : "aspect-[4/3]")}
+      />
+      <span className="absolute right-2 top-2 flex items-center gap-1 rounded-pill bg-ink/75 px-2 py-1 text-caption font-semibold text-white">
+        <GripVertical className="size-3.5" aria-hidden />
+        اسحب
+      </span>
+      <button
+        type="button"
+        onClick={() => onRemove(index)}
+        className="absolute left-2 top-2 flex size-8 items-center justify-center rounded-full bg-ink/75 text-white transition-colors hover:bg-error"
+        aria-label={`حذف صورة العقار ${index + 1}`}
+      >
+        <X className="size-4" aria-hidden />
+      </button>
+    </article>
+  );
+}
+
+const Toggle = function Toggle({
+  label,
+  ...rest
+}: React.InputHTMLAttributes<HTMLInputElement> & { label: string }) {
   return (
     <label className="flex cursor-pointer items-center gap-2 text-small text-body-text">
       <input type="checkbox" className="size-4 accent-primary" {...rest} />

@@ -380,7 +380,7 @@ export function dispatch(
         id: nextId("quota"),
         userId: u.id,
         freeListingsLeft: 1,
-        optimizerUsesLeft: 2,
+        optimizerUsesLeft: 3,
         freeOffersLeft: 3,
         lastResetDate: null,
       });
@@ -525,6 +525,47 @@ export function dispatch(
     items = [...items].sort((a, b) => Number(b.isBoosted) - Number(a.isBoosted));
     return ok({ items: items.map(toSummary), total: items.length, page: 1, pageSize: 50 });
   }
+  if (method === "GET" && path === "/properties/search/semantic") {
+    const semanticQuery = query.get("query")?.trim() ?? "";
+    const limit = Number(query.get("limit") ?? "10");
+    if (
+      semanticQuery.length < 2 ||
+      semanticQuery.length > 300 ||
+      !Number.isInteger(limit) ||
+      limit < 1 ||
+      limit > 20
+    ) {
+      return err(400, "وصف البحث يجب أن يكون بين حرفين و300 حرف.");
+    }
+    const normalized = semanticQuery.toLowerCase();
+    const items = db.properties
+      .filter((property) => property.status === "APPROVED")
+      .filter((property) => {
+        const searchable = [property.title, property.city, property.district, property.description]
+          .join(" ")
+          .toLowerCase();
+        return normalized.split(/\s+/).some((term) => searchable.includes(term));
+      })
+      .slice(0, limit)
+      .map((property) => ({
+        ...toSummary(property),
+        semanticSimilarity: 0.72,
+        matchReasons: [
+          {
+            code: "MATCHES_SEARCH_INTENT",
+            text: "يتوافق مع تفاصيل البحث والتفضيلات المكتوبة",
+          },
+        ],
+      }));
+    return ok({
+      items,
+      total: items.length,
+      resultCount: items.length,
+      page: 1,
+      pageSize: limit,
+      ...(items.length === 0 ? { reason: "NO_RELEVANT_SEMANTIC_MATCH" } : {}),
+    });
+  }
   if (method === "GET" && seg[0] === "properties" && seg.length === 2) {
     const p = db.properties.find((x) => x.id === seg[1]);
     if (!p) return err(404, "غير موجود");
@@ -635,7 +676,29 @@ export function dispatch(
     if (!quota || quota.freeListingsLeft <= 0)
       return quotaExhausted("NEW_LISTING", PRICES.NEW_LISTING);
 
-    const b = body as CreatePropertyRequest;
+    const b =
+      body instanceof FormData
+        ? ({
+            title: String(body.get("title") ?? ""),
+            description: String(body.get("description") ?? ""),
+            governorate: String(body.get("governorate") ?? ""),
+            city: String(body.get("city") ?? ""),
+            district: String(body.get("district") ?? ""),
+            manualAddress: String(body.get("manualAddress") ?? ""),
+            propertyType: String(body.get("propertyType") ?? "APARTMENT"),
+            propertyAroundServices: String(body.get("propertyAroundServices") ?? ""),
+            rentAmount: Number(body.get("rentAmount")),
+            areaM2: Number(body.get("areaM2")),
+            bedrooms: Number(body.get("bedrooms")),
+            bathrooms: Number(body.get("bathrooms")),
+            isFurnished: body.get("isFurnished") === "true",
+            hasElevator: body.get("hasElevator") === "true",
+            hasParking: body.get("hasParking") === "true",
+            images: body
+              .getAll("images")
+              .map((_, index) => `/public/properties/mock-${index + 1}.jpg`),
+          } as CreatePropertyRequest)
+        : (body as CreatePropertyRequest);
     const property: MockProperty = {
       id: nextId("prop"),
       ownerId: user.id,
@@ -674,6 +737,7 @@ export function dispatch(
       }),
     );
     quota.freeListingsLeft -= 1;
+    quota.optimizerUsesLeft = 3;
     announceQueueItem(propertyQueueItem(property));
     return ok({ property: toDetail(property, user) });
   }

@@ -25,7 +25,9 @@ const statusTone: Record<string, string> = {
   closed: "bg-success-tint text-success",
 };
 
-let localId = 0;
+function makeUniqueId(prefix: string): string {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+}
 
 function analyzeSentiment(message: string): { isFrustrated: boolean; score: number } {
   const angryKeywords = [
@@ -68,8 +70,8 @@ export function CustomerSupportWidget() {
       setFrustrated(true);
     }
 
-    const replyId = `ai_reply_${localId++}`;
-    setMessages((m) => [...m, { id: `user_msg_${localId++}`, role: "user", content: trimmed }]);
+    const replyId = makeUniqueId("ai_reply");
+    setMessages((m) => [...m, { id: makeUniqueId("user_msg"), role: "user", content: trimmed }]);
     setTyping(true);
 
     let started = false;

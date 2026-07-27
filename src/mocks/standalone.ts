@@ -17,11 +17,18 @@ function readBody(req: IncomingMessage): Promise<unknown> {
   return new Promise((resolve) => {
     const chunks: Buffer[] = [];
     req.on("data", (c) => chunks.push(c));
-    req.on("end", () => {
-      const raw = Buffer.concat(chunks).toString("utf-8");
-      if (!raw) return resolve(undefined);
+    req.on("end", async () => {
+      const raw = Buffer.concat(chunks);
+      if (raw.length === 0) return resolve(undefined);
       try {
-        resolve(JSON.parse(raw));
+        if (req.headers["content-type"]?.startsWith("multipart/form-data")) {
+          const response = new Response(raw, {
+            headers: { "content-type": req.headers["content-type"] },
+          });
+          resolve(await response.formData());
+        } else {
+          resolve(JSON.parse(raw.toString("utf-8")));
+        }
       } catch {
         resolve(undefined);
       }

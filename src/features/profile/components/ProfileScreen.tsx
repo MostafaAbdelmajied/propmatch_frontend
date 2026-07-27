@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { User as UserIcon, Mail, Phone, LogOut, ShieldAlert, Scale, ChevronLeft } from "lucide-react";
+import { User as UserIcon, Mail, Phone, LogOut, ShieldAlert } from "lucide-react";
 import Link from "next/link";
 import { useSession, useLogout } from "@/src/features/auth/hooks/useSession";
 import { VerifiedBadge } from "@/src/components/ui/VerifiedBadge";
@@ -57,19 +57,6 @@ export function ProfileScreen() {
           <span className="text-small text-pending">←</span>
         </Link>
       )}
-
-      {/* Legal assistant (PRO-17) — the only in-app help surface in V1;
-          customer-support ticketing is out of scope (conflicts.md B2). */}
-      <Link
-        href="/tenant/legal"
-        className="flex items-center gap-3 rounded-card border border-hairline bg-surface px-4 py-3 hover:border-primary/40"
-      >
-        <span className="flex size-9 items-center justify-center rounded-full bg-primary-tint text-primary">
-          <Scale className="size-5" aria-hidden />
-        </span>
-        <span className="flex-1 text-small font-semibold text-ink">المساعد القانوني</span>
-        <ChevronLeft className="size-4 text-muted" aria-hidden />
-      </Link>
 
       <Button variant="danger" onClick={() => logout.mutate()} loading={logout.isPending}>
         <LogOut className="size-4" aria-hidden />
