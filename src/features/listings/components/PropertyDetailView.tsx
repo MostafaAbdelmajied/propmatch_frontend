@@ -11,6 +11,7 @@ import { Skeleton } from "@/src/components/ui/Skeleton";
 import { ErrorState } from "@/src/components/ui/States";
 import { formatNumber } from "@/src/utils/format";
 import { propertyTypeLabels } from "@/src/lib/api/contracts/property";
+import { PropertyImageGallery } from "./PropertyImageGallery";
 import { PropertyReviews } from "./PropertyReviews";
 import { useSession } from "@/src/features/auth/hooks/useSession";
 
@@ -43,7 +44,6 @@ export function PropertyDetailView({
     );
   }
 
-  const cover = p.images.find((i) => i.isCover) ?? p.images[0];
   const facts = [
     { Icon: BedDouble, label: "غرف النوم", value: formatNumber(p.bedrooms) },
     { Icon: Bath, label: "الحمّامات", value: formatNumber(p.bathrooms) },
@@ -56,27 +56,14 @@ export function PropertyDetailView({
   return (
     <div className="grid gap-6 lg:grid-cols-3">
       <div className="flex flex-col gap-5 lg:col-span-2">
-        <div className="relative h-64 overflow-hidden rounded-card bg-background md:h-80">
-          {cover ? (
-            <Image src={cover.imageUrl} alt={p.title} fill sizes="(max-width:1024px) 100vw, 66vw" className="object-cover" />
-          ) : (
-            <div className="flex h-full items-center justify-center text-muted">
-              <ImageOff className="size-10" aria-hidden />
-            </div>
-          )}
-          <div className="absolute top-3 start-3 flex gap-2">
-            {p.isBoosted && (
-              <span className="rounded-pill bg-pending-tint px-2.5 py-0.5 text-caption font-bold text-pending">مميّز</span>
-            )}
-            {p.status !== "APPROVED" && <StatusChip status={p.status} />}
-          </div>
-          {favoriteSlot && <div className="absolute top-3 end-3">{favoriteSlot}</div>}
-          {matchScore !== undefined && (
-            <div className="absolute bottom-3 end-3 rounded-card bg-surface/95 p-1.5 shadow-card">
-              <MatchScoreRing score={matchScore} size={56} />
-            </div>
-          )}
-        </div>
+        <PropertyImageGallery
+          images={p.images}
+          title={p.title}
+          isBoosted={p.isBoosted}
+          status={p.status}
+          favoriteSlot={favoriteSlot}
+          matchScore={matchScore}
+        />
 
         <div className="flex items-start justify-between gap-3">
           <div>
