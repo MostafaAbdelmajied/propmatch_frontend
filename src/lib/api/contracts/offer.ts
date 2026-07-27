@@ -5,7 +5,8 @@ import { PropertySummarySchema } from "./property";
  * Mirrors the ERD's `OWNER_OFFER` — the landlord side of the reverse
  * marketplace (PRO-12/13). A landlord picks one of their approved properties,
  * writes a pitch and proposes a price against an approved TENANT_REQUEST.
- * Costs one of `USER_QUOTA.free_offers_left`, then an OFFER_PACK (PRO-18).
+ * Free Owners spend one of three direct-offer opportunities. Premium Owners
+ * can initiate offers without a quota while their subscription is active.
  */
 
 /** ERD: `status ENUM "SENT, VIEWED, ACCEPTED, REJECTED"`. */

@@ -63,9 +63,13 @@ export interface MockVerification {
 export interface MockQuota {
   id: string;
   userId: string;
+  planType: "FREE" | "PREMIUM";
+  planExpiresAt: string | null;
+  maxActiveListings: number;
   freeListingsLeft: number;
   optimizerUsesLeft: number;
   freeOffersLeft: number;
+  documentationPackCredits: number;
   lastResetDate: string | null;
 }
 
@@ -334,13 +338,16 @@ function makeVerification(
 }
 
 function makeQuota(userId: string): MockQuota {
-  // Frontend product rule: each new listing starts with up to 3 optimizer uses.
   return {
     id: nextId("quota"),
     userId,
-    freeListingsLeft: 1,
-    optimizerUsesLeft: 3,
+    planType: "FREE",
+    planExpiresAt: null,
+    maxActiveListings: 1,
+    freeListingsLeft: 0,
+    optimizerUsesLeft: 0,
     freeOffersLeft: 3,
+    documentationPackCredits: 0,
     lastResetDate: null,
   };
 }

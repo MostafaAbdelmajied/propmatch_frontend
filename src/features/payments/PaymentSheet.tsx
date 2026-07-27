@@ -5,34 +5,42 @@ import { Sheet } from "@/src/components/ui/Sheet";
 import { api } from "@/src/lib/api/browserClient";
 import {
   paymentTypeLabels,
+  paymentTypePrices,
   type CheckoutSession,
   type PaymentTransaction,
   type PaymentType,
 } from "@/src/lib/api/contracts/payment";
 import { formatEGP } from "@/src/utils/format";
-import { AlertCircle, CheckCircle2, CreditCard, ExternalLink, Loader2, RotateCw, ShieldCheck } from "lucide-react";
+import {
+  AlertCircle,
+  CheckCircle2,
+  CreditCard,
+  ExternalLink,
+  Loader2,
+  RotateCw,
+  ShieldCheck,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 type Phase = "form" | "creating_checkout" | "checkout" | "checking" | "success" | "error";
-
-const FALLBACK_AMOUNTS: Record<PaymentType, number> = {
-  NEW_LISTING: 100,
-  BOOST_LISTING: 75,
-  REFILL_MATCHES: 30,
-  OFFER_PACK: 50,
-};
 
 export interface PaymentSheetProps {
   open: boolean;
   onClose: () => void;
   paymentType: PaymentType;
-  /** For NEW_LISTING / BOOST_LISTING. */
+  /** Required for BOOST_LISTING. */
   propertyId?: string;
   /** Fired once the webhook/reconcile-credited entitlement is confirmed. */
   onActivated?: () => void;
 }
 
-export function PaymentSheet({ open, onClose, paymentType, propertyId, onActivated }: PaymentSheetProps) {
+export function PaymentSheet({
+  open,
+  onClose,
+  paymentType,
+  propertyId,
+  onActivated,
+}: PaymentSheetProps) {
   const [phase, setPhase] = useState<Phase>("form");
   const [session, setSession] = useState<CheckoutSession | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -45,18 +53,27 @@ export function PaymentSheet({ open, onClose, paymentType, propertyId, onActivat
     setPhase("creating_checkout");
     setErrorMessage(null);
 
-    const checkoutWindow = window.open("about:blank", "propmatch-payment", "popup,width=520,height=760");
+    const checkoutWindow = window.open(
+      "about:blank",
+      "propmatch-payment",
+      "popup,width=520,height=760",
+    );
     if (!checkoutWindow) {
       setErrorMessage("المتصفح منع فتح نافذة الدفع. اسمح بالنوافذ المنبثقة ثم حاول مرة أخرى.");
       setPhase("error");
       return;
     }
-    checkoutWindow.document.write("<p style=\"font-family:sans-serif;padding:24px\">Preparing secure payment...</p>");
+    checkoutWindow.document.write(
+      '<p style="font-family:sans-serif;padding:24px">Preparing secure payment...</p>',
+    );
     checkoutWindowRef.current = checkoutWindow;
     setIsCheckoutWindowOpen(true);
 
     try {
-      const checkout = await api.post<CheckoutSession>("payments/checkout", { paymentType, propertyId });
+      const checkout = await api.post<CheckoutSession>("payments/checkout", {
+        paymentType,
+        propertyId,
+      });
       if (!checkout.checkoutUrl) {
         checkoutWindow.close();
         setIsCheckoutWindowOpen(false);
@@ -79,7 +96,11 @@ export function PaymentSheet({ open, onClose, paymentType, propertyId, onActivat
 
   function reopenCheckoutWindow() {
     if (!session?.checkoutUrl) return;
-    const checkoutWindow = window.open(session.checkoutUrl, "propmatch-payment", "popup,width=520,height=760");
+    const checkoutWindow = window.open(
+      session.checkoutUrl,
+      "propmatch-payment",
+      "popup,width=520,height=760",
+    );
     if (!checkoutWindow) {
       setErrorMessage("المتصفح منع فتح نافذة الدفع. اسمح بالنوافذ المنبثقة ثم حاول مرة أخرى.");
       return;
@@ -129,7 +150,10 @@ export function PaymentSheet({ open, onClose, paymentType, propertyId, onActivat
     popupStatusCheckInFlightRef.current = true;
 
     try {
-      const transaction = await api.post<PaymentTransaction>(`payments/${providerOrderId}/reconcile`, {});
+      const transaction = await api.post<PaymentTransaction>(
+        `payments/${providerOrderId}/reconcile`,
+        {},
+      );
       if (transaction.status !== "SUCCESS" && transaction.status !== "FAILED") return;
 
       stopWatchingCheckoutWindow();
@@ -170,7 +194,9 @@ export function PaymentSheet({ open, onClose, paymentType, propertyId, onActivat
       }
 
       if (status === "FAILED") {
-        setErrorMessage("تم رفض عملية الدفع أو إلغاؤها. لم يتم خصم أي رصيد من حسابك داخل PropMatch.");
+        setErrorMessage(
+          "تم رفض عملية الدفع أو إلغاؤها. لم يتم خصم أي رصيد من حسابك داخل PropMatch.",
+        );
         setPhase("error");
         return;
       }
@@ -183,7 +209,9 @@ export function PaymentSheet({ open, onClose, paymentType, propertyId, onActivat
     }
   }
 
-  async function pollTerminalStatus(providerOrderId: string): Promise<PaymentTransaction["status"] | null> {
+  async function pollTerminalStatus(
+    providerOrderId: string,
+  ): Promise<PaymentTransaction["status"] | null> {
     for (let i = 0; i < 12; i++) {
       const tx = await api.get<PaymentTransaction>(`payments/${providerOrderId}`);
       if (tx.status === "SUCCESS" || tx.status === "FAILED") return tx.status;
@@ -206,7 +234,7 @@ export function PaymentSheet({ open, onClose, paymentType, propertyId, onActivat
     onClose();
   }
 
-  const amount = session?.amount ?? FALLBACK_AMOUNTS[paymentType];
+  const amount = session?.amount ?? paymentTypePrices[paymentType];
   const busy = phase === "creating_checkout" || phase === "checking";
 
   return (
@@ -240,7 +268,12 @@ export function PaymentSheet({ open, onClose, paymentType, propertyId, onActivat
           {errorMessage && <p className="text-caption text-error">{errorMessage}</p>}
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <Button block variant="secondary" disabled={isCheckoutWindowOpen} onClick={reopenCheckoutWindow}>
+            <Button
+              block
+              variant="secondary"
+              disabled={isCheckoutWindowOpen}
+              onClick={reopenCheckoutWindow}
+            >
               <ExternalLink className="size-4" aria-hidden />
               فتح نافذة الدفع
             </Button>
@@ -258,7 +291,7 @@ export function PaymentSheet({ open, onClose, paymentType, propertyId, onActivat
         <div className="flex flex-col items-center gap-3 py-6 text-center">
           <CheckCircle2 className="size-12 text-success" aria-hidden />
           <p className="text-title font-bold text-ink">تم الدفع بنجاح</p>
-          <p className="text-small text-muted">تم تحديث رصيدك.</p>
+          <p className="text-small text-muted">تم تفعيل الخدمة على حسابك.</p>
           <Button block onClick={reset}>
             تم
           </Button>
@@ -281,9 +314,21 @@ export function PaymentSheet({ open, onClose, paymentType, propertyId, onActivat
 
 function PaymentSummary({ paymentType, amount }: { paymentType: PaymentType; amount: number }) {
   return (
-    <div className="flex items-center justify-between rounded-control bg-primary-tint px-4 py-3">
-      <span className="text-small font-semibold text-primary-dark">{paymentTypeLabels[paymentType]}</span>
-      <span className="text-title font-bold text-primary">{formatEGP(amount)}</span>
+    <div className="flex flex-col gap-3 rounded-card border border-hairline bg-surface p-4 shadow-xs">
+      <div className="flex items-center justify-between border-b border-hairline/60 pb-3">
+        <div>
+          <p className="text-body font-bold text-ink">{paymentTypeLabels[paymentType]}</p>
+          <p className="text-caption text-muted">تفعيل فوري للخدمة بعد إتمام العملية</p>
+        </div>
+        <span className="rounded-pill bg-primary-tint px-3 py-1 text-title font-extrabold text-primary">
+          {formatEGP(amount)}
+        </span>
+      </div>
+
+      <div className="flex items-center gap-1.5 pt-1 text-caption font-semibold text-ink">
+        <ShieldCheck className="size-4 text-success" aria-hidden />
+        <span>الدفع المباشر بالجنيه المصري عبر Paymob</span>
+      </div>
     </div>
   );
 }

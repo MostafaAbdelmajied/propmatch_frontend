@@ -46,6 +46,55 @@ export const CreateTenantRequestSchema = z
   });
 export type CreateTenantRequest = z.infer<typeof CreateTenantRequestSchema>;
 
+export const TenantRequestSuggestionFieldSchema = z.enum([
+  "minBudget",
+  "maxBudget",
+  "preferredLocations",
+  "propertyType",
+  "requiredBedrooms",
+  "needsFurnished",
+  "flexibilityScore",
+  "lifestyleRequirements",
+]);
+export type TenantRequestSuggestionField = z.infer<typeof TenantRequestSuggestionFieldSchema>;
+
+export const ExtractTenantRequestSchema = z.object({
+  text: z.string().trim().min(1).max(2000),
+});
+export type ExtractTenantRequest = z.infer<typeof ExtractTenantRequestSchema>;
+
+export const TenantRequestExtractionSuggestionsSchema = z
+  .object({
+    minBudget: z.number().finite().nullable(),
+    maxBudget: z.number().finite().nullable(),
+    preferredLocations: z.string().nullable(),
+    propertyType: PropertyTypeSchema.nullable(),
+    requiredBedrooms: z.number().int().min(0).nullable(),
+    needsFurnished: z.boolean().nullable(),
+    flexibilityScore: z.number().int().min(1).max(10).nullable(),
+    lifestyleRequirements: z.string().nullable(),
+  })
+  .strict();
+export type TenantRequestExtractionSuggestions = z.infer<
+  typeof TenantRequestExtractionSuggestionsSchema
+>;
+
+export const TenantRequestExtractionResponseSchema = z
+  .object({
+    originalText: z.string(),
+    suggestions: TenantRequestExtractionSuggestionsSchema,
+    missingFields: z.array(TenantRequestSuggestionFieldSchema),
+  })
+  .strict();
+export type TenantRequestExtractionResponse = z.infer<typeof TenantRequestExtractionResponseSchema>;
+
+export const tenantRequestExtractionErrorCodes = [
+  "TENANT_REQUEST_EXTRACTION_UNAVAILABLE",
+  "TENANT_REQUEST_EXTRACTION_TIMEOUT",
+  "TENANT_REQUEST_EXTRACTION_INVALID_RESPONSE",
+] as const;
+export type TenantRequestExtractionErrorCode = (typeof tenantRequestExtractionErrorCodes)[number];
+
 /** The tenant's own view of their request. */
 export const TenantRequestSchema = z.object({
   id: z.string(),
