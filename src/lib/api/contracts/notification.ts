@@ -45,4 +45,17 @@ export const SOCKET_EVENTS = {
   /** A new item entered an admin moderation queue. */
   adminQueueItem: "admin:queue:item",
   message: "message",
+  /** A new support ticket was created (admins). */
+  supportTicketCreated: "support:ticket:created",
+  /** A new reply landed on a support ticket (customer or assigned agent). */
+  supportMessageReceived: "support:message:received",
 } as const;
+
+/** Payload for the `support:message:received` event (matches the NestJS gateway). */
+export interface RealtimeSupportMessage {
+  ticketId: string;
+  authorName: string;
+  content: string;
+  internal: boolean;
+  at: string;
+}

@@ -33,8 +33,13 @@ export function useCreateSupportTicket() {
 export function useUserTicketReply(ticketId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { content: string }) =>
-      api.post<TicketDetail>(`support/tickets/${ticketId}/reply`, vars),
+    mutationFn: (vars: {
+      content?: string;
+      attachmentUrl?: string;
+      attachmentType?: "IMAGE" | "VIDEO" | "AUDIO";
+      attachmentName?: string;
+      attachmentDurationMs?: number;
+    }) => api.post<TicketDetail>(`support/tickets/${ticketId}/reply`, vars),
     onSuccess: (data) => {
       qc.setQueryData(["user", "support", "ticket", ticketId], data);
       qc.invalidateQueries({ queryKey: ["user", "support", "tickets"] });

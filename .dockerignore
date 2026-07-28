@@ -1,0 +1,18 @@
+node_modules
+.next
+.git
+.gitignore
+.env
+.env.*
+*.log
+Dockerfile
+.dockerignore
+# Large / non-essential to the build — keep the context small.
+reference
+docs
+coverage
+.turbo
+.vscode
+**/__tests__
+**/*.test.ts
+**/*.test.tsx

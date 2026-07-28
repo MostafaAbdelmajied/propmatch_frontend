@@ -13,6 +13,7 @@ import { formatNumber } from "@/src/utils/format";
 import { propertyTypeLabels } from "@/src/lib/api/contracts/property";
 import { PropertyReviews } from "./PropertyReviews";
 import { useSession } from "@/src/features/auth/hooks/useSession";
+import { MakeOfferButton } from "@/src/features/matching/components/MakeOfferButton";
 
 export function PropertyDetailView({
   id,
@@ -124,7 +125,10 @@ export function PropertyDetailView({
       </div>
 
       {!hideContact && (
-        <aside className="lg:sticky lg:top-20 lg:h-fit">
+        <aside className="flex flex-col gap-3 lg:sticky lg:top-20 lg:h-fit">
+          {p.status === "APPROVED" && !p.contactRevealed && (
+            <MakeOfferButton propertyId={id} askingRent={p.rentAmount} />
+          )}
           <ContactPanel
             revealed={p.contactRevealed}
             ownerName={p.ownerName}

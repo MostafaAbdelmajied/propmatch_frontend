@@ -14,6 +14,10 @@ export const ChatMessageSchema = z.object({
   content: z.string(),
   /** True when the assistant declined an off-topic question (SRS 3.3). */
   declined: z.boolean().optional(),
+  /** Legal chat: an image/voice note the user attached to this turn. */
+  attachmentUrl: z.string().nullable().optional(),
+  attachmentType: z.enum(["IMAGE", "VIDEO", "AUDIO"]).nullable().optional(),
+  attachmentName: z.string().nullable().optional(),
 });
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 
@@ -79,6 +83,10 @@ export const SupportMessageSchema = z.object({
   authorName: z.string(),
   content: z.string(),
   internal: z.boolean().default(false),
+  attachmentUrl: z.string().nullable().optional(),
+  attachmentType: z.enum(["IMAGE", "VIDEO", "AUDIO"]).nullable().optional(),
+  attachmentName: z.string().nullable().optional(),
+  attachmentDurationMs: z.number().nullable().optional(),
   createdAt: z.string().optional(),
   at: z.string().optional(),
 });

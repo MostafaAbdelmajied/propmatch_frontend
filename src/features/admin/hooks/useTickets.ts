@@ -27,8 +27,14 @@ export function useTicketActions(id: string) {
   };
 
   const reply = useMutation({
-    mutationFn: (vars: { content: string; internal: boolean }) =>
-      api.post<TicketDetail>(`admin/tickets/${id}/reply`, vars),
+    mutationFn: (vars: {
+      content?: string;
+      internal: boolean;
+      attachmentUrl?: string;
+      attachmentType?: "IMAGE" | "VIDEO" | "AUDIO";
+      attachmentName?: string;
+      attachmentDurationMs?: number;
+    }) => api.post<TicketDetail>(`admin/tickets/${id}/reply`, vars),
     onSuccess: (data) => {
       qc.setQueryData(["admin", "ticket", id], data);
       qc.invalidateQueries({ queryKey: ["admin", "tickets"] });

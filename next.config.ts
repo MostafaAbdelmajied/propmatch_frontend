@@ -8,6 +8,9 @@ const backendOrigin = process.env.NESTJS_API_URL
   : "http://localhost:3001";
 
 const nextConfig: NextConfig = {
+  // Self-contained server bundle (only traced runtime deps) — keeps the Docker
+  // runtime image small and its export layer tiny.
+  output: "standalone",
   turbopack: {
     root: process.cwd(),
   },

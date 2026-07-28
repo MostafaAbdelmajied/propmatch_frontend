@@ -1,15 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { ArrowRight, Send } from "lucide-react";
+import { ArrowRight, Paperclip, Send, X } from "lucide-react";
 import { Button } from "@/src/components/ui/Button";
 import {
   useMatchConversations,
   useMatchMessages,
   useSendMatchMessage,
 } from "../hooks/useMessages";
+import { useChatUpload } from "../hooks/useChatUpload";
+import { ChatAttachmentView } from "./ChatAttachmentView";
+import { VoiceRecorderButton } from "./VoiceRecorderButton";
+import type { UploadedAttachment } from "@/src/lib/api/contracts/message";
 
 export function ConversationView({ matchConnectionId }: { matchConnectionId: string }) {
   const pathname = usePathname();
@@ -20,19 +24,46 @@ export function ConversationView({ matchConnectionId }: { matchConnectionId: str
   );
   const { data = [], isLoading } = useMatchMessages(matchConnectionId);
   const send = useSendMatchMessage(matchConnectionId);
+  const upload = useChatUpload();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [body, setBody] = useState("");
+  const [pending, setPending] = useState<(UploadedAttachment & { durationMs?: number }) | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
-  const valid = Boolean(body.trim()) && body.length <= 1000;
+
+  const busy = send.isPending || upload.uploading;
+  const valid = (Boolean(body.trim()) || Boolean(pending)) && body.length <= 1000;
+
+  async function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const result = await upload.upload(file, file.name);
+    if (result) setPending(result);
+  }
+
+  async function onRecorded(blob: Blob, durationMs: number) {
+    const result = await upload.upload(blob, `voice-${Date.now()}.webm`);
+    if (result) setPending({ ...result, durationMs });
+  }
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!valid || send.isPending) return;
-
+    if (!valid || busy) return;
     setSendError(null);
     send.mutate(
-      { body: body.trim() },
       {
-        onSuccess: () => setBody(""),
+        body: body.trim() || undefined,
+        attachmentUrl: pending?.url,
+        attachmentType: pending?.type,
+        attachmentName: pending?.name,
+        attachmentDurationMs: pending?.durationMs,
+      },
+      {
+        onSuccess: () => {
+          setBody("");
+          setPending(null);
+        },
         onError: () => setSendError("تعذر إرسال الرسالة. حاول مرة أخرى."),
       },
     );
@@ -59,17 +90,24 @@ export function ConversationView({ matchConnectionId }: { matchConnectionId: str
           <p className="text-small text-muted">جارٍ تحميل الرسائل...</p>
         ) : data.length ? (
           data.map((message) => (
-            <p
+            <div
               key={message.id}
               className={
                 message.isMine
-                  ? "ms-auto max-w-[85%] rounded-card bg-primary px-4 py-3 text-white"
-                  : "me-auto max-w-[85%] rounded-card bg-surface px-4 py-3 text-ink shadow-card"
+                  ? "ms-auto flex max-w-[85%] flex-col gap-2 rounded-card bg-primary px-4 py-3 text-white"
+                  : "me-auto flex max-w-[85%] flex-col gap-2 rounded-card bg-surface px-4 py-3 text-ink shadow-card"
               }
               dir="auto"
             >
-              {message.body}
-            </p>
+              {message.attachmentUrl && message.attachmentType && (
+                <ChatAttachmentView
+                  url={message.attachmentUrl}
+                  type={message.attachmentType}
+                  name={message.attachmentName}
+                />
+              )}
+              {message.body && <p>{message.body}</p>}
+            </div>
           ))
         ) : (
           <p className="m-auto text-center text-small text-muted">ابدأ المحادثة برسالة قصيرة ومحترمة.</p>
@@ -77,6 +115,22 @@ export function ConversationView({ matchConnectionId }: { matchConnectionId: str
       </section>
 
       <form onSubmit={submit} className="rounded-card border border-hairline bg-surface p-4">
+        {pending && (
+          <div className="mb-3 flex items-center gap-2 rounded-control border border-hairline bg-background p-2">
+            <div className="min-w-0 flex-1">
+              <ChatAttachmentView url={pending.url} type={pending.type} name={pending.name} />
+            </div>
+            <button
+              type="button"
+              onClick={() => setPending(null)}
+              aria-label="إزالة المرفق"
+              className="flex size-8 shrink-0 items-center justify-center rounded-full text-muted hover:bg-error-tint hover:text-error"
+            >
+              <X className="size-4" aria-hidden />
+            </button>
+          </div>
+        )}
+
         <label htmlFor="message-body" className="sr-only">
           اكتب رسالتك
         </label>
@@ -90,16 +144,41 @@ export function ConversationView({ matchConnectionId }: { matchConnectionId: str
           className="w-full resize-y rounded-control border border-hairline bg-background px-3 py-2.5 text-body text-ink outline-none placeholder:text-muted focus:border-primary focus:ring-2 focus:ring-primary/20"
           disabled={send.isPending}
         />
+
         <div className="mt-3 flex items-center justify-between gap-3">
-          <div>
-            <span className="text-caption text-muted">{body.length}/1000</span>
-            {sendError && <p className="mt-1 text-small text-error" role="alert">{sendError}</p>}
+          <div className="flex items-center gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,video/*"
+              className="hidden"
+              onChange={onPickFile}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={busy}
+              aria-label="إرفاق صورة أو فيديو"
+              title="إرفاق صورة أو فيديو"
+              className="flex size-10 shrink-0 items-center justify-center rounded-full bg-background text-muted transition-colors hover:bg-primary-tint hover:text-primary disabled:opacity-50"
+            >
+              <Paperclip className="size-5" aria-hidden />
+            </button>
+            <VoiceRecorderButton onRecorded={onRecorded} disabled={busy} />
+            {upload.uploading && <span className="text-caption text-muted">جارٍ الرفع…</span>}
           </div>
-          <Button type="submit" disabled={!valid} loading={send.isPending}>
-            <Send className="size-4" aria-hidden />
-            إرسال
-          </Button>
+
+          <div className="flex items-center gap-3">
+            <span className="text-caption text-muted">{body.length}/1000</span>
+            <Button type="submit" disabled={!valid || busy} loading={send.isPending}>
+              <Send className="size-4" aria-hidden />
+              إرسال
+            </Button>
+          </div>
         </div>
+        {(sendError || upload.error) && (
+          <p className="mt-1 text-small text-error" role="alert">{sendError ?? upload.error}</p>
+        )}
       </form>
     </div>
   );

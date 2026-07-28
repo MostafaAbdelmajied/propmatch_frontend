@@ -7,6 +7,8 @@ import { streamPost } from "@/src/lib/api/browserClient";
 import { ticketStatusLabels, type ChatMessage, type TicketStatus } from "@/src/lib/api/contracts/support";
 import { cn } from "@/src/utils/cn";
 import { formatRelativeTime } from "@/src/utils/format";
+import { AttachmentBar, type PendingAttachment } from "@/src/features/messages/components/AttachmentBar";
+import { ChatAttachmentView } from "@/src/features/messages/components/ChatAttachmentView";
 import {
   AlertTriangle,
   Bot,
@@ -225,6 +227,7 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
   const [legalTyping, setLegalTyping] = useState(false);
 
   const [input, setInput] = useState("");
+  const [aiPending, setAiPending] = useState<PendingAttachment | null>(null);
   const [frustrated, setFrustrated] = useState(false);
 
   // Accordion state
@@ -288,8 +291,11 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
 
   async function sendMessage(text: string) {
     const trimmed = text.trim();
-    if (!trimmed || typing) return;
+    // Legal chat can carry an image / voice note with or without text.
+    const attachment = mode === "LEGAL" ? aiPending : null;
+    if ((!trimmed && !attachment) || typing) return;
     setInput("");
+    setAiPending(null);
 
     // Check sentiment only in support mode
     if (mode === "SUPPORT") {
@@ -300,7 +306,14 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
     }
 
     const replyId = makeUniqueId("ai_reply");
-    const userMsg: ChatMessage = { id: makeUniqueId("user_msg"), role: "user", content: trimmed };
+    const userMsg: ChatMessage = {
+      id: makeUniqueId("user_msg"),
+      role: "user",
+      content: trimmed,
+      attachmentUrl: attachment?.url,
+      attachmentType: attachment?.type,
+      attachmentName: attachment?.name,
+    };
 
     if (mode === "LEGAL") {
       setLegalMessages((m) => [...m, userMsg]);
@@ -315,7 +328,14 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
     try {
       const done = await streamPost(
         endpoint,
-        { message: trimmed },
+        attachment
+          ? {
+              message: trimmed,
+              attachments: [
+                { url: attachment.url, type: attachment.type, name: attachment.name },
+              ],
+            }
+          : { message: trimmed },
         {
           onToken: (token) => {
             if (!started) {
@@ -453,7 +473,7 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
       </div>
 
       {/* Main Wide Chat Panel */}
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex flex-1 flex-col overflow-hidden min-h-0">
         {/* SINGLE UNIFIED TOP HEADER BAR (Eliminates double header stacked height) */}
         <div className="flex items-center justify-between border-b border-hairline px-4 py-2 bg-background">
           {/* Start Side: Sidebar toggle + Brand + Mode Title + Legal Disclaimer */}
@@ -528,7 +548,7 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
         {selectedTicketId ? (
           <UserTicketThread id={selectedTicketId} onBack={() => setSelectedTicketId(null)} />
         ) : (
-          <div className="flex flex-1 flex-col gap-3 overflow-hidden p-5 pb-5">
+          <div className="flex flex-1 flex-col gap-3 overflow-hidden p-5 pb-5 min-h-0">
             {/* Frustration Alert in Support Mode */}
             {mode === "SUPPORT" && frustrated && (
               <div className="flex items-center justify-between gap-3 rounded-card border border-error/30 bg-error-tint p-3.5 text-error">
@@ -543,7 +563,7 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
             )}
 
             {/* Messages Thread with Wide Bubble Layout & Fast Rendering */}
-            <div ref={scrollRef} className="flex flex-1 flex-col gap-4 overflow-y-auto rounded-card border border-hairline bg-surface p-5">
+            <div ref={scrollRef} className="flex flex-1 flex-col gap-4 overflow-y-auto rounded-card border border-hairline bg-surface p-5 min-h-0">
               {activeMessages.length === 0 && (
                 <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center py-8">
                   {mode === "LEGAL" ? (
@@ -587,16 +607,19 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
                 <div key={m.id} className={cn("flex", m.role === "user" ? "justify-start" : "justify-end")}>
                   <div
                     className={cn(
-                      "max-w-[92%] sm:max-w-[85%] rounded-card px-5 py-3 text-body leading-relaxed shadow-xs",
+                      "flex max-w-[92%] flex-col gap-2 rounded-card px-5 py-3 text-body leading-relaxed shadow-xs sm:max-w-[85%]",
                       m.role === "user"
                         ? "bg-primary text-white"
                         : "bg-background text-ink border border-hairline",
                     )}
                   >
+                    {m.attachmentUrl && m.attachmentType && (
+                      <ChatAttachmentView url={m.attachmentUrl} type={m.attachmentType} name={m.attachmentName} />
+                    )}
                     {m.role === "assistant" ? (
                       <FormattedMarkdownText text={m.content} />
                     ) : (
-                      m.content
+                      m.content && <span>{m.content}</span>
                     )}
                   </div>
                 </div>
@@ -625,6 +648,12 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
                     <UserCheck className="size-3.5" />
                     تحويل لموظف الدعم الفني
                   </button>
+                </div>
+              )}
+
+              {mode === "LEGAL" && (
+                <div className="px-1">
+                  <AttachmentBar pending={aiPending} onChange={setAiPending} disabled={typing} />
                 </div>
               )}
 
@@ -706,18 +735,28 @@ function UserTicketThread({ id, onBack }: { id: string; onBack: () => void }) {
   const { data: ticket, isLoading, isError } = useUserTicketDetail(id);
   const reply = useUserTicketReply(id);
   const [text, setText] = useState("");
+  const [pending, setPending] = useState<PendingAttachment | null>(null);
 
   if (isLoading) return <Skeleton className="h-64 w-full" />;
   if (isError || !ticket) return <div className="p-4">تعذر تحميل التذكرة.</div>;
 
+  const canSend = Boolean(text.trim() || pending);
+
   function handleSubmit(e?: React.FormEvent) {
     e?.preventDefault();
-    if (!text.trim() || reply.isPending) return;
+    if (!canSend || reply.isPending) return;
     reply.mutate(
-      { content: text.trim() },
+      {
+        content: text.trim() || undefined,
+        attachmentUrl: pending?.url,
+        attachmentType: pending?.type,
+        attachmentName: pending?.name,
+        attachmentDurationMs: pending?.durationMs,
+      },
       {
         onSuccess: () => {
           setText("");
+          setPending(null);
           toast("success", "تم إرسال ردك لموظف الدعم");
         },
       },
@@ -725,7 +764,7 @@ function UserTicketThread({ id, onBack }: { id: string; onBack: () => void }) {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-3 p-5 pb-6">
+    <div className="flex flex-1 flex-col gap-3 p-5 pb-6 min-h-0">
       <div className="flex items-center justify-between border-b border-hairline pb-2">
         <Button variant="ghost" size="sm" onClick={onBack}>
           ← العودة للمحاورات
@@ -739,7 +778,7 @@ function UserTicketThread({ id, onBack }: { id: string; onBack: () => void }) {
         <h2 className="text-body font-bold text-ink">{ticket.subject}</h2>
       </div>
 
-      <div className="flex flex-1 flex-col gap-3 overflow-y-auto rounded-card border border-hairline bg-surface p-4">
+      <div className="flex flex-1 flex-col gap-3 overflow-y-auto rounded-card border border-hairline bg-surface p-4 min-h-0">
         {ticket.messages.map((m) => {
           const authorVal = String(m.authorType || m.author || "").toLowerCase();
           const isUser = authorVal === "user";
@@ -753,11 +792,14 @@ function UserTicketThread({ id, onBack }: { id: string; onBack: () => void }) {
                 </span>
                 <div
                   className={cn(
-                    "rounded-card px-4 py-2.5 text-body leading-relaxed",
+                    "flex flex-col gap-2 rounded-card px-4 py-2.5 text-body leading-relaxed",
                     isUser ? "bg-primary text-white" : "bg-background text-ink border border-hairline",
                   )}
                 >
-                  <FormattedMarkdownText text={m.content} />
+                  {m.attachmentUrl && m.attachmentType && (
+                    <ChatAttachmentView url={m.attachmentUrl} type={m.attachmentType} name={m.attachmentName} />
+                  )}
+                  {m.content && <FormattedMarkdownText text={m.content} />}
                 </div>
               </div>
             </div>
@@ -766,24 +808,27 @@ function UserTicketThread({ id, onBack }: { id: string; onBack: () => void }) {
       </div>
 
       {ticket.status !== "closed" ? (
-        <form onSubmit={handleSubmit} className="flex gap-2">
-          <input
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSubmit();
-              } else if (e.key === "Escape") {
-                onBack();
-              }
-            }}
-            placeholder="اكتب رداً لموظف الدعم…"
-            className="flex-1 rounded-pill border border-hairline bg-surface px-5 py-2.5 text-body focus:border-primary focus:outline-none"
-          />
-          <Button type="submit" loading={reply.isPending} disabled={!text.trim()}>
-            إرسال
-          </Button>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-2">
+          <div className="flex gap-2">
+            <input
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSubmit();
+                } else if (e.key === "Escape") {
+                  onBack();
+                }
+              }}
+              placeholder="اكتب رداً لموظف الدعم…"
+              className="flex-1 rounded-pill border border-hairline bg-surface px-5 py-2.5 text-body focus:border-primary focus:outline-none"
+            />
+            <Button type="submit" loading={reply.isPending} disabled={!canSend}>
+              إرسال
+            </Button>
+          </div>
+          <AttachmentBar pending={pending} onChange={setPending} disabled={reply.isPending} />
         </form>
       ) : (
         <div className="rounded-card bg-background p-3 text-center text-caption text-muted">

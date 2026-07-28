@@ -4,7 +4,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { io, type Socket } from "socket.io-client";
 import { SOCKET_EVENTS } from "@/src/lib/api/contracts/notification";
-import type { Notification, NotificationsResponse } from "@/src/lib/api/contracts/notification";
+import type { Notification, NotificationsResponse, RealtimeSupportMessage } from "@/src/lib/api/contracts/notification";
 import type { AdminQueuesResponse, QueueItem } from "@/src/lib/api/contracts/admin";
 import type { MatchMessage, RealtimeMatchMessage } from "@/src/lib/api/contracts/message";
 
@@ -76,10 +76,28 @@ function getSocket(): Socket | null {
   if (!SOCKET_URL || typeof window === "undefined") return null;
   socket ??= io(SOCKET_URL, {
     withCredentials: true,
-    reconnectionAttempts: 5,
+    // Keep retrying: the singleton may first connect before the auth cookie
+    // exists (e.g. a deep link → login → back), and must recover afterwards
+    // instead of giving up permanently.
+    reconnectionAttempts: Infinity,
     reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
   });
   return socket;
+}
+
+/**
+ * Force the shared socket to re-run its handshake so it authenticates with the
+ * CURRENT auth cookie. Call this after login/logout: the singleton may have
+ * connected anonymously (e.g. on the /login page before the cookie existed) or
+ * as a previous account, and must re-auth as the new user. Reuses the same
+ * socket instance, so all `.on(...)` listeners stay bound.
+ */
+export function reconnectSocket(): void {
+  const s = getSocket();
+  if (!s) return;
+  s.disconnect();
+  s.connect();
 }
 
 function subscribeToStatus(onChange: () => void): () => void {
@@ -163,13 +181,27 @@ export function useRealtime(): RealtimeState {
       playNotificationChime();
     };
 
+    // Live support-ticket chat. The payload lacks the full message shape, so we
+    // invalidate the affected ticket + list queries and let react-query refetch
+    // the authoritative TicketDetail. Both the customer and the assigned agent
+    // caches are refreshed (only the one this session owns is actually present).
+    const onSupportMessage = (payload: RealtimeSupportMessage) => {
+      qc.invalidateQueries({ queryKey: ["user", "support", "ticket", payload.ticketId] });
+      qc.invalidateQueries({ queryKey: ["user", "support", "tickets"] });
+      qc.invalidateQueries({ queryKey: ["admin", "ticket", payload.ticketId] });
+      qc.invalidateQueries({ queryKey: ["admin", "tickets"] });
+      playNotificationChime();
+    };
+
     s.on(SOCKET_EVENTS.notification, onNotification);
     s.on(SOCKET_EVENTS.adminQueueItem, onQueueItem);
     s.on(SOCKET_EVENTS.message, onMessage);
+    s.on(SOCKET_EVENTS.supportMessageReceived, onSupportMessage);
     return () => {
       s.off(SOCKET_EVENTS.notification, onNotification);
       s.off(SOCKET_EVENTS.adminQueueItem, onQueueItem);
       s.off(SOCKET_EVENTS.message, onMessage);
+      s.off(SOCKET_EVENTS.supportMessageReceived, onSupportMessage);
     };
   }, [qc]);
 

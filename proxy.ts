@@ -15,6 +15,8 @@ const PROTECTED_PREFIXES = [
   "/landlord",
   "/profile",
   "/verify",
+  // Role-agnostic support ticket deep links (from notifications).
+  "/support",
   // Browsing (/tenant) stays open; the tenant's own surfaces don't.
   "/tenant/requests",
   "/tenant/offers",
@@ -55,6 +57,7 @@ export const config = {
     "/landlord/:path*",
     "/profile/:path*",
     "/verify/:path*",
+    "/support/:path*",
     "/tenant/requests/:path*",
     "/tenant/offers/:path*",
     "/tenant/favorites/:path*",
