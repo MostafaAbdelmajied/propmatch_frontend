@@ -34,12 +34,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    // RealtimeProvider sits inside QueryClientProvider — it writes socket
-    // events straight into the query cache (PRO-06).
+    // ToastProvider wraps RealtimeProvider so socket-event handlers (e.g. a
+    // contract-ready-for-review push) can call useToast() themselves.
     <QueryClientProvider client={queryClient}>
-      <RealtimeProvider>
-        <ToastProvider>{children}</ToastProvider>
-      </RealtimeProvider>
+      <ToastProvider>
+        <RealtimeProvider>{children}</RealtimeProvider>
+      </ToastProvider>
     </QueryClientProvider>
   );
 }

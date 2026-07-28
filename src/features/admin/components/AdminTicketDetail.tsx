@@ -70,9 +70,10 @@ export function AdminTicketDetail({ id }: { id: string }) {
           <SelectField
             aria-label="حالة التذكرة"
             options={statuses.map((s) => ({ value: s, label: ticketStatusLabels[s] }))}
-            value={ticket.status}
+            value={ticket.status?.toLowerCase()}
+            disabled={setStatus.isPending}
             onChange={(e) => setStatus.mutate(e.target.value as TicketStatus)}
-            className="w-36"
+            className="w-40 min-w-[150px]"
           />
         </div>
       </div>
@@ -100,7 +101,7 @@ export function AdminTicketDetail({ id }: { id: string }) {
               <div className={cn("flex max-w-[85%] flex-col gap-1", isUser ? "items-start" : "items-end")}>
                 <span className="flex items-center gap-1 text-caption text-muted">
                   {isAi ? <Bot className="size-3" aria-hidden /> : <UserIcon className="size-3" aria-hidden />}
-                  {m.authorName}
+                  {isAdmin ? "الدعم الفني" : m.authorName}
                   {m.internal && <span className="rounded bg-pending-tint px-1 text-pending">ملاحظة داخلية</span>}
                   <span>· {formatRelativeTime(timestamp)}</span>
                 </span>
