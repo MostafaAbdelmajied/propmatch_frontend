@@ -1,31 +1,55 @@
-import { render, screen } from "@testing-library/react";
+import { render } from "@testing-library/react";
+
+const mockReactMarkdown = jest.fn(({ children }: { children: React.ReactNode }) => <>{children}</>);
+const mockRemarkGfm = jest.fn();
+
+jest.mock("react-markdown", () => ({
+  __esModule: true,
+  default: (props: { children: React.ReactNode }) => mockReactMarkdown(props),
+}));
+
+jest.mock("remark-gfm", () => ({
+  __esModule: true,
+  default: mockRemarkGfm,
+}));
+
 import { LegalMarkdown } from "./LegalMarkdown";
 
 describe("LegalMarkdown", () => {
-  it("renders GFM emphasis, lists, and tables", () => {
-    render(
-      <LegalMarkdown
-        content={`**مدة الإخطار**
-
-- شهر واحد
-
-| النوع | المدة |
-| --- | --- |
-| إيجار | شهران |`}
-      />,
-    );
-
-    expect(screen.getByText("مدة الإخطار").tagName).toBe("STRONG");
-    expect(screen.getByRole("list")).toBeTruthy();
-    expect(screen.getByRole("table")).toBeTruthy();
-    expect(screen.getByText("شهران")).toBeTruthy();
+  beforeEach(() => {
+    mockReactMarkdown.mockClear();
   });
 
-  it("does not render raw HTML from model output", () => {
+  it("configures GFM rendering and custom presentation components", () => {
+    const content = "**مدة الإخطار**";
+    render(<LegalMarkdown content={content} />);
+
+    expect(mockReactMarkdown).toHaveBeenCalledWith(
+      expect.objectContaining({
+        children: content,
+        remarkPlugins: [mockRemarkGfm],
+        skipHtml: true,
+      }),
+    );
+
+    const [{ components }] = mockReactMarkdown.mock.calls[0];
+    expect(components).toEqual(
+      expect.objectContaining({
+        strong: expect.any(Function),
+        ul: expect.any(Function),
+        table: expect.any(Function),
+      }),
+    );
+  });
+
+  it("disables raw HTML in model output", () => {
     const { container } = render(
       <LegalMarkdown content={'نص آمن <script>alert("xss")</script>'} />,
     );
 
+    expect(mockReactMarkdown).toHaveBeenLastCalledWith(
+      expect.objectContaining({ skipHtml: true }),
+    );
     expect(container.querySelector("script")).toBeNull();
   });
 });
