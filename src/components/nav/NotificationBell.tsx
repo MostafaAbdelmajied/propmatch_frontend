@@ -24,6 +24,9 @@ const typeIcon: Record<NotificationType, typeof Bell> = {
   NEW_TENANT_REQUEST: FileText,
   NEW_OFFER_RECEIVED: Inbox,
   NEW_MESSAGE: MessageCircle,
+  CONTRACT_READY_FOR_REVIEW: FileText,
+  CONTRACT_APPROVED: FileText,
+  CONTRACT_REJECTED: FileText,
 };
 
 export function NotificationBell() {

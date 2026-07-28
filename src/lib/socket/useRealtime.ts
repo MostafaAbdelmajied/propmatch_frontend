@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { io, type Socket } from "socket.io-client";
 import { SOCKET_EVENTS } from "@/src/lib/api/contracts/notification";
 import type { Notification, NotificationsResponse, RealtimeSupportMessage } from "@/src/lib/api/contracts/notification";
+import { useToast } from "@/src/components/ui/Toast";
 import type { AdminQueuesResponse, QueueItem } from "@/src/lib/api/contracts/admin";
 import type { MatchMessage, RealtimeMatchMessage } from "@/src/lib/api/contracts/message";
 
@@ -122,6 +123,7 @@ export interface RealtimeState {
 
 export function useRealtime(): RealtimeState {
   const qc = useQueryClient();
+  const toast = useToast();
   const connected = useSyncExternalStore(subscribeToStatus, getStatus, getServerStatus);
 
   // Attach global user interaction listeners to unlock Web Audio API on first click/keypress
@@ -150,6 +152,12 @@ export function useRealtime(): RealtimeState {
         return { items: [n, ...prev.items].slice(0, 20), unread: prev.unread + 1 };
       });
       playNotificationChime();
+
+      // Contract-handshake events double as a live toast, since the tenant/landlord
+      // is often mid-flow on another screen when these land.
+      if (n.type === "CONTRACT_READY_FOR_REVIEW") toast("info", n.message);
+      else if (n.type === "CONTRACT_APPROVED") toast("success", n.message);
+      else if (n.type === "CONTRACT_REJECTED") toast("error", n.message);
     };
 
     const onQueueItem = (item: QueueItem) => {
@@ -203,7 +211,7 @@ export function useRealtime(): RealtimeState {
       s.off(SOCKET_EVENTS.message, onMessage);
       s.off(SOCKET_EVENTS.supportMessageReceived, onSupportMessage);
     };
-  }, [qc]);
+  }, [qc, toast]);
 
   return { connected };
 }
