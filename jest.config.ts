@@ -27,7 +27,7 @@ const finalConfig = async () => {
     // Keep the allow-list narrow: transforming every installed package made
     // even focused component tests spend minutes compiling node_modules.
     transformIgnorePatterns: [
-      "node_modules/(?!(msw|@mswjs|@open-draft|until-async|strict-event-emitter|headers-polyfill|is-utf8|outvariant|rettime)/)",
+      "node_modules/(?!(msw|@mswjs|@open-draft|until-async|strict-event-emitter|headers-polyfill|is-utf8|outvariant|rettime|react-markdown|remark-gfm|remark-parse|remark-rehype|remark-stringify|unified|mdast-util-[^/]+|micromark[^/]*|hast-util-[^/]+|vfile[^/]*|devlop|bail|trough)/)",
       "^.+\\.module\\.(css|sass|scss)$",
     ],
   };

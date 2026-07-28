@@ -70,6 +70,7 @@ describe("auth contracts", () => {
         phoneNumber: "01012345678",
         role: "tenant",
         verificationStatus: "APPROVED",
+        avatarUrl: null,
         createdAt: "2026-07-20T10:22:39.215Z",
       },
     });
