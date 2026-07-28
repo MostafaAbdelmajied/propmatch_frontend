@@ -58,8 +58,20 @@ export function VoiceNotePlayer({
   const pct = duration > 0 ? Math.min(100, (current / duration) * 100) : 0;
   const shown = current > 0 ? current : duration;
 
+  const [speed, setSpeed] = useState(1);
+  const SPEEDS = [1, 1.25, 1.5, 2, 0.5];
+
+  function toggleSpeed() {
+    const nextIndex = (SPEEDS.indexOf(speed) + 1) % SPEEDS.length;
+    const nextSpeed = SPEEDS[nextIndex];
+    setSpeed(nextSpeed);
+    if (audioRef.current) {
+      audioRef.current.playbackRate = nextSpeed;
+    }
+  }
+
   return (
-    <div className={cn("flex min-w-[180px] max-w-[240px] items-center gap-2.5", className)}>
+    <div className={cn("flex min-w-[200px] max-w-[260px] items-center gap-2.5", className)}>
       <button
         type="button"
         onClick={toggle}
@@ -79,6 +91,16 @@ export function VoiceNotePlayer({
         </div>
         <div className="mt-1 text-caption tabular-nums opacity-80">{formatTime(shown)}</div>
       </div>
+
+      {/* Speed Control Button */}
+      <button
+        type="button"
+        onClick={toggleSpeed}
+        className="shrink-0 rounded-control bg-current/15 px-1.5 py-0.5 text-[11px] font-bold opacity-90 hover:bg-current/25 transition-colors"
+        title="تغيير سرعة التشغيل"
+      >
+        {speed}x
+      </button>
 
       <audio
         ref={audioRef}

@@ -10,36 +10,47 @@ export function ChatAttachmentView({
   type,
   name,
   durationMs,
+  onClickMedia,
 }: {
   url: string;
   type: ChatAttachmentType;
   name?: string | null;
   durationMs?: number | null;
+  onClickMedia?: () => void;
 }) {
   const src = mediaUrl(url);
 
   if (type === "IMAGE") {
     return (
-      <a href={src} target="_blank" rel="noopener noreferrer" className="block">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
+      <button
+        type="button"
+        onClick={onClickMedia}
+        className="block group relative overflow-hidden rounded-control text-left"
+      >
         <img
           src={src}
           alt={name ?? "صورة مرفقة"}
-          className="max-h-64 w-auto max-w-full rounded-control object-cover"
+          className="max-h-64 w-auto max-w-full rounded-control object-cover group-hover:opacity-95 transition-opacity cursor-pointer"
           loading="lazy"
         />
-      </a>
+      </button>
     );
   }
 
   if (type === "VIDEO") {
     return (
-      <video
-        src={src}
-        controls
-        className="max-h-64 w-auto max-w-full rounded-control"
-        preload="metadata"
-      />
+      <div className="relative group cursor-pointer" onClick={onClickMedia}>
+        <video
+          src={src}
+          className="max-h-64 w-auto max-w-full rounded-control pointer-events-none"
+          preload="metadata"
+        />
+        <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-control group-hover:bg-black/40 transition-colors">
+          <span className="flex size-10 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-xs">
+            ▶
+          </span>
+        </div>
+      </div>
     );
   }
 

@@ -28,3 +28,27 @@ export function useSendMatchMessage(id: string) {
     },
   });
 }
+
+export function useUpdateMatchMessage(matchConnectionId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ messageId, body }: { messageId: string; body: string }) =>
+      api.patch<MatchMessage>(`matches/messages/${messageId}`, { body }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["matches", matchConnectionId, "messages"] });
+      qc.invalidateQueries({ queryKey: ["matches"] });
+    },
+  });
+}
+
+export function useDeleteMatchMessage(matchConnectionId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (messageId: string) =>
+      api.delete<{ success: boolean; id: string }>(`matches/messages/${messageId}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["matches", matchConnectionId, "messages"] });
+      qc.invalidateQueries({ queryKey: ["matches"] });
+    },
+  });
+}

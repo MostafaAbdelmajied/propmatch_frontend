@@ -3,17 +3,60 @@
 import Link from "next/link";
 import { FormEvent, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { ArrowRight, FileText, Paperclip, Send, X } from "lucide-react";
+import { ArrowRight, Check, Edit3, FileText, Paperclip, Send, Trash2, X } from "lucide-react";
 import { Button } from "@/src/components/ui/Button";
+import { cn } from "@/src/utils/cn";
 import {
   useMatchConversations,
   useMatchMessages,
   useSendMatchMessage,
+  useUpdateMatchMessage,
+  useDeleteMatchMessage,
 } from "../hooks/useMessages";
 import { useChatUpload } from "../hooks/useChatUpload";
 import { ChatAttachmentView } from "./ChatAttachmentView";
 import { VoiceRecorderButton } from "./VoiceRecorderButton";
+import { ChatMediaLightbox, MediaItem } from "./ChatMediaLightbox";
 import type { UploadedAttachment } from "@/src/lib/api/contracts/message";
+
+export function formatMessageTimestamp(createdAtStr?: string | null): string {
+  if (!createdAtStr) return "";
+  const date = new Date(createdAtStr);
+  if (isNaN(date.getTime())) return "";
+
+  const now = new Date();
+  const dStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const nowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diffTime = nowStart.getTime() - dStart.getTime();
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+  const hours = date.getHours().toString().padStart(2, "0");
+  const minutes = date.getMinutes().toString().padStart(2, "0");
+  const time24 = `${hours}:${minutes}`;
+
+  let dayStr = "";
+  if (diffDays === 0) {
+    dayStr = "اليوم";
+  } else if (diffDays === 1) {
+    dayStr = "أمس";
+  } else {
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const day = date.getDate();
+    const month = monthNames[date.getMonth()];
+    const year = date.getFullYear();
+    dayStr = `${day}${month} ${year}`;
+  }
+
+  return `${dayStr} ${time24}`;
+}
+
+function canEditOrDelete(createdAtStr: string): boolean {
+  if (!createdAtStr) return false;
+  const msgTime = new Date(createdAtStr).getTime();
+  const now = new Date().getTime();
+  const diffMinutes = (now - msgTime) / (1000 * 60);
+  return diffMinutes <= 15;
+}
 
 export function ConversationView({ matchConnectionId }: { matchConnectionId: string }) {
   const pathname = usePathname();
@@ -24,12 +67,31 @@ export function ConversationView({ matchConnectionId }: { matchConnectionId: str
   );
   const { data = [], isLoading } = useMatchMessages(matchConnectionId);
   const send = useSendMatchMessage(matchConnectionId);
+  const updateMessage = useUpdateMatchMessage(matchConnectionId);
+  const deleteMessage = useDeleteMatchMessage(matchConnectionId);
   const upload = useChatUpload();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [body, setBody] = useState("");
   const [pending, setPending] = useState<(UploadedAttachment & { durationMs?: number }) | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
+
+  // Edit message inline state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editBody, setEditBody] = useState("");
+
+  // Media Lightbox State
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  const mediaItems: MediaItem[] = data
+    .filter((m) => m.attachmentUrl && (m.attachmentType === "IMAGE" || m.attachmentType === "VIDEO"))
+    .map((m) => ({
+      id: m.id,
+      url: m.attachmentUrl!,
+      type: m.attachmentType as "IMAGE" | "VIDEO",
+      name: m.attachmentName,
+    }));
 
   const busy = send.isPending || upload.uploading;
   const valid = (Boolean(body.trim()) || Boolean(pending)) && body.length <= 1000;
@@ -69,6 +131,25 @@ export function ConversationView({ matchConnectionId }: { matchConnectionId: str
     );
   }
 
+  function handleSaveEdit(messageId: string) {
+    if (!editBody.trim()) return;
+    updateMessage.mutate(
+      { messageId, body: editBody.trim() },
+      {
+        onSuccess: () => {
+          setEditingId(null);
+          setEditBody("");
+        },
+      },
+    );
+  }
+
+  function handleDelete(messageId: string) {
+    if (confirm("هل أنت تأكد من حذف هذه الرسالة؟")) {
+      deleteMessage.mutate(messageId);
+    }
+  }
+
   return (
     <div className="mx-auto flex min-h-[calc(100dvh-10rem)] w-full max-w-3xl flex-col gap-4">
       <header className="flex items-center gap-3 rounded-card border border-hairline bg-surface p-4">
@@ -96,27 +177,112 @@ export function ConversationView({ matchConnectionId }: { matchConnectionId: str
         {isLoading ? (
           <p className="text-small text-muted">جارٍ تحميل الرسائل...</p>
         ) : data.length ? (
-          data.map((message) => (
-            <div
-              key={message.id}
-              className={
-                message.isMine
-                  ? "ms-auto flex max-w-[85%] flex-col gap-2 rounded-card bg-primary px-4 py-3 text-white"
-                  : "me-auto flex max-w-[85%] flex-col gap-2 rounded-card bg-surface px-4 py-3 text-ink shadow-card"
-              }
-              dir="auto"
-            >
-              {message.attachmentUrl && message.attachmentType && (
-                <ChatAttachmentView
-                  url={message.attachmentUrl}
-                  type={message.attachmentType}
-                  name={message.attachmentName}
-                  durationMs={message.attachmentDurationMs}
-                />
-              )}
-              {message.body && <p>{message.body}</p>}
-            </div>
-          ))
+          data.map((message) => {
+            const isEligibleForEdit = message.isMine && canEditOrDelete(message.createdAt);
+            const mediaIndex = mediaItems.findIndex((m) => m.id === message.id);
+
+            return (
+              <div
+                key={message.id}
+                className={cn(
+                  "relative group flex max-w-[85%] flex-col gap-1.5 rounded-card px-4 py-2.5 shadow-xs transition-all",
+                  message.isMine
+                    ? "self-end bg-primary text-white"
+                    : "self-start bg-surface text-ink shadow-card border border-hairline",
+                )}
+              >
+                {/* 15-Minute Edit & Delete Actions Toolbar for Sender */}
+                {isEligibleForEdit && editingId !== message.id && (
+                  <div
+                    className={cn(
+                      "absolute top-2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 bg-surface border border-hairline rounded-pill px-1.5 py-0.5 shadow-sm z-10 text-ink",
+                      message.isMine ? "-left-16" : "-right-16",
+                    )}
+                  >
+                    {message.body && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingId(message.id);
+                          setEditBody(message.body);
+                        }}
+                        className="p-1 text-muted hover:text-primary transition-colors"
+                        title="تعديل الرسالة (متاح خلال 15 دقيقة)"
+                      >
+                        <Edit3 className="size-3.5" />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(message.id)}
+                      className="p-1 text-muted hover:text-error transition-colors"
+                      title="حذف الرسالة (متاح خلال 15 دقيقة)"
+                    >
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Attachment View */}
+                {message.attachmentUrl && message.attachmentType && (
+                  <ChatAttachmentView
+                    url={message.attachmentUrl}
+                    type={message.attachmentType}
+                    name={message.attachmentName}
+                    durationMs={message.attachmentDurationMs}
+                    onClickMedia={() => {
+                      if (mediaIndex !== -1) {
+                        setLightboxIndex(mediaIndex);
+                        setLightboxOpen(true);
+                      }
+                    }}
+                  />
+                )}
+
+                {/* Message Body / Inline Edit Mode */}
+                {editingId === message.id ? (
+                  <div className="flex items-center gap-1.5 my-1">
+                    <input
+                      type="text"
+                      value={editBody}
+                      onChange={(e) => setEditBody(e.target.value)}
+                      className="flex-1 rounded-control border border-hairline bg-surface text-ink px-2.5 py-1 text-small focus:outline-none focus:ring-1 focus:ring-primary"
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleSaveEdit(message.id)}
+                      disabled={updateMessage.isPending}
+                      className="p-1 text-success hover:scale-110 transition-transform"
+                      title="حفظ"
+                    >
+                      <Check className="size-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingId(null)}
+                      className="p-1 text-muted hover:text-ink transition-colors"
+                      title="إلغاء"
+                    >
+                      <X className="size-4" />
+                    </button>
+                  </div>
+                ) : (
+                  message.body && <p className="text-body leading-relaxed" dir="auto">{message.body}</p>
+                )}
+
+                {/* Message Timestamp */}
+                <span
+                  className={cn(
+                    "text-[10px] font-medium self-end opacity-80 select-none mt-0.5",
+                    message.isMine ? "text-white/80" : "text-muted",
+                  )}
+                >
+                  {formatMessageTimestamp(message.createdAt)}
+                </span>
+              </div>
+            );
+          })
         ) : (
           <p className="m-auto text-center text-small text-muted">ابدأ المحادثة برسالة قصيرة ومحترمة.</p>
         )}
@@ -188,6 +354,16 @@ export function ConversationView({ matchConnectionId }: { matchConnectionId: str
           <p className="mt-1 text-small text-error" role="alert">{sendError ?? upload.error}</p>
         )}
       </form>
+
+      {/* Media Lightbox Viewer Modal */}
+      {lightboxOpen && (
+        <ChatMediaLightbox
+          items={mediaItems}
+          initialIndex={lightboxIndex}
+          open={lightboxOpen}
+          onClose={() => setLightboxOpen(false)}
+        />
+      )}
     </div>
   );
 }
