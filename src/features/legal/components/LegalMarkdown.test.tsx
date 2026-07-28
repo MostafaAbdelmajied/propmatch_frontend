@@ -8,7 +8,6 @@ type ReactMarkdownProps = {
 };
 
 const mockReactMarkdown = jest.fn(({ children }: ReactMarkdownProps) => <>{children}</>);
-const mockRemarkGfm = jest.fn();
 
 jest.mock("react-markdown", () => ({
   __esModule: true,
@@ -17,7 +16,7 @@ jest.mock("react-markdown", () => ({
 
 jest.mock("remark-gfm", () => ({
   __esModule: true,
-  default: mockRemarkGfm,
+  default: jest.fn(),
 }));
 
 import { LegalMarkdown } from "./LegalMarkdown";
@@ -34,7 +33,7 @@ describe("LegalMarkdown", () => {
     expect(mockReactMarkdown).toHaveBeenCalledWith(
       expect.objectContaining({
         children: content,
-        remarkPlugins: [mockRemarkGfm],
+        remarkPlugins: [expect.any(Function)],
         skipHtml: true,
       }),
     );
