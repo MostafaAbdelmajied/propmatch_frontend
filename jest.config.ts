@@ -23,13 +23,13 @@ const finalConfig = async () => {
   const nextConfig = await createJestConfig(config)();
   return {
     ...nextConfig,
-    // next/jest's own transformIgnorePatterns entry blanket-ignores
-    // node_modules (bar a couple of Next-specific exceptions), which
-    // clobbers any allow-list we pass alongside it. msw pulls in a chain of
-    // ESM-only transitive deps (rettime, until-async, @mswjs/interceptors,
-    // ...) that keeps growing, so transform all of node_modules rather than
-    // maintaining that allow-list by hand.
-    transformIgnorePatterns: ["^.+\\.module\\.(css|sass|scss)$"],
+    // MSW v2 and its ESM-only dependencies need transformation in jsdom.
+    // Keep the allow-list narrow: transforming every installed package made
+    // even focused component tests spend minutes compiling node_modules.
+    transformIgnorePatterns: [
+      "node_modules/(?!(msw|@mswjs|@open-draft|until-async|strict-event-emitter|headers-polyfill|is-utf8|outvariant|rettime)/)",
+      "^.+\\.module\\.(css|sass|scss)$",
+    ],
   };
 };
 

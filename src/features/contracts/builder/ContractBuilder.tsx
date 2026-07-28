@@ -71,11 +71,13 @@ export function ContractBuilder({
     );
   }
 
-  if (role === "landlord" && status === "reviewing") {
+  // Legacy rows can still carry `reviewing`; the current review workflow
+  // authoritatively exposes whether the landlord may edit through canEdit.
+  if (role === "landlord" && status === "reviewing" && !contract?.canEdit) {
     return <LockedForReview contract={contract!} />;
   }
 
-  if (role === "landlord" && status === "drafting") {
+  if (role === "landlord" && (status === "drafting" || contract?.canEdit === true)) {
     return (
       <LandlordDraftCanvas
         prefill={prefill}
@@ -121,7 +123,7 @@ function LockedForReview({ contract }: { contract: LeaseContract }) {
   );
 }
 
-/** Tenant's view: strictly read-only, with Approve/Reject actions. */
+/** Tenant's view: strictly read-only; draft download is available from its ID view. */
 function TenantReviewCanvas({
   contract,
   onApprove,
@@ -146,7 +148,7 @@ function TenantReviewCanvas({
           مراجعة العقد
         </h1>
         <p className="mt-1 text-small text-muted">
-          راجع بنود العقد بعناية. الموافقة تُنشئ نسخة PDF نهائية من العقد.
+          راجع بنود المسودة بعناية. هذه المسودة ليست توقيعًا أو توثيقًا قانونيًا.
         </p>
       </div>
 
@@ -179,7 +181,7 @@ function TenantReviewCanvas({
           <div className="flex flex-wrap items-center gap-3">
             <Button size="lg" onClick={onApprove} loading={approving} disabled={rejecting}>
               <CheckCircle2 className="size-4" aria-hidden />
-              الموافقة وتوليد العقد PDF
+              عرض المسودة المحفوظة
             </Button>
             <Button variant="danger" size="lg" onClick={() => setShowRejectForm(true)} disabled={approving}>
               <XCircle className="size-4" aria-hidden />

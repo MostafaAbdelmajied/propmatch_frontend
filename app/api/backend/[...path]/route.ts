@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { backendFetch, backendStream, BackendApiError } from "@/src/lib/api/client";
+import { backendFetch, backendStream, backendRaw, BackendApiError } from "@/src/lib/api/client";
 import { ACCESS_TOKEN_COOKIE } from "@/src/lib/api/cookies";
 
 /**
@@ -12,6 +12,19 @@ import { ACCESS_TOKEN_COOKIE } from "@/src/lib/api/cookies";
 
 /** Routes whose response is piped straight through rather than buffered. */
 const isStreamPath = (path: string[]) => path.at(-1) === "stream";
+const isPdfPath = (path: string[]) => path.at(-1) === "pdf" && path.at(-3) === "contracts";
+
+async function forwardPdf(request: NextRequest, path: string[]) {
+  const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
+  const upstream = await backendRaw(`/${path.join("/")}${request.nextUrl.search}`, { method: "GET", accessToken });
+  if (!upstream.ok) return new NextResponse(await upstream.text(), { status: upstream.status, headers: { "content-type": upstream.headers.get("content-type") ?? "application/json" } });
+  return new Response(upstream.body, { status: upstream.status, headers: {
+    "content-type": upstream.headers.get("content-type") ?? "application/pdf",
+    "content-disposition": upstream.headers.get("content-disposition") ?? "attachment; filename=\"rental-contract-draft.pdf\"",
+    "cache-control": upstream.headers.get("cache-control") ?? "private, no-store",
+    ...(upstream.headers.get("content-length") ? { "content-length": upstream.headers.get("content-length")! } : {}),
+  }});
+}
 
 /**
  * Pipe an SSE response through untouched (PRO-10/17). The gates still run
@@ -70,6 +83,7 @@ async function forward(request: NextRequest, path: string[], hasBody: boolean) {
 
 export async function GET(request: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
   const { path } = await ctx.params;
+  if (isPdfPath(path)) return forwardPdf(request, path);
   return forward(request, path, false);
 }
 

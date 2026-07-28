@@ -62,6 +62,17 @@ export async function backendStream(path: string, options: BackendFetchOptions =
   });
 }
 
+/** Raw backend response for protected binary downloads (never JSON-parse it). */
+export async function backendRaw(path: string, options: BackendFetchOptions = {}): Promise<Response> {
+  const { body, accessToken, headers, ...rest } = options;
+  return fetch(`${getBackendUrl()}${path}`, {
+    ...rest,
+    headers: { ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), ...headers },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+    cache: "no-store",
+  });
+}
+
 export async function backendFetch<T>(path: string, options: BackendFetchOptions = {}): Promise<T> {
   const { body, accessToken, headers, ...rest } = options;
 

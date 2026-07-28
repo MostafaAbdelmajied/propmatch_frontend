@@ -24,6 +24,40 @@ const nationalIdSchema = z.string().regex(/^\d{14}$/, "الرقم القومي 1
 export const LeaseContractStatusSchema = z.enum(["drafting", "reviewing", "generated"]);
 export type LeaseContractStatus = z.infer<typeof LeaseContractStatusSchema>;
 
+/** Safe draft API payload: trusted parties and address are backend-derived. */
+export const SaveContractDraftInputSchema = z.object({
+  rentAmount: z.number().finite().positive().optional(),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  customClauses: z.array(z.string().trim().min(1).max(2000)).max(30).optional(),
+});
+export type SaveContractDraftInput = z.infer<typeof SaveContractDraftInputSchema>;
+
+export const ContractDisclaimerSchema = z.object({
+  isDraft: z.boolean(), isElectronicSignature: z.literal(false), isLegallyAuthenticated: z.literal(false), message: z.string(),
+});
+export type ContractDisclaimer = z.infer<typeof ContractDisclaimerSchema>;
+export const RentalContractDraftResponseSchema = z.object({
+  id: z.string(), matchConnectionId: z.string(), status: LeaseContractStatusSchema,
+  ownerName: z.string(), tenantName: z.string(), propertyAddress: z.string(), rentAmount: z.number(),
+  startDate: z.string(), endDate: z.string(), customClauses: z.array(z.string()), createdAt: z.string(), updatedAt: z.string(), disclaimer: ContractDisclaimerSchema,
+});
+export type RentalContractDraftResponse = z.infer<typeof RentalContractDraftResponseSchema>;
+
+export const ContractReviewStatusSchema = z.enum(["PENDING_REVIEW", "CHANGES_REQUESTED", "REVIEW_CONFIRMED"]);
+export type ContractReviewStatus = z.infer<typeof ContractReviewStatusSchema>;
+export const ContractListItemSchema = RentalContractDraftResponseSchema.extend({
+  propertyId: z.string(), propertyTitle: z.string(), tenantReviewStatus: ContractReviewStatusSchema,
+  draftRevision: z.number().int().positive(), tenantReviewedRevision: z.number().int().nullable(),
+  tenantChangeRequest: z.string().nullable(), tenantChangeRequestedAt: z.string().nullable(), tenantReviewConfirmedAt: z.string().nullable(),
+  canEdit: z.boolean(), canRequestChanges: z.boolean(), canConfirmReview: z.boolean(), canDownloadPdf: z.boolean(),
+});
+export type ContractListItem = z.infer<typeof ContractListItemSchema>;
+export const ContractListResponseSchema = z.object({ items: z.array(ContractListItemSchema) });
+export type ContractListResponse = z.infer<typeof ContractListResponseSchema>;
+export type RequestContractChangesInput = { message: string };
+export type ConfirmContractReviewInput = { expectedRevision: number };
+
 /** What the landlord actually negotiates; everything else is server-derived.
  * Witnesses aren't platform users, so their name/ID are genuine free input. */
 export const SaveDraftSchema = z.object({
@@ -63,8 +97,19 @@ export const LeaseContractSchema = z.object({
   witness2Name: z.string().nullable(),
   witness2NationalId: z.string().nullable(),
   createdAt: z.string(),
+  updatedAt: z.string().optional(),
   /** Short-lived signed URL to the real, backend-generated PDF. Only set once `status === "generated"`. */
   pdfUrl: z.string().nullable(),
+  tenantReviewStatus: ContractReviewStatusSchema.optional(),
+  tenantChangeRequest: z.string().nullable().optional(),
+  tenantChangeRequestedAt: z.string().nullable().optional(),
+  tenantReviewConfirmedAt: z.string().nullable().optional(),
+  draftRevision: z.number().int().positive().optional(),
+  tenantReviewedRevision: z.number().int().nullable().optional(),
+  canEdit: z.boolean().optional(),
+  canRequestChanges: z.boolean().optional(),
+  canConfirmReview: z.boolean().optional(),
+  canDownloadPdf: z.boolean().optional(),
 });
 export type LeaseContract = z.infer<typeof LeaseContractSchema>;
 

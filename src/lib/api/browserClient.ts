@@ -54,6 +54,14 @@ export const api = {
   delete: <T>(path: string) => request<T>("DELETE", `/api/backend/${path}`),
 };
 
+export async function downloadProtectedPdf(path: string): Promise<{ blob: Blob; filename: string }> {
+  const res = await fetch(`/api/backend/${path}`, { cache: "no-store" });
+  if (!res.ok) throw makeError(res.status, "تعذر تجهيز ملف PDF حاليًا.", await res.json().catch(() => null));
+  if (!res.headers.get("content-type")?.includes("application/pdf")) throw makeError(502, "تعذر تجهيز ملف PDF حاليًا.", null);
+  const raw = res.headers.get("content-disposition")?.match(/filename="?([^";]+)"?/i)?.[1] ?? "rental-contract-draft.pdf";
+  return { blob: await res.blob(), filename: raw.replace(/[^a-zA-Z0-9._-]/g, "_") || "rental-contract-draft.pdf" };
+}
+
 /** Auth endpoints live at /api/auth/* (they mint/clear cookies). */
 export const authApi = {
   login: <T>(body: unknown) => request<T>("POST", "/api/auth/login", body),

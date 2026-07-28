@@ -1,11 +1,13 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, isApiClientError } from "@/src/lib/api/browserClient";
+import { api, downloadProtectedPdf, isApiClientError } from "@/src/lib/api/browserClient";
 import type {
+  ConfirmContractReviewInput,
   LeaseContract,
   LeaseContractPrefill,
   RejectDraft,
+  RequestContractChangesInput,
   SaveDraft,
 } from "@/src/lib/api/contracts/contract";
 
@@ -84,4 +86,36 @@ export function useApproveContract(matchConnectionId: string) {
 /** Tenant only. Unlocks the draft back to the landlord, with an optional note. */
 export function useRejectContract(matchConnectionId: string) {
   return useContractMutation<RejectDraft>(matchConnectionId, "reject");
+}
+
+export function useDownloadContractPdf(contractId: string) {
+  return useMutation({
+    mutationFn: async () => {
+      if (!contractId) throw new Error("CONTRACT_ID_REQUIRED");
+      const { blob, filename } = await downloadProtectedPdf(`contracts/${contractId}/pdf`);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url; anchor.download = filename; anchor.click();
+      URL.revokeObjectURL(url);
+    },
+  });
+}
+
+function useReviewMutation<TBody>(contractId: string, path: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: TBody) => api.post<LeaseContract>(`contracts/${contractId}/review/${path}`, body),
+    onSuccess: (contract) => {
+      qc.setQueryData(["contracts", contractId], contract);
+      qc.invalidateQueries({ queryKey: ["contracts"] });
+    },
+  });
+}
+
+export function useRequestContractChanges(contractId: string) {
+  return useReviewMutation<RequestContractChangesInput>(contractId, "request-changes");
+}
+
+export function useConfirmContractReview(contractId: string) {
+  return useReviewMutation<ConfirmContractReviewInput>(contractId, "confirm");
 }
