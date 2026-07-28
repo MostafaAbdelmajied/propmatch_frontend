@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { ArrowRight, Paperclip, Send, X } from "lucide-react";
+import { ArrowRight, FileText, Paperclip, Send, X } from "lucide-react";
 import { Button } from "@/src/components/ui/Button";
 import {
   useMatchConversations,

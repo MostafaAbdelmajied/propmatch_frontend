@@ -233,6 +233,13 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
   // Accordion state
   const [ticketsAccordionOpen, setTicketsAccordionOpen] = useState(true);
 
+  // On phones the sidebar overlays the chat, so start it collapsed.
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      setSidebarOpen(false);
+    }
+  }, []);
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const createTicket = useCreateSupportTicket();
   const myTickets = useMyTickets();
@@ -408,15 +415,25 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
   return (
     <div
       className={cn(
-        "mx-auto flex w-full overflow-hidden rounded-card border border-hairline bg-surface shadow-card",
+        "relative mx-auto flex w-full overflow-hidden rounded-card border border-hairline bg-surface shadow-card",
         isFullscreen ? "h-full max-w-none rounded-none border-none shadow-none" : "h-[calc(100dvh-5rem)] max-w-7xl",
       )}
     >
+      {/* On mobile the sidebar overlays the chat — a backdrop closes it. */}
+      {sidebarOpen && (
+        <button
+          type="button"
+          aria-label="إغلاق القائمة"
+          onClick={() => setSidebarOpen(false)}
+          className="absolute inset-0 z-20 bg-ink/30 md:hidden"
+        />
+      )}
       {/* ChatGPT / Gemini Style Accordion Sidebar */}
       <div
         className={cn(
-          "flex flex-col border-e border-hairline bg-background/50 transition-[width] duration-200",
-          sidebarOpen ? "w-72" : "w-0 overflow-hidden border-none",
+          "flex flex-col border-e border-hairline bg-background transition-[width] duration-200",
+          "max-md:absolute max-md:inset-y-0 max-md:start-0 max-md:z-30 max-md:shadow-xl",
+          sidebarOpen ? "w-72 max-w-[85%]" : "w-0 overflow-hidden border-none",
         )}
       >
         {/* Sidebar Header & New Chat */}
