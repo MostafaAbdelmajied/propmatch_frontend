@@ -17,12 +17,16 @@ stand in for it).
 3. `../PropMatch AI - UI Generation Prompt.md` — authoritative for screens,
    flows, states, and all on-screen Arabic copy (Section 12 glossary is
    verbatim truth). Note: `reference/figma-tenant-prototype/src/imports/`
-   contains an *earlier* draft of this same spec with slightly different
+   contains an _earlier_ draft of this same spec with slightly different
    wording — the UI Generation Prompt supersedes it; see
    `docs/analysis/requirements.md` for the diff.
 4. Figma file (`https://www.figma.com/design/biM1NAvpeLu37J5Mwfiky2`) — design
    tokens + full Tenant flow already built in RTL Egyptian Arabic.
-5. `../PropMatch AI - SRS.docx` — functional/non-functional requirements,
+5. `../project_docs/PropMatch_AI_Revised_Pricing_and_Financial_Scenarios_Report.docx`
+   — authoritative for pricing and paid entitlements. Owner Plus,
+   Professional Landlord, Express Verification, and broker products are
+   excluded from the current implementation scope.
+6. `../PropMatch AI - SRS.docx` — functional/non-functional requirements,
    intended backend architecture (NestJS + Prisma/PostgreSQL + ChromaDB RAG +
    Paymob + WebSockets).
 
@@ -34,7 +38,10 @@ stand in for it).
 - eKYC verifies identity only, never ownership — always pair a verified badge
   with the ownership disclaimer.
 - Owner phone / full PII stays hidden until both parties accept a match.
-- Freemium quotas are enforced server-side; client state only mirrors them.
+- Entitlements are enforced server-side; client state only mirrors them.
+  Free Owner has one active unit and three direct offers on tenant requests.
+  Premium Owner is EGP 999/month with five active units and unlimited direct
+  offers while active.
 - Paymob direct EGP only — no wallets/points/escrow/BNPL.
 - No maps/GPS, no in-app scheduling, no conversational contract drafting
   (form-to-PDF only). See the UI Generation Prompt Section 9 for the full

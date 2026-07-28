@@ -25,7 +25,7 @@ export function FloatingAiWidget() {
   return (
     <>
       {/* Floating Action Button (FAB) */}
-      <div className="fixed bottom-6 start-6 z-40">
+      <div className="fixed bottom-6 inset-s-6 z-40">
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}

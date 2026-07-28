@@ -1,17 +1,67 @@
 "use client";
 
 import { Logo } from "@/src/components/ui/Logo";
+import { useLogout, useSession } from "@/src/features/auth/hooks/useSession";
 import { useHideOnScroll } from "@/src/hooks/useHideOnScroll";
 import { useSessionUiStore } from "@/src/lib/store/useSessionUiStore";
 import { cn } from "@/src/utils/cn";
-import { Bell } from "lucide-react";
+import { Bell, LogOut } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { NotificationBell } from "./NotificationBell";
 
 export interface NavItem {
   href: string;
   label: string;
   Icon: typeof Bell;
+}
+
+export function UserProfileHeaderNav() {
+  const { data: user } = useSession();
+  const logout = useLogout();
+
+  return (
+    <div className="flex items-center gap-2 sm:gap-3">
+      <NotificationBell />
+
+      {user && (
+        <>
+          {/* Profile Link Badge */}
+          <Link
+            href="/profile"
+            className="flex items-center gap-2 rounded-pill border border-hairline bg-surface/80 px-2.5 py-1 hover:border-primary/40 hover:bg-surface transition-all shadow-xs"
+            title="الصفحة الشخصية"
+          >
+            {user.avatarUrl ? (
+              <img
+                src={user.avatarUrl}
+                alt={user.fullName}
+                className="size-7 rounded-full object-cover border border-primary/30"
+              />
+            ) : (
+              <span className="flex size-7 items-center justify-center rounded-full bg-primary-tint text-caption font-bold text-primary">
+                {user.fullName.charAt(0)}
+              </span>
+            )}
+            <span className="text-small font-bold text-ink max-w-[110px] truncate hidden sm:inline">
+              {user.fullName}
+            </span>
+          </Link>
+
+          {/* Logout Button */}
+          <button
+            type="button"
+            onClick={() => logout.mutate()}
+            disabled={logout.isPending}
+            className="flex size-8 items-center justify-center rounded-full text-muted hover:bg-error-tint hover:text-error transition-colors"
+            title="تسجيل الخروج"
+          >
+            <LogOut className="size-4" />
+          </button>
+        </>
+      )}
+    </div>
+  );
 }
 
 /**

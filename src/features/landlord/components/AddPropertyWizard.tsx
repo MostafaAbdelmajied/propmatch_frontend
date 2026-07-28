@@ -36,7 +36,7 @@ const stepKeys: StepKey[] = ["propertyDetails", "mediaAndDescription"];
 const PROPERTY_DRAFT_STORAGE_KEY = "propmatch:add-property-draft";
 const MAX_PROPERTY_IMAGES = 10;
 const MAX_PROPERTY_IMAGE_SIZE = 5 * 1024 * 1024;
-const MAX_DESCRIPTION_OPTIMIZATIONS = 3;
+const PREMIUM_INCLUDED_AI_USES = 5;
 const PROPERTY_IMAGE_ACCEPT = ".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp";
 
 type PropertyDraft = {
@@ -83,7 +83,7 @@ function AddPropertyWizardContent() {
   });
   const [step, setStep] = useState(0);
   const [draftRestored, setDraftRestored] = useState(false);
-  const [optimizerUsesLeft, setOptimizerUsesLeft] = useState(MAX_DESCRIPTION_OPTIMIZATIONS);
+  const [optimizerUsesLeft, setOptimizerUsesLeft] = useState(0);
   const create = useCreateProperty();
   const [paywall, setPaywall] = useState<PaymentType | null>(null);
 
@@ -98,7 +98,7 @@ function AddPropertyWizardContent() {
           if (
             typeof draft.optimizerUsesLeft === "number" &&
             draft.optimizerUsesLeft >= 0 &&
-            draft.optimizerUsesLeft <= MAX_DESCRIPTION_OPTIMIZATIONS
+            Number.isSafeInteger(draft.optimizerUsesLeft)
           ) {
             setOptimizerUsesLeft(draft.optimizerUsesLeft);
           }
@@ -110,6 +110,10 @@ function AddPropertyWizardContent() {
       setDraftRestored(true);
     }
   }, [form]);
+
+  useEffect(() => {
+    if (quota.data) setOptimizerUsesLeft(quota.data.optimizerUsesLeft);
+  }, [quota.data]);
 
   useEffect(() => {
     if (!draftRestored) return;
@@ -147,8 +151,8 @@ function AddPropertyWizardContent() {
       onError: (e) => {
         if (e.code === "VERIFICATION_REQUIRED") {
           toast("info", e.message);
-        } else if (e.code === "QUOTA_EXHAUSTED") {
-          setPaywall(e.paymentType ?? "NEW_LISTING");
+        } else if (e.code === "PLAN_LIMIT_REACHED") {
+          setPaywall("PREMIUM_OWNER");
         } else {
           toast("error", e.message);
         }
@@ -165,7 +169,10 @@ function AddPropertyWizardContent() {
             <p className="mt-1 text-small text-muted">أكمل بيانات عقارك ثم أضف الوصف والصور</p>
           </div>
           {quota.data && (
-            <QuotaChip remaining={quota.data.freeListingsLeft} label="إعلانات مجانية متبقية" />
+            <QuotaChip
+              remaining={Math.max(0, quota.data.maxActiveListings - quota.data.activeUnitCount)}
+              label={`وحدات نشطة متاحة من ${quota.data.maxActiveListings}`}
+            />
           )}
         </div>
         <Stepper current={step} />
@@ -178,6 +185,7 @@ function AddPropertyWizardContent() {
             form={form}
             optimizerUsesLeft={optimizerUsesLeft}
             onOptimizerUse={() => setOptimizerUsesLeft((uses) => Math.max(0, uses - 1))}
+            onAiPaywall={() => setPaywall("AI_ADDON")}
           />
         )}
 
@@ -208,10 +216,16 @@ function AddPropertyWizardContent() {
       <PaymentSheet
         open={paywall !== null}
         onClose={() => setPaywall(null)}
-        paymentType={paywall ?? "NEW_LISTING"}
+        paymentType={paywall ?? "PREMIUM_OWNER"}
         onActivated={() => {
+          const activatedType = paywall;
           setPaywall(null);
-          toast("success", "تم تحديث رصيدك — أرسل إعلانك الآن");
+          toast(
+            "success",
+            activatedType === "AI_ADDON"
+              ? "تمت إضافة استخدام الذكاء الاصطناعي"
+              : "تم تفعيل الخطة المميزة — يمكنك إضافة وحدتك الآن",
+          );
           quota.refetch();
         }}
       />
@@ -450,12 +464,14 @@ function PropertyDetailsStep({
 type MediaAndDescriptionStepProps = StepProps & {
   optimizerUsesLeft: number;
   onOptimizerUse: () => void;
+  onAiPaywall: () => void;
 };
 
 function MediaAndDescriptionStep({
   form,
   optimizerUsesLeft,
   onOptimizerUse,
+  onAiPaywall,
 }: MediaAndDescriptionStepProps) {
   const toast = useToast();
   const optimize = useStreamOptimizeDescription();
@@ -535,7 +551,11 @@ function MediaAndDescriptionStep({
   }
 
   async function runOptimize() {
-    if (optimizerUsesLeft <= 0 || optimize.isStreaming) return;
+    if (optimize.isStreaming) return;
+    if (optimizerUsesLeft <= 0) {
+      onAiPaywall();
+      return;
+    }
     const original = description || "عقار للإيجار";
     setPrevious(original);
     const { description: _desc, images: _images, ...context } = form.getValues();
@@ -545,22 +565,23 @@ function MediaAndDescriptionStep({
       );
       form.trigger("description");
       onOptimizerUse();
-      const remainingAfterUse = optimizerUsesLeft - 1;
+      const remainingAfterUse = Math.max(0, optimizerUsesLeft - 1);
       toast(
         "success",
         remainingAfterUse > 0
-          ? `تم تحسين الوصف — متبقي ${remainingAfterUse} من ${MAX_DESCRIPTION_OPTIMIZATIONS}`
-          : "تم تحسين الوصف — استخدمت المحاولات الثلاث لهذا الإعلان",
+          ? `تم تحسين الوصف — متبقي ${remainingAfterUse}`
+          : "تم تحسين الوصف — انتهى رصيد الذكاء الاصطناعي",
       );
     } catch (e) {
       const err = e as ActionError;
       // Put their text back: a failed rewrite must not cost them their draft.
       form.setValue("description", original, { shouldValidate: true });
       setPrevious(null);
-      toast(
-        "error",
-        err.code === "QUOTA_EXHAUSTED" ? "انتهت استخداماتك المجانية للتحسين" : err.message,
-      );
+      if (err.code === "QUOTA_EXHAUSTED") {
+        onAiPaywall();
+        return;
+      }
+      toast("error", err.message);
     }
   }
 
@@ -587,10 +608,9 @@ function MediaAndDescriptionStep({
             size="sm"
             onClick={runOptimize}
             loading={optimize.isStreaming}
-            disabled={optimize.isStreaming || optimizerUsesLeft <= 0}
           >
             <Sparkles className="size-4" aria-hidden />
-            {optimizerUsesLeft > 0 ? "تحسين الوصف بالذكاء الاصطناعي" : "تم استخدام محاولات التحسين"}
+            {optimizerUsesLeft > 0 ? "تحسين الوصف بالذكاء الاصطناعي" : "شراء حزمة الذكاء الاصطناعي (10 استخدامات)"}
           </Button>
         </div>
       </div>
@@ -615,23 +635,28 @@ function MediaAndDescriptionStep({
           <div>
             <p className="text-small font-bold text-ink">
               {optimizerUsesLeft > 0
-                ? `متبقي ${optimizerUsesLeft} من ${MAX_DESCRIPTION_OPTIMIZATIONS} محاولات`
-                : "انتهت محاولات التحسين لهذا الإعلان"}
+                ? `متبقي ${optimizerUsesLeft} استخدام`
+                : "انتهى رصيد الذكاء الاصطناعي الحالي"}
             </p>
-            <p className="mt-0.5 text-caption text-muted">يمكنك تحسين وصف كل إعلان ثلاث مرات فقط</p>
+            <p className="mt-0.5 text-caption text-muted">
+              يمكنك استخدام الرصيد الحالي أو شراء حزمة إضافية (10 استخدامات بـ 199 ج.م).
+            </p>
           </div>
         </div>
         <div className="flex gap-1.5" aria-label={`${optimizerUsesLeft} محاولات تحسين متبقية`}>
-          {Array.from({ length: MAX_DESCRIPTION_OPTIMIZATIONS }, (_, index) => (
-            <span
-              key={index}
-              className={cn(
-                "h-2.5 w-8 rounded-pill transition-colors",
-                index < optimizerUsesLeft ? "bg-primary" : "bg-hairline",
-              )}
-              aria-hidden
-            />
-          ))}
+          {Array.from(
+            { length: Math.max(1, optimizerUsesLeft) },
+            (_, index) => (
+              <span
+                key={index}
+                className={cn(
+                  "h-2.5 w-8 rounded-pill transition-colors",
+                  index < optimizerUsesLeft ? "bg-primary" : "bg-hairline",
+                )}
+                aria-hidden
+              />
+            ),
+          )}
         </div>
       </div>
       <TextAreaField

@@ -63,9 +63,13 @@ export interface MockVerification {
 export interface MockQuota {
   id: string;
   userId: string;
+  planType: "FREE" | "PREMIUM";
+  planExpiresAt: string | null;
+  maxActiveListings: number;
   freeListingsLeft: number;
   optimizerUsesLeft: number;
   freeOffersLeft: number;
+  documentationPackCredits: number;
   lastResetDate: string | null;
 }
 
@@ -170,20 +174,30 @@ export interface MockReview {
   createdAt: string;
 }
 
-/** ERD: LEASE_CONTRACT. */
+/** ERD: LEASE_CONTRACT — one per CONNECTED match connection. Handshake
+ * model: landlord drafts/edits while "drafting", locks it to "reviewing",
+ * tenant approves ("generated", the only status with a real pdfUrl) or
+ * rejects back to "drafting" with a changeRequestNote. */
 export interface MockLeaseContract {
   id: string;
+  matchConnectionId: string;
+  status: "drafting" | "reviewing" | "generated";
+  changeRequestNote: string | null;
   generatedByUserId: string;
   ownerName: string;
-  ownerNationalId: string;
+  ownerNationalId: string | null;
   tenantName: string;
-  tenantNationalId: string;
+  tenantNationalId: string | null;
   rentAmount: number;
   propertyAddress: string;
   startDate: string;
   endDate: string;
-  customClauses: string | null;
-  pdfUrl: string;
+  customClauses: string[];
+  witness1Name: string | null;
+  witness1NationalId: string | null;
+  witness2Name: string | null;
+  witness2NationalId: string | null;
+  pdfUrl: string | null;
   createdAt: string;
 }
 
@@ -324,13 +338,16 @@ function makeVerification(
 }
 
 function makeQuota(userId: string): MockQuota {
-  // Frontend product rule: each new listing starts with up to 3 optimizer uses.
   return {
     id: nextId("quota"),
     userId,
-    freeListingsLeft: 1,
-    optimizerUsesLeft: 3,
+    planType: "FREE",
+    planExpiresAt: null,
+    maxActiveListings: 1,
+    freeListingsLeft: 0,
+    optimizerUsesLeft: 0,
     freeOffersLeft: 3,
+    documentationPackCredits: 0,
     lastResetDate: null,
   };
 }
@@ -433,7 +450,12 @@ function seed(): MockDb {
     ),
   ];
 
-  const verifications: MockVerification[] = [];
+  const verifications: MockVerification[] = [
+    // usr_tenant has no row → NOT_SUBMITTED (progressive verification).
+    makeVerification("usr_tenant2", "APPROVED", "1234"),
+    makeVerification("usr_landlord", "APPROVED", "4821"),
+    makeVerification("usr_landlord2", "PENDING", "7715"), // sits in the admin queue
+  ];
 
   const quotas: MockQuota[] = [makeQuota("usr_landlord"), makeQuota("usr_landlord2")];
 

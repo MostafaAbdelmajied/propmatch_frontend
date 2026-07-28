@@ -27,7 +27,7 @@ export function LoginForm() {
     try {
       const res = (await login.mutateAsync(values)) as AuthResponse;
       const redirectTo = params.get("redirectTo") ?? landingAfterLogin(res.user.role);
-      router.push(redirectTo);
+      window.location.href = redirectTo;
     } catch (e) {
       const message = isApiClientError(e) ? e.message : "تعذر تسجيل الدخول، حاول مرة أخرى";
       setError("root", { message });

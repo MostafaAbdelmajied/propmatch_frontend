@@ -28,7 +28,7 @@ export function SignupForm() {
   async function onSubmit(values: SignupFormValues) {
     try {
       const res = (await registerUser.mutateAsync(values)) as AuthResponse;
-      router.push(landingAfterLogin(res.user.role));
+      window.location.href = landingAfterLogin(res.user.role);
     } catch (e) {
       const message = isApiClientError(e) ? e.message : "تعذر إنشاء الحساب، حاول مرة أخرى";
       setError("root", { message });

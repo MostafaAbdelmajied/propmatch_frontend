@@ -1,7 +1,7 @@
 # RBAC — capability-based (V1: TENANT · LANDLORD · ADMIN)
 
 **Roles say who you are; capabilities say what you may do; eKYC + moderation
-state say whether you may do it *yet*.** Never hardcode a role name in UI or
+state say whether you may do it _yet_.** Never hardcode a role name in UI or
 logic — check a capability. This is what lets `BROKER` be added later without
 rework (build-prompt §1.2/§10).
 
@@ -10,12 +10,12 @@ here is defence-in-depth + UX.
 
 ## Roles
 
-| Role | Source | Notes |
-|---|---|---|
-| `TENANT` | `USER.role` (ERD) | Free. Browses, posts requests, favorites, reviews, accepts offers. |
-| `LANDLORD` | `USER.role` (ERD) | Revenue source. Listings, offers, boosts, packs. Has `USER_QUOTA`. |
-| `ADMIN` | `USER.role` (ERD) | Moderates eKYC / properties / requests / reviews; views payment + partner-lead records. |
-| `BROKER` | **Later** | Reserved. Would receive a capability subset (likely `listing:create`, `offer:send` on behalf of owners). Do not add to the enum in V1. |
+| Role       | Source            | Notes                                                                                                                                  |
+| ---------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `TENANT`   | `USER.role` (ERD) | Free. Browses, posts requests, favorites, reviews, accepts offers.                                                                     |
+| `LANDLORD` | `USER.role` (ERD) | Revenue source. Listings, offers, boosts, packs. Has `USER_QUOTA`.                                                                     |
+| `ADMIN`    | `USER.role` (ERD) | Moderates eKYC / properties / requests / reviews; views payment + partner-lead records.                                                |
+| `BROKER`   | **Later**         | Reserved. Would receive a capability subset (likely `listing:create`, `offer:send` on behalf of owners). Do not add to the enum in V1. |
 
 ## Capabilities
 
@@ -37,27 +37,27 @@ partner_lead:view
 
 ## Matrix
 
-| Capability | TENANT | LANDLORD | ADMIN |
-|---|---|---|---|
-| `listing:create` / `listing:archive` / `listing:boost` | — | ✅ (eKYC `APPROVED`) | — |
-| `request:create` / `request:close` | ✅ (eKYC `APPROVED` to publish) | — | — |
-| `offer:send` | — | ✅ (eKYC `APPROVED` + `free_offers_left` > 0 or paid) | — |
-| `offer:accept` / `offer:reject` | ✅ (eKYC `APPROVED` to accept) | — | — |
-| `review:create` | ✅ (eKYC `APPROVED`) | — | — |
-| `favorite:manage` | ✅ | — | — |
-| `contract:generate` | ✅ | ✅ | — |
-| `pii:reveal` | ⛔ *not a role capability* — see below | ⛔ | ⛔ |
-| `property:approve` / `property:reject` | — | — | ✅ |
-| `kyc:review` | — | — | ✅ |
-| `request:approve` / `request:reject` | — | — | ✅ |
-| `review:moderate` | — | — | ✅ |
-| `payment:view` / `partner_lead:view` | — | — | ✅ |
-| `report:export` · `ticket:reply` · `audit:view` · `admin:create` · `admin:manage` | — | — | ✅ (super-admin only) |
+| Capability                                                                        | TENANT                                 | LANDLORD                                              | ADMIN                 |
+| --------------------------------------------------------------------------------- | -------------------------------------- | ----------------------------------------------------- | --------------------- |
+| `listing:create` / `listing:archive` / `listing:boost`                            | —                                      | ✅ (eKYC `APPROVED`)                                  | —                     |
+| `request:create` / `request:close`                                                | ✅ (eKYC `APPROVED` to publish)        | —                                                     | —                     |
+| `offer:send`                                                                      | —                                      | ✅ (eKYC `APPROVED` + `free_offers_left` > 0 or paid) | —                     |
+| `offer:accept` / `offer:reject`                                                   | ✅ (eKYC `APPROVED` to accept)         | —                                                     | —                     |
+| `review:create`                                                                   | ✅ (eKYC `APPROVED`)                   | —                                                     | —                     |
+| `favorite:manage`                                                                 | ✅                                     | —                                                     | —                     |
+| `contract:generate`                                                               | ✅                                     | ✅                                                    | —                     |
+| `pii:reveal`                                                                      | ⛔ _not a role capability_ — see below | ⛔                                                    | ⛔                    |
+| `property:approve` / `property:reject`                                            | —                                      | —                                                     | ✅                    |
+| `kyc:review`                                                                      | —                                      | —                                                     | ✅                    |
+| `request:approve` / `request:reject`                                              | —                                      | —                                                     | ✅                    |
+| `review:moderate`                                                                 | —                                      | —                                                     | ✅                    |
+| `payment:view` / `partner_lead:view`                                              | —                                      | —                                                     | ✅                    |
+| `report:export` · `ticket:reply` · `audit:view` · `admin:create` · `admin:manage` | —                                      | —                                                     | ✅ (super-admin only) |
 
 **ADMIN is no longer flat.** The 7 sub-roles (super-admin / listings-manager /
 kyc-reviewer / finance-admin / reviews-manager / customer-support / read-only)
 were restored on the owner's instruction — `conflicts.md` B2-R. `ADMIN` is now
-a *bundle selector*: `ROLE_CAPABILITIES` in `contracts/admin.ts` is the single
+a _bundle selector_: `ROLE_CAPABILITIES` in `contracts/admin.ts` is the single
 source of truth mapping each sub-role to its capabilities, and every admin
 endpoint checks a **capability**, never `role === "admin"`.
 
@@ -65,6 +65,7 @@ Caveat: the ERD still has no admin-role table, so `USER.admin_role` and the
 whole team/audit/ticket surface are frontend-invented (`ASSUMPTIONS.md` #26).
 
 Two rules this must keep:
+
 - **An admin cannot edit their own privileges** — otherwise a super-admin can
   demote themselves and strand the team with no one holding `admin:manage`.
 - **`pii:reveal` is not a capability and must never become one.** See below.
@@ -75,11 +76,12 @@ Phone + `manual_address` are **never** unlocked by a role. They unlock on a
 **relationship state**:
 
 > `OWNER_OFFER.status = ACCEPTED` (or `MATCH_CONNECTION.status = CONNECTED`)
-> between *this* tenant and *this* property.
+> between _this_ tenant and _this_ property.
 
 Rules:
+
 - The gate is **per connection**, not per property or per role. (`PROPERTY.
-  contact_revealed` is a per-property boolean and cannot express this — see
+contact_revealed` is a per-property boolean and cannot express this — see
   `requirements.md` §1.2.)
 - Enforced by **omission**: the backend must not send the fields at all until
   the gate passes. The client never "hides" PII it already holds.
@@ -102,7 +104,7 @@ Rules:
 2. **Server (Route Handlers / RSC)** — session from `/api/auth/me`; role +
    capability + eKYC state checked before rendering role-scoped surfaces; the
    backend's 401/403 is authoritative and must degrade safely.
-3. **UI** — hide/disable what the user can't do (and explain *why*: «وثّق
+3. **UI** — hide/disable what the user can't do (and explain _why_: «وثّق
    هويتك أولًا» vs «انتهت عروضك المجانية»), so no one is shown an affordance
    that will 403.
 
@@ -110,6 +112,6 @@ Rules:
 
 A landlord may publish a listing only if **all** hold:
 `role === LANDLORD` **and** `capability listing:create` **and**
-`eKYC === APPROVED` **and** (`free_listings_left > 0` **or** a successful
-`NEW_LISTING` payment). Model these as three distinct checks with three
-distinct messages — never collapse them into one "not allowed".
+`eKYC === APPROVED` **and** the number of active units is below the
+server-authoritative plan limit (1 for Free Owner, 5 for Premium Owner).
+Model these as distinct checks with distinct messages.

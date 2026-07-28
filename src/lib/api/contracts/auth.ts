@@ -41,6 +41,7 @@ export const UserSchema = z.object({
   email: z.string().email(),
   phoneNumber: z.string(),
   role: AccountRoleSchema,
+  avatarUrl: z.string().nullable().optional(),
   createdAt: z.string(),
   /** Canonical lifecycle value; GET /verification/me remains the gate source. */
   verificationStatus: VerificationStatusSchema,
@@ -58,6 +59,7 @@ const BackendUserSchema = z.object({
   email: z.string().email(),
   phoneNumber: z.string(),
   role: AccountRoleSchema,
+  avatarUrl: z.string().nullable().optional(),
   isActive: z.boolean().optional(),
   lastLoginAt: z.string().nullable().optional(),
   createdAt: z.string(),
@@ -71,6 +73,7 @@ export const BackendUserResponseSchema = BackendUserSchema.transform((user): Use
   email: user.email,
   phoneNumber: user.phoneNumber,
   role: user.role,
+  avatarUrl: user.avatarUrl ?? null,
   createdAt: user.createdAt,
   verificationStatus: user.verificationStatus,
 }));
