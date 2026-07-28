@@ -117,7 +117,7 @@ export function AdminTicketDetail({ id }: { id: string }) {
                   )}
                 >
                   {m.attachmentUrl && m.attachmentType && (
-                    <ChatAttachmentView url={m.attachmentUrl} type={m.attachmentType} name={m.attachmentName} />
+                    <ChatAttachmentView url={m.attachmentUrl} type={m.attachmentType} name={m.attachmentName} durationMs={m.attachmentDurationMs} />
                   )}
                   {m.content && <span>{m.content}</span>}
                 </div>

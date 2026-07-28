@@ -104,6 +104,7 @@ export function ConversationView({ matchConnectionId }: { matchConnectionId: str
                   url={message.attachmentUrl}
                   type={message.attachmentType}
                   name={message.attachmentName}
+                  durationMs={message.attachmentDurationMs}
                 />
               )}
               {message.body && <p>{message.body}</p>}
@@ -118,7 +119,7 @@ export function ConversationView({ matchConnectionId }: { matchConnectionId: str
         {pending && (
           <div className="mb-3 flex items-center gap-2 rounded-control border border-hairline bg-background p-2">
             <div className="min-w-0 flex-1">
-              <ChatAttachmentView url={pending.url} type={pending.type} name={pending.name} />
+              <ChatAttachmentView url={pending.url} type={pending.type} name={pending.name} durationMs={pending.durationMs} />
             </div>
             <button
               type="button"
