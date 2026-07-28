@@ -70,9 +70,10 @@ export function AdminTicketDetail({ id }: { id: string }) {
           <SelectField
             aria-label="حالة التذكرة"
             options={statuses.map((s) => ({ value: s, label: ticketStatusLabels[s] }))}
-            value={ticket.status}
+            value={ticket.status?.toLowerCase()}
+            disabled={setStatus.isPending}
             onChange={(e) => setStatus.mutate(e.target.value as TicketStatus)}
-            className="w-36"
+            className="w-40 min-w-[150px]"
           />
         </div>
       </div>
