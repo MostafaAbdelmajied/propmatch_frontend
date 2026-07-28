@@ -1,11 +1,18 @@
 import { render } from "@testing-library/react";
 
-const mockReactMarkdown = jest.fn(({ children }: { children: React.ReactNode }) => <>{children}</>);
+type ReactMarkdownProps = {
+  children: React.ReactNode;
+  components?: unknown;
+  remarkPlugins?: unknown[];
+  skipHtml?: boolean;
+};
+
+const mockReactMarkdown = jest.fn(({ children }: ReactMarkdownProps) => <>{children}</>);
 const mockRemarkGfm = jest.fn();
 
 jest.mock("react-markdown", () => ({
   __esModule: true,
-  default: (props: { children: React.ReactNode }) => mockReactMarkdown(props),
+  default: (props: ReactMarkdownProps) => mockReactMarkdown(props),
 }));
 
 jest.mock("remark-gfm", () => ({
