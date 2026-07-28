@@ -2,16 +2,19 @@
 
 import type { ChatAttachmentType } from "@/src/lib/api/contracts/message";
 import { mediaUrl } from "../hooks/useChatUpload";
+import { VoiceNotePlayer } from "./VoiceNotePlayer";
 
 /** Renders an inline chat attachment (image / video / voice note). */
 export function ChatAttachmentView({
   url,
   type,
   name,
+  durationMs,
 }: {
   url: string;
   type: ChatAttachmentType;
   name?: string | null;
+  durationMs?: number | null;
 }) {
   const src = mediaUrl(url);
 
@@ -40,6 +43,6 @@ export function ChatAttachmentView({
     );
   }
 
-  // AUDIO — voice note
-  return <audio src={src} controls preload="metadata" className="w-full max-w-xs" />;
+  // AUDIO — voice note (WhatsApp-style player, inherits bubble text color)
+  return <VoiceNotePlayer src={src} durationMs={durationMs} />;
 }

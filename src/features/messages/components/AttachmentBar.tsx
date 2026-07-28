@@ -45,7 +45,7 @@ export function AttachmentBar({
       {pending && (
         <div className="flex items-center gap-2 rounded-control border border-hairline bg-background p-2">
           <div className="min-w-0 flex-1">
-            <ChatAttachmentView url={pending.url} type={pending.type} name={pending.name} />
+            <ChatAttachmentView url={pending.url} type={pending.type} name={pending.name} durationMs={pending.durationMs} />
           </div>
           <button
             type="button"
