@@ -101,7 +101,7 @@ export function AdminTicketDetail({ id }: { id: string }) {
               <div className={cn("flex max-w-[85%] flex-col gap-1", isUser ? "items-start" : "items-end")}>
                 <span className="flex items-center gap-1 text-caption text-muted">
                   {isAi ? <Bot className="size-3" aria-hidden /> : <UserIcon className="size-3" aria-hidden />}
-                  {m.authorName}
+                  {isAdmin ? "الدعم الفني" : m.authorName}
                   {m.internal && <span className="rounded bg-pending-tint px-1 text-pending">ملاحظة داخلية</span>}
                   <span>· {formatRelativeTime(timestamp)}</span>
                 </span>
