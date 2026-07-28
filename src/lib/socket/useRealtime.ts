@@ -153,11 +153,10 @@ export function useRealtime(): RealtimeState {
       });
       playNotificationChime();
 
-      // Contract-handshake events double as a live toast, since the tenant/landlord
-      // is often mid-flow on another screen when these land.
-      if (n.type === "CONTRACT_READY_FOR_REVIEW") toast("info", n.message);
-      else if (n.type === "CONTRACT_APPROVED") toast("success", n.message);
-      else if (n.type === "CONTRACT_REJECTED") toast("error", n.message);
+      // Contract review events double as a live toast, since either party is
+      // often on another screen when a draft changes state.
+      if (n.type === "NEW_REVIEW_SUBMITTED") toast("info", n.message);
+      else if (n.type === "REVIEW_APPROVED") toast("success", n.message);
     };
 
     const onQueueItem = (item: QueueItem) => {
