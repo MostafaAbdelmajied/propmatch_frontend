@@ -10,6 +10,9 @@ jest.mock("../hooks/useLeaseContract", () => ({
 }));
 jest.mock("@/src/features/auth/hooks/useSession", () => ({ useSession: () => mockSession() }));
 jest.mock("@/src/components/ui/Toast", () => ({ useToast: () => jest.fn() }));
+jest.mock("../hooks/usePartnerLead", () => ({
+  useCreatePartnerLead: () => ({ mutate: jest.fn(), isPending: false }),
+}));
 
 const contract = (overrides: Record<string, unknown> = {}) => ({
   id: "contract-id",
