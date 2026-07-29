@@ -179,13 +179,11 @@ describe("full flow: request → approval → offer → accept → reveal", () =
 });
 
 describe("partner leads (PRO-16)", () => {
-  it("creates one lead per opted-in service and nothing more", () => {
-    const res = call("POST", "/partner-leads", tenant2(), { serviceTypes: ["MOVING"] });
+  it("creates one explicit-consent internal lead", () => {
+    const res = call("POST", "/partner-leads", tenant2(), { serviceType: "MOVING", consent: true });
 
     expect(res.status).toBe(200);
-    const { items } = res.body as { items: { serviceType: string; status: string }[] };
-    expect(items).toHaveLength(1);
-    expect(items[0]).toMatchObject({ serviceType: "MOVING", status: "PENDING" });
+    expect(res.body).toMatchObject({ serviceType: "MOVING", status: "PENDING" });
   });
 });
 
