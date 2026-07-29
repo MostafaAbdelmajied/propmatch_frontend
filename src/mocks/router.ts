@@ -11,7 +11,7 @@ import type { Capability } from "@/src/lib/api/contracts/common";
 import type { CreateOfferRequest } from "@/src/lib/api/contracts/offer";
 import type { CreatePartnerLeadRequest } from "@/src/lib/api/contracts/partnerLead";
 import type { PaymentType } from "@/src/lib/api/contracts/payment";
-import type { CreatePropertyRequest } from "@/src/lib/api/contracts/property";
+import type { CreatePropertyRequest, PropertyType } from "@/src/lib/api/contracts/property";
 import type { CreateReviewRequest } from "@/src/lib/api/contracts/review";
 import type { AdminReplyRequest, ChatRequest, TicketStatus } from "@/src/lib/api/contracts/support";
 import type { CreateTenantRequest } from "@/src/lib/api/contracts/tenantRequest";
@@ -257,6 +257,15 @@ const propertyQueueItem = (p: MockProperty): QueueItem => ({
   title: p.title,
   subtitle: `${p.district} · ${p.rentAmount} ج.م/شهريًا`,
   submittedAt: p.createdAt,
+});
+
+const editedPropertyQueueItem = (p: MockProperty): QueueItem => ({
+  id: `q_prop_edit_${p.id}`,
+  type: "propertyEdit",
+  subjectId: p.id,
+  title: p.title,
+  subtitle: `${p.district} · ${p.rentAmount} ج.م/شهريًا · تعديل`,
+  submittedAt: p.updatedAt,
 });
 
 const requestQueueItem = (r: MockTenantRequest): QueueItem => ({
@@ -592,6 +601,7 @@ export function dispatch(
   if (method === "GET" && seg[0] === "properties" && seg.length === 2) {
     const p = db.properties.find((x) => x.id === seg[1]);
     if (!p) return err(404, "غير موجود");
+    if (p.status === "ARCHIVED" && user?.role !== "admin") return err(404, "غير موجود");
     if (p.status !== "APPROVED" && user?.id !== p.ownerId && user?.role !== "admin")
       return err(404, "غير موجود");
     return ok(toDetail(p, user));
@@ -688,7 +698,9 @@ export function dispatch(
   if (path === "/landlord/properties" && method === "GET") {
     if (!user) return unauth();
     if (user.role !== "landlord") return forbidden();
-    const items = db.properties.filter((p) => p.ownerId === user.id);
+    const items = db.properties.filter(
+      (p) => p.ownerId === user.id && p.status !== "ARCHIVED",
+    );
     return ok({ items: items.map(toSummary), total: items.length, page: 1, pageSize: 50 });
   }
   if (path === "/landlord/properties" && method === "POST") {
@@ -774,6 +786,96 @@ export function dispatch(
       }),
     );
     announceQueueItem(propertyQueueItem(property));
+    return ok({ property: toDetail(property, user) });
+  }
+  if (
+    seg[0] === "landlord" &&
+    seg[1] === "properties" &&
+    seg.length === 3 &&
+    method === "DELETE"
+  ) {
+    if (!user) return unauth();
+    if (user.role !== "landlord") return forbidden();
+    const property = db.properties.find(
+      (item) => item.id === seg[2] && item.ownerId === user.id,
+    );
+    if (!property) return err(404, "العقار غير موجود");
+    property.status = "ARCHIVED";
+    property.isBoosted = false;
+    property.approvedBy = null;
+    property.updatedAt = new Date().toISOString();
+    return ok({ ok: true, status: "ARCHIVED" });
+  }
+  if (
+    seg[0] === "landlord" &&
+    seg[1] === "properties" &&
+    seg.length === 3 &&
+    method === "PATCH"
+  ) {
+    if (!user) return unauth();
+    if (user.role !== "landlord") return forbidden();
+    if (!isVerified(user.id)) return needsVerification();
+    const property = db.properties.find((item) => item.id === seg[2] && item.ownerId === user.id);
+    if (!property) return err(404, "العقار غير موجود");
+    if (property.status === "ARCHIVED") return err(403, "لا يمكن تعديل عقار مؤرشف");
+    if (!(body instanceof FormData)) return err(400, "بيانات التعديل غير صالحة");
+
+    let retainedIds: string[];
+    try {
+      retainedIds = JSON.parse(String(body.get("existingImageIds") ?? "[]")) as string[];
+    } catch {
+      return err(400, "قائمة الصور الحالية غير صالحة");
+    }
+    const currentImages = db.propertyImages.filter((image) => image.propertyId === property.id);
+    if (
+      !Array.isArray(retainedIds) ||
+      retainedIds.some((id) => !currentImages.some((image) => image.id === id))
+    ) {
+      return err(400, "إحدى الصور لا تنتمي إلى هذا العقار");
+    }
+    const newImageParts = body.getAll("images");
+    if (retainedIds.length + newImageParts.length < 1) return err(400, "أضف صورة واحدة على الأقل");
+    if (retainedIds.length + newImageParts.length > 10) return err(400, "يمكنك إضافة 10 صور كحد أقصى");
+
+    property.title = String(body.get("title") ?? "");
+    property.description = String(body.get("description") ?? "");
+    property.governorate = String(body.get("governorate") ?? "");
+    property.city = String(body.get("city") ?? "");
+    property.district = String(body.get("district") ?? "");
+    property.manualAddress = String(body.get("manualAddress") ?? "");
+    property.propertyType = String(body.get("propertyType") ?? "APARTMENT") as PropertyType;
+    property.propertyAroundServices = String(body.get("propertyAroundServices") ?? "") || null;
+    property.rentAmount = Number(body.get("rentAmount"));
+    property.areaM2 = Number(body.get("areaM2"));
+    property.bedrooms = Number(body.get("bedrooms"));
+    property.bathrooms = Number(body.get("bathrooms"));
+    property.isFurnished = body.get("isFurnished") === "true";
+    property.hasElevator = body.get("hasElevator") === "true";
+    property.hasParking = body.get("hasParking") === "true";
+    property.status = "PENDING";
+    property.approvedBy = null;
+    property.updatedAt = new Date().toISOString();
+
+    const retained = retainedIds.map((id) => currentImages.find((image) => image.id === id)!);
+    db.propertyImages = db.propertyImages.filter(
+      (image) => image.propertyId !== property.id || retainedIds.includes(image.id),
+    );
+    retained.forEach((image, index) => {
+      image.displayOrder = index;
+      image.isCover = index === 0;
+    });
+    newImageParts.forEach((_, index) => {
+      db.propertyImages.push({
+        id: nextId("img"),
+        propertyId: property.id,
+        imageUrl: `/public/properties/mock-edit-${index + 1}.jpg`,
+        displayOrder: retained.length + index,
+        isCover: retained.length === 0 && index === 0,
+      });
+    });
+    announceQueueItem(
+      property.approvedAt ? editedPropertyQueueItem(property) : propertyQueueItem(property),
+    );
     return ok({ property: toDetail(property, user) });
   }
   if (
@@ -1346,13 +1448,16 @@ export function dispatch(
     if (denied) return denied;
     const kycQueue = db.verifications.filter((v) => v.status === "PENDING").map(kycQueueItem);
     const propertyQueue = db.properties
-      .filter((p) => p.status === "PENDING")
+      .filter((p) => p.status === "PENDING" && p.approvedAt === null)
       .map(propertyQueueItem);
+    const editedPropertyQueue = db.properties
+      .filter((p) => p.status === "PENDING" && p.approvedAt !== null)
+      .map(editedPropertyQueueItem);
     const requestQueue = db.tenantRequests
       .filter((r) => r.status === "PENDING")
       .map(requestQueueItem);
     const reviewQueue = db.reviews.filter((r) => r.status === "PENDING").map(reviewQueueItem);
-    return ok({ kycQueue, propertyQueue, requestQueue, reviewQueue });
+    return ok({ kycQueue, propertyQueue, editedPropertyQueue, requestQueue, reviewQueue });
   }
   if (seg[0] === "admin" && seg[1] === "kyc" && seg.length === 3 && method === "GET") {
     const denied = requireCap("kyc:review");
@@ -1398,7 +1503,7 @@ export function dispatch(
     p.status = b.decision === "approve" ? "APPROVED" : "REJECTED";
     p.rejectionReason = b.decision === "reject" ? b.reason!.trim() : null;
     p.approvedBy = admin!.id;
-    p.approvedAt = b.decision === "approve" ? new Date().toISOString() : null;
+    p.approvedAt = new Date().toISOString();
     audit(admin!, `property:${b.decision} ${p.id}`, p.id);
     // On approval the backend also embeds the text into ChromaDB (PRO-09).
     if (b.decision === "approve")

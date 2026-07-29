@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Home, ScanFace, Clock, ChevronLeft, FileText, Star, ShieldAlert } from "lucide-react";
+import { Home, ScanFace, Clock, ChevronLeft, FileText, Star, ShieldAlert, Pencil } from "lucide-react";
 import { useAdminQueues, useModerateReview, useReviewTenantRequest } from "../hooks/useAdmin";
 import { useAdminSession } from "../hooks/useTeam";
 import { InputField } from "@/src/components/ui/Field";
@@ -16,7 +16,8 @@ import type { QueueItem } from "@/src/lib/api/contracts/admin";
 import type { Capability } from "@/src/lib/api/contracts/common";
 
 /**
- * All four PRO-08 queues: eKYC, properties, tenant requests, property reviews.
+ * Moderation queues: eKYC, new properties, property edits, tenant requests,
+ * and property reviews.
  *
  * Each column is capability-gated (sub-roles restored — conflicts.md B2-R), so
  * a kyc-reviewer sees only the eKYC column. That is UX only; the backend's
@@ -35,6 +36,14 @@ export function AdminDashboard() {
       Icon: Home,
       items: data?.propertyQueue,
       emptyText: "لا توجد عقارات بانتظار المراجعة",
+      hrefBase: "/admin/properties",
+    },
+    {
+      cap: "property:approve" as Capability,
+      title: "تعديلات عقارات بانتظار المراجعة",
+      Icon: Pencil,
+      items: data?.editedPropertyQueue,
+      emptyText: "لا توجد تعديلات عقارات بانتظار المراجعة",
       hrefBase: "/admin/properties",
     },
     {
@@ -81,8 +90,8 @@ export function AdminDashboard() {
         />
       ) : (
         <div className="grid gap-5 lg:grid-cols-2">
-          {columns.map(({ cap, ...col }) => (
-            <QueueColumn key={cap} {...col} loading={isLoading} />
+          {columns.map((col) => (
+            <QueueColumn key={col.title} {...col} loading={isLoading} />
           ))}
         </div>
       )}

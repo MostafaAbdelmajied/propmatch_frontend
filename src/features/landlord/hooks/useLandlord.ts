@@ -10,6 +10,7 @@ import type {
   PropertyDetail,
   PropertySummary,
 } from "@/src/lib/api/contracts/property";
+import type { EditPropertyForm } from "../validation/schemas";
 import type { UserQuota } from "@/src/lib/api/contracts/payment";
 
 /** ERD: USER_QUOTA is landlord-only, so this can legitimately be null. */
@@ -76,6 +77,39 @@ export function useCreateProperty() {
   });
 }
 
+export function updatePropertyFormData(input: EditPropertyForm): FormData {
+  const formData = new FormData();
+  const { existingImageIds, newImages, ...fields } = input;
+  for (const [field, value] of Object.entries(fields)) {
+    if (value !== undefined) formData.append(field, String(value));
+  }
+  formData.append("existingImageIds", JSON.stringify(existingImageIds));
+  for (const image of newImages) formData.append("images", image);
+  return formData;
+}
+
+export function useUpdateProperty(propertyId: string) {
+  const qc = useQueryClient();
+  return useMutation<CreatePropertyResult, LandlordActionError, EditPropertyForm>({
+    retry: false,
+    mutationFn: async (body) => {
+      try {
+        return await api.patch<CreatePropertyResult>(
+          `landlord/properties/${propertyId}`,
+          updatePropertyFormData(body),
+        );
+      } catch (error) {
+        throw toActionError(error);
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["properties", propertyId] });
+      qc.invalidateQueries({ queryKey: ["properties", "mine"] });
+      qc.invalidateQueries({ queryKey: ["quota"] });
+    },
+  });
+}
+
 /**
  * PRO-10 streaming optimizer. Not a react-query mutation: the value arrives
  * progressively, so the caller gets tokens as they land rather than one
@@ -134,10 +168,27 @@ export function useBoostProperty(propertyId: string) {
   });
 }
 
-export function useArchiveProperty(propertyId: string) {
+export function useDeleteProperty(propertyId: string) {
   const qc = useQueryClient();
-  return useMutation({
-    mutationFn: () => api.post<{ ok: boolean }>(`landlord/properties/${propertyId}/archive`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["properties"] }),
+  return useMutation<
+    { ok: boolean; status: "ARCHIVED" },
+    LandlordActionError,
+    void
+  >({
+    mutationFn: async () => {
+      try {
+        return await api.delete<{ ok: boolean; status: "ARCHIVED" }>(
+          `landlord/properties/${propertyId}`,
+        );
+      } catch (error) {
+        throw toActionError(error);
+      }
+    },
+    onSuccess: () => {
+      qc.removeQueries({ queryKey: ["properties", propertyId], exact: true });
+      qc.invalidateQueries({ queryKey: ["properties", "mine"] });
+      qc.invalidateQueries({ queryKey: ["quota"] });
+      qc.invalidateQueries({ queryKey: ["properties", "browse"] });
+    },
   });
 }

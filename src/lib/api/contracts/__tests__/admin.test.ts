@@ -1,4 +1,4 @@
-import { KycReviewDetailSchema } from "../admin";
+import { AdminQueuesResponseSchema, KycReviewDetailSchema } from "../admin";
 
 const validKycDetails = {
   userId: "user-1",
@@ -40,5 +40,27 @@ describe("KycReviewDetailSchema", () => {
   it("strips extra internal fields from accepted output", () => {
     const result = KycReviewDetailSchema.parse({ ...validKycDetails, internalObjectKey: "not-returned" });
     expect(result).not.toHaveProperty("internalObjectKey");
+  });
+});
+
+describe("AdminQueuesResponseSchema", () => {
+  it("accepts the dedicated edited-property queue", () => {
+    const edited = {
+      id: "q_prop_edit_property-1",
+      type: "propertyEdit",
+      subjectId: "property-1",
+      title: "شقة معدلة",
+      subtitle: "تم تعديل الإعلان",
+      submittedAt: "2026-07-29T12:00:00.000Z",
+    };
+    expect(
+      AdminQueuesResponseSchema.safeParse({
+        kycQueue: [],
+        propertyQueue: [],
+        editedPropertyQueue: [edited],
+        requestQueue: [],
+        reviewQueue: [],
+      }).success,
+    ).toBe(true);
   });
 });

@@ -82,10 +82,16 @@ export const AdminSessionSchema = z.object({
 export type AdminSession = z.infer<typeof AdminSessionSchema>;
 
 /**
- * The four moderation queues (PRO-08): eKYC, properties, tenant requests and
- * property reviews. All share PENDING → APPROVED/REJECTED.
+ * Moderation queues: eKYC, new properties, edited properties, tenant requests
+ * and property reviews. All share PENDING → APPROVED/REJECTED.
  */
-export const QueueItemTypeSchema = z.enum(["kyc", "property", "request", "review"]);
+export const QueueItemTypeSchema = z.enum([
+  "kyc",
+  "property",
+  "propertyEdit",
+  "request",
+  "review",
+]);
 export type QueueItemType = z.infer<typeof QueueItemTypeSchema>;
 
 export const QueueItemSchema = z.object({
@@ -102,6 +108,7 @@ export type QueueItem = z.infer<typeof QueueItemSchema>;
 export const AdminQueuesResponseSchema = z.object({
   kycQueue: z.array(QueueItemSchema),
   propertyQueue: z.array(QueueItemSchema),
+  editedPropertyQueue: z.array(QueueItemSchema),
   requestQueue: z.array(QueueItemSchema),
   reviewQueue: z.array(QueueItemSchema),
 });
