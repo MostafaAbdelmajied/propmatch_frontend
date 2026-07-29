@@ -1096,7 +1096,10 @@ export function dispatch(
   if (seg[0] === "matches" && seg[2] === "contract" && seg[3] === "prefill" && method === "GET") {
     if (!user) return unauth();
     const match = db.matchConnections.find(
-      (m) => m.id === seg[1] && m.status === "CONNECTED" && (m.tenantId === user.id || m.ownerId === user.id),
+      (m) =>
+        m.id === seg[1] &&
+        m.status === "CONNECTED" &&
+        (m.tenantId === user.id || m.ownerId === user.id),
     );
     if (!match) return err(404, "غير موجود");
     const owner = db.users.find((u) => u.id === match.ownerId)!;
@@ -1116,7 +1119,10 @@ export function dispatch(
   if (seg[0] === "matches" && seg[2] === "contract" && seg.length === 3 && method === "GET") {
     if (!user) return unauth();
     const match = db.matchConnections.find(
-      (m) => m.id === seg[1] && m.status === "CONNECTED" && (m.tenantId === user.id || m.ownerId === user.id),
+      (m) =>
+        m.id === seg[1] &&
+        m.status === "CONNECTED" &&
+        (m.tenantId === user.id || m.ownerId === user.id),
     );
     if (!match) return err(404, "غير موجود");
     const existing = db.leaseContracts.find((c) => c.matchConnectionId === match.id);
@@ -1180,7 +1186,12 @@ export function dispatch(
     else db.leaseContracts.push(contract);
     return ok(maskLeaseContract(contract));
   }
-  if (seg[0] === "matches" && seg[2] === "contract" && seg[3] === "send-for-review" && method === "POST") {
+  if (
+    seg[0] === "matches" &&
+    seg[2] === "contract" &&
+    seg[3] === "send-for-review" &&
+    method === "POST"
+  ) {
     if (!user) return unauth();
     const match = db.matchConnections.find(
       (m) => m.id === seg[1] && m.status === "CONNECTED" && m.ownerId === user.id,
@@ -1211,7 +1222,11 @@ export function dispatch(
     const ownerV = db.verifications.find((v) => v.userId === owner.id);
     const tenantV = db.verifications.find((v) => v.userId === tenant.id);
     if (!ownerV?.nationalId || !tenantV?.nationalId) {
-      return codedErr(409, "IDENTITY_NOT_VERIFIED", "لا يمكن الموافقة قبل اكتمال توثيق الهوية لطرفي الصفقة");
+      return codedErr(
+        409,
+        "IDENTITY_NOT_VERIFIED",
+        "لا يمكن الموافقة قبل اكتمال توثيق الهوية لطرفي الصفقة",
+      );
     }
     contract.ownerNationalId = ownerV.nationalId;
     contract.tenantNationalId = tenantV.nationalId;
@@ -1254,6 +1269,31 @@ export function dispatch(
   if (path === "/partner-leads" && method === "POST") {
     if (!user) return unauth();
     const b = body as CreatePartnerLeadRequest;
+    if (user.role === "admin") return forbidden();
+    if (b.consent !== true || !["MOVING", "INSURANCE"].includes(b.serviceType))
+      return err(400, "PARTNER_LEAD_CONSENT_REQUIRED");
+    if (
+      db.partnerLeads.some(
+        (lead) =>
+          lead.userId === user.id &&
+          lead.serviceType === b.serviceType &&
+          lead.status === "PENDING",
+      )
+    ) {
+      return codedErr(409, "PARTNER_LEAD_ALREADY_PENDING", "PARTNER_LEAD_ALREADY_PENDING");
+    }
+    const now = new Date().toISOString();
+    const created = {
+      id: nextId("lead"),
+      userId: user.id,
+      serviceType: b.serviceType,
+      status: "PENDING" as const,
+      consentedAt: now,
+      createdAt: now,
+    };
+    db.partnerLeads.push(created);
+    return ok(created);
+    /* Legacy batch partner-routing mock intentionally disabled.
     const created = b.serviceTypes.map((serviceType) => {
       const lead = {
         id: nextId("lead"),
@@ -1267,6 +1307,7 @@ export function dispatch(
       return lead;
     });
     return ok({ items: created });
+    */
   }
 
   /* --------------------------- notifications ----------------------------- */

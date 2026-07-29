@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Check, Inbox, X } from "lucide-react";
@@ -12,9 +12,13 @@ import { EmptyState, ErrorState } from "@/src/components/ui/States";
 import { useToast } from "@/src/components/ui/Toast";
 import { formatEGP, formatRelativeTime } from "@/src/utils/format";
 import type { ReceivedOffer } from "@/src/lib/api/contracts/offer";
-import { useAcceptOffer, useReceivedOffers, useRejectOffer, useViewOffer } from "../hooks/useOffers";
+import {
+  useAcceptOffer,
+  useReceivedOffers,
+  useRejectOffer,
+  useViewOffer,
+} from "../hooks/useOffers";
 import { ContactRevealCard } from "./ContactRevealCard";
-import { PartnerOptInSheet } from "./PartnerOptInSheet";
 import { OfferStatusChip } from "./StatusPills";
 
 /**
@@ -24,13 +28,14 @@ import { OfferStatusChip } from "./StatusPills";
  */
 export function TenantOfferInbox() {
   const { data, isLoading, isError, refetch } = useReceivedOffers();
-  const [partnerOptIn, setPartnerOptIn] = useState(false);
 
   return (
     <div className="flex flex-col gap-5">
       <div>
         <h1 className="text-h1 font-bold text-ink">العروض الواردة</h1>
-        <p className="mt-1 text-small text-muted">عروض من ملّاك موثّقين على طلباتك، مرتّبة حسب التطابق.</p>
+        <p className="mt-1 text-small text-muted">
+          عروض من ملّاك موثّقين على طلباتك، مرتّبة حسب التطابق.
+        </p>
       </div>
 
       {isError ? (
@@ -56,18 +61,16 @@ export function TenantOfferInbox() {
         <ul className="flex flex-col gap-4">
           {data.items.map((offer) => (
             <li key={offer.id}>
-              <OfferCard offer={offer} onAccepted={() => setPartnerOptIn(true)} />
+              <OfferCard offer={offer} />
             </li>
           ))}
         </ul>
       )}
-
-      <PartnerOptInSheet open={partnerOptIn} onClose={() => setPartnerOptIn(false)} />
     </div>
   );
 }
 
-function OfferCard({ offer, onAccepted }: { offer: ReceivedOffer; onAccepted: () => void }) {
+function OfferCard({ offer }: { offer: ReceivedOffer }) {
   const router = useRouter();
   const toast = useToast();
   const accept = useAcceptOffer();
@@ -104,13 +107,27 @@ function OfferCard({ offer, onAccepted }: { offer: ReceivedOffer; onAccepted: ()
       <div className="flex flex-col gap-2 rounded-control bg-background p-3.5">
         <div className="flex items-baseline justify-between gap-2">
           <span className="text-caption text-muted">السعر المقترح لك</span>
-          <span className="text-title font-bold text-primary">{formatEGP(offer.proposedPrice)}</span>
+          <span className="text-title font-bold text-primary">
+            {formatEGP(offer.proposedPrice)}
+          </span>
         </div>
         <p className="text-small leading-relaxed text-body-text">{offer.pitchMessage}</p>
       </div>
 
       {offer.status === "ACCEPTED" && offer.ownerName && offer.ownerPhoneNumber ? (
-        <> <ContactRevealCard ownerName={offer.ownerName} ownerPhoneNumber={offer.ownerPhoneNumber} manualAddress={offer.manualAddress} /> {offer.matchConnectionId && <Link href={`/tenant/messages/${offer.matchConnectionId}`}><Button>فتح المحادثة</Button></Link>} </>
+        <>
+          {" "}
+          <ContactRevealCard
+            ownerName={offer.ownerName}
+            ownerPhoneNumber={offer.ownerPhoneNumber}
+            manualAddress={offer.manualAddress}
+          />{" "}
+          {offer.matchConnectionId && (
+            <Link href={`/tenant/messages/${offer.matchConnectionId}`}>
+              <Button>فتح المحادثة</Button>
+            </Link>
+          )}{" "}
+        </>
       ) : offer.status === "REJECTED" ? (
         <p className="text-small text-muted">رفضت هذا العرض.</p>
       ) : (
@@ -138,7 +155,6 @@ function OfferCard({ offer, onAccepted }: { offer: ReceivedOffer; onAccepted: ()
               accept.mutate(offer.id, {
                 onSuccess: () => {
                   toast("success", "تم قبول العرض — بيانات المالك متاحة الآن");
-                  onAccepted();
                 },
                 onError: (e) => {
                   if (e.code === "VERIFICATION_REQUIRED") {

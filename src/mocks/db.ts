@@ -204,10 +204,10 @@ export interface MockLeaseContract {
 /** ERD: PARTNER_LEAD. */
 export interface MockPartnerLead {
   id: string;
-  tenantId: string;
+  userId: string;
   serviceType: PartnerServiceType;
-  partnerName: string | null;
   status: PartnerLeadStatus;
+  consentedAt: string;
   createdAt: string;
 }
 
