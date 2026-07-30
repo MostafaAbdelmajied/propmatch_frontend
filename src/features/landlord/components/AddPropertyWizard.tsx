@@ -486,8 +486,114 @@ function MediaAndDescriptionStep({
   // let them put it back. Streaming overwrites the field in place, which would
   // otherwise destroy their draft with no way back.
   const [previous, setPrevious] = useState<string | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  const PREDEFINED_SERVICES = [
+    "جامعة",
+    "مواصلات",
+    "سوبر ماركت",
+    "صيدلية",
+    "مستشفى",
+    "مدرسة",
+    "مسجد",
+    "نادي رياضي",
+    "مركز تسوق",
+    "مطاعم وكافيهات",
+    "حديقة عامة",
+  ];
+
+  const initialServices = form.watch("propertyAroundServices");
+  const [tags, setTags] = useState<string[]>(() => {
+    if (!initialServices) return [];
+    return initialServices
+      .split(/[،,]/)
+      .map((s: string) => s.trim())
+      .filter(Boolean);
+  });
+
+  const [customTag, setCustomTag] = useState("");
+
+  useEffect(() => {
+    form.setValue("propertyAroundServices", tags.join("، "), {
+      shouldDirty: true,
+      shouldTouch: true,
+      shouldValidate: true,
+    });
+  }, [tags, form]);
+
+  function handleToggleTag(tag: string) {
+    if (tags.includes(tag)) {
+      setTags((prev) => prev.filter((t) => t !== tag));
+    } else {
+      setTags((prev) => [...prev, tag]);
+    }
+  }
+
+  function handleAddCustomTag() {
+    const trimmed = customTag.trim();
+    if (trimmed && !tags.includes(trimmed)) {
+      setTags((prev) => [...prev, trimmed]);
+    }
+    setCustomTag("");
+  }
+
+  function handleCustomTagKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleAddCustomTag();
+    }
+  }
+
+  function handleDragOver(event: React.DragEvent<HTMLElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = "copy";
+    setIsDragOver(true);
+  }
+
+  function handleDragLeave(event: React.DragEvent<HTMLElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragOver(false);
+  }
+
+  function handleFileDrop(event: React.DragEvent<HTMLElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragOver(false);
+
+    if (images.length >= MAX_PROPERTY_IMAGES) {
+      toast("info", "لقد وصلت للحد الأقصى من الصور");
+      return;
+    }
+
+    const droppedFiles = Array.from(event.dataTransfer.files ?? []);
+    if (droppedFiles.length === 0) return;
+
+    const supported = droppedFiles.filter((file) =>
+      ["image/jpeg", "image/png", "image/webp"].includes(file.type),
+    );
+    const withinSizeLimit = supported.filter((file) => file.size <= MAX_PROPERTY_IMAGE_SIZE);
+    const remainingSlots = MAX_PROPERTY_IMAGES - images.length;
+    const nextImages = [...images, ...withinSizeLimit.slice(0, remainingSlots)];
+
+    if (supported.length !== droppedFiles.length) {
+      toast("error", "يُسمح فقط بصور JPG وJPEG وPNG وWEBP");
+    } else if (withinSizeLimit.length !== supported.length) {
+      toast("error", "يجب ألا يتجاوز حجم الصورة الواحدة 5 ميجابايت");
+    } else if (withinSizeLimit.length > remainingSlots) {
+      toast("info", "يمكنك إضافة 10 صور كحد أقصى");
+    }
+
+    form.setValue("images", nextImages, {
+      shouldDirty: true,
+      shouldTouch: true,
+      shouldValidate: true,
+    });
+  }
 
   useEffect(() => () => previews.forEach(({ url }) => URL.revokeObjectURL(url)), [previews]);
+
 
   function selectImages(event: React.ChangeEvent<HTMLInputElement>) {
     const selected = Array.from(event.target.files ?? []);
@@ -671,12 +777,78 @@ function MediaAndDescriptionStep({
           جارٍ كتابة الوصف…
         </p>
       )}
-      <TextAreaField
-        label="الخدمات المحيطة"
-        hint="تُستخدم في المطابقة الذكية — اذكر ما حول العقار (جامعة، مواصلات، أسواق…)."
-        placeholder="جامعة المنصورة، مواصلات، سوبر ماركت، صيدلية"
-        {...form.register("propertyAroundServices")}
-      />
+      <div className="flex flex-col gap-2">
+        <label className="text-small font-bold text-ink">الخدمات المحيطة</label>
+        <p className="text-caption text-muted">
+          تُستخدم في المطابقة الذكية — اختر من الخيارات الشائعة أو أضف خدمات مخصصة.
+        </p>
+
+        {/* Selected tags */}
+        {tags.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 rounded-card border border-hairline bg-background/50 p-2.5">
+            {tags.map((tag) => (
+              <span
+                key={tag}
+                className="inline-flex items-center gap-1 rounded-pill bg-primary/10 px-2.5 py-0.5 text-caption font-bold text-primary-dark"
+              >
+                {tag}
+                <button
+                  type="button"
+                  onClick={() => handleToggleTag(tag)}
+                  className="rounded-full hover:bg-primary/20 p-0.5"
+                  title="إزالة"
+                >
+                  <X className="size-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Predefined choices list */}
+        <div className="flex flex-wrap gap-1.5">
+          {PREDEFINED_SERVICES.map((service) => {
+            const isSelected = tags.includes(service);
+            return (
+              <button
+                key={service}
+                type="button"
+                onClick={() => handleToggleTag(service)}
+                className={cn(
+                  "rounded-pill px-3 py-1 text-caption font-semibold transition-all border",
+                  isSelected
+                    ? "bg-primary text-white border-primary"
+                    : "bg-surface text-ink border-hairline hover:border-primary/50 hover:bg-primary-tint/10",
+                )}
+              >
+                {isSelected ? `✓ ${service}` : service}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Add custom tag input */}
+        <div className="flex items-stretch gap-2 mt-1">
+          <input
+            type="text"
+            placeholder="أضف خدمة محيطة مخصصة (مثال: محطة قطار)..."
+            value={customTag}
+            onChange={(e) => setCustomTag(e.target.value)}
+            onKeyDown={handleCustomTagKeyDown}
+            className="flex-1 rounded-control border border-hairline bg-surface px-3 py-1.5 text-small placeholder-muted focus:border-primary focus:outline-none"
+          />
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={handleAddCustomTag}
+            disabled={!customTag.trim()}
+          >
+            إضافة
+          </Button>
+        </div>
+      </div>
+
       <div className="flex flex-col gap-4 border-t border-hairline pt-5">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -691,15 +863,21 @@ function MediaAndDescriptionStep({
         </div>
 
         <label
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleFileDrop}
           className={cn(
-            "group flex cursor-pointer flex-col items-center justify-center gap-2 rounded-card border-2 border-dashed border-primary/30 bg-primary-tint/30 px-4 py-7 text-center transition-colors hover:border-primary hover:bg-primary-tint",
+            "group flex cursor-pointer flex-col items-center justify-center gap-2 rounded-card border-2 border-dashed px-4 py-7 text-center transition-colors",
+            isDragOver
+              ? "border-primary bg-primary-tint/40"
+              : "border-primary/30 bg-primary-tint/30 hover:border-primary hover:bg-primary-tint",
             images.length >= MAX_PROPERTY_IMAGES && "pointer-events-none opacity-50",
           )}
         >
           <span className="flex size-11 items-center justify-center rounded-full bg-surface text-primary shadow-sm transition-transform group-hover:scale-105">
             <ImagePlus className="size-5" aria-hidden />
           </span>
-          <span className="text-small font-bold text-primary">اختر صور العقار</span>
+          <span className="text-small font-bold text-primary">اسحب صور العقار هنا أو اخترها</span>
           <span className="text-caption text-muted">
             JPG أو JPEG أو PNG أو WEBP — حتى 5 ميجابايت للصورة وبحد أقصى 10 صور
           </span>
@@ -712,6 +890,7 @@ function MediaAndDescriptionStep({
             onChange={selectImages}
           />
         </label>
+
 
         {previews.length > 0 && (
           <div className="flex flex-col gap-4">

@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
-import { Controller, useForm, useWatch } from "react-hook-form";
+import { Button } from "@/src/components/ui/Button";
+import { InputField, SelectField, TextAreaField } from "@/src/components/ui/Field";
+import { cn } from "@/src/utils/cn";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowRight, ImagePlus, Save, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/src/components/ui/Button";
-import { InputField, SelectField, TextAreaField } from "@/src/components/ui/Field";
+import { useEffect, useMemo, useState } from "react";
+import { Controller, useForm, useWatch } from "react-hook-form";
+
 import { Skeleton } from "@/src/components/ui/Skeleton";
 import { ErrorState } from "@/src/components/ui/States";
 import { useToast } from "@/src/components/ui/Toast";
@@ -17,8 +19,8 @@ import {
   type PropertyImage,
   type PropertyType,
 } from "@/src/lib/api/contracts/property";
-import { editPropertyFormSchema, type EditPropertyForm as FormValues } from "../validation/schemas";
 import { useUpdateProperty } from "../hooks/useLandlord";
+import { editPropertyFormSchema, type EditPropertyForm as FormValues } from "../validation/schemas";
 
 const MAX_IMAGES = 10;
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
@@ -92,6 +94,107 @@ export function EditPropertyForm({ propertyId }: { propertyId: string }) {
     () => () => previews.forEach(({ url }) => URL.revokeObjectURL(url)),
     [previews],
   );
+
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  const PREDEFINED_SERVICES = [
+    "جامعة",
+    "مواصلات",
+    "سوبر ماركت",
+    "صيدلية",
+    "مستشفى",
+    "مدرسة",
+    "مسجد",
+    "نادي رياضي",
+    "مركز تسوق",
+    "مطاعم وكافيهات",
+    "حديقة عامة",
+  ];
+
+  const [tags, setTags] = useState<string[]>(() => {
+    const initialServices = form.getValues("propertyAroundServices");
+    if (!initialServices) return [];
+    return initialServices
+      .split(/[،,]/)
+      .map((s: string) => s.trim())
+      .filter(Boolean);
+  });
+
+  const [customTag, setCustomTag] = useState("");
+
+  useEffect(() => {
+    form.setValue("propertyAroundServices", tags.join("، "), {
+      shouldDirty: true,
+      shouldTouch: true,
+      shouldValidate: true,
+    });
+  }, [tags, form]);
+
+  function handleToggleTag(tag: string) {
+    if (tags.includes(tag)) {
+      setTags((prev) => prev.filter((t) => t !== tag));
+    } else {
+      setTags((prev) => [...prev, tag]);
+    }
+  }
+
+  function handleAddCustomTag() {
+    const trimmed = customTag.trim();
+    if (trimmed && !tags.includes(trimmed)) {
+      setTags((prev) => [...prev, trimmed]);
+    }
+    setCustomTag("");
+  }
+
+  function handleCustomTagKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleAddCustomTag();
+    }
+  }
+
+  function handleDragOver(event: React.DragEvent<HTMLElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = "copy";
+    setIsDragOver(true);
+  }
+
+  function handleDragLeave(event: React.DragEvent<HTMLElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragOver(false);
+  }
+
+  function handleFileDrop(event: React.DragEvent<HTMLElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragOver(false);
+
+    if (retainedImages.length + newImages.length >= MAX_IMAGES) {
+      toast("info", "لقد وصلت للحد الأقصى من الصور");
+      return;
+    }
+
+    const droppedFiles = Array.from(event.dataTransfer.files ?? []);
+    if (droppedFiles.length === 0) return;
+
+    const supported = droppedFiles.filter(
+      (file) => IMAGE_TYPES.includes(file.type) && file.size <= MAX_IMAGE_SIZE,
+    );
+    const available = MAX_IMAGES - retainedImages.length - newImages.length;
+    form.setValue("newImages", [...newImages, ...supported.slice(0, available)], {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+
+    if (supported.length !== droppedFiles.length) {
+      toast("error", "تأكد أن الصور JPG أو PNG أو WEBP وأقل من 5 ميجابايت");
+    } else if (droppedFiles.length > available) {
+      toast("info", "يمكنك الاحتفاظ بعشر صور كحد أقصى");
+    }
+  }
+
 
   const activeGovernorates =
     regions.data?.flatMap((country) =>
@@ -259,7 +362,78 @@ export function EditPropertyForm({ propertyId }: { propertyId: string }) {
 
         <FormCard title="الوصف والصور">
           <TextAreaField label="الوصف" {...form.register("description")} error={form.formState.errors.description?.message} />
-          <TextAreaField label="الخدمات المحيطة" {...form.register("propertyAroundServices")} />
+          <div className="flex flex-col gap-2">
+            <label className="text-small font-bold text-ink">الخدمات المحيطة</label>
+            <p className="text-caption text-muted">
+              تُستخدم في المطابقة الذكية — اختر من الخيارات الشائعة أو أضف خدمات مخصصة.
+            </p>
+
+            {/* Selected tags */}
+            {tags.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 rounded-card border border-hairline bg-background/50 p-2.5">
+                {tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="inline-flex items-center gap-1 rounded-pill bg-primary/10 px-2.5 py-0.5 text-caption font-bold text-primary-dark"
+                  >
+                    {tag}
+                    <button
+                      type="button"
+                      onClick={() => handleToggleTag(tag)}
+                      className="rounded-full hover:bg-primary/20 p-0.5"
+                      title="إزالة"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Predefined choices list */}
+            <div className="flex flex-wrap gap-1.5">
+              {PREDEFINED_SERVICES.map((service) => {
+                const isSelected = tags.includes(service);
+                return (
+                  <button
+                    key={service}
+                    type="button"
+                    onClick={() => handleToggleTag(service)}
+                    className={cn(
+                      "rounded-pill px-3 py-1 text-caption font-semibold transition-all border",
+                      isSelected
+                        ? "bg-primary text-white border-primary"
+                        : "bg-surface text-ink border-hairline hover:border-primary/50 hover:bg-primary-tint/10",
+                    )}
+                  >
+                    {isSelected ? `✓ ${service}` : service}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Add custom tag input */}
+            <div className="flex items-stretch gap-2 mt-1">
+              <input
+                type="text"
+                placeholder="أضف خدمة محيطة مخصصة (مثال: محطة قطار)..."
+                value={customTag}
+                onChange={(e) => setCustomTag(e.target.value)}
+                onKeyDown={handleCustomTagKeyDown}
+                className="flex-1 rounded-control border border-hairline bg-surface px-3 py-1.5 text-small placeholder-muted focus:border-primary focus:outline-none"
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={handleAddCustomTag}
+                disabled={!customTag.trim()}
+              >
+                إضافة
+              </Button>
+            </div>
+          </div>
+
           <div>
             <div className="flex items-center justify-between">
               <h2 className="text-small font-bold text-ink">صور العقار</h2>
@@ -296,9 +470,21 @@ export function EditPropertyForm({ propertyId }: { propertyId: string }) {
                 />
               ))}
             </div>
-            <label className="mt-3 flex cursor-pointer items-center justify-center gap-2 rounded-control border-2 border-dashed border-primary/30 bg-primary-tint/30 p-5 font-bold text-primary">
-              <ImagePlus className="size-5" aria-hidden />
-              إضافة صور
+            <label
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleFileDrop}
+              className={cn(
+                "mt-3 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-control border-2 border-dashed p-5 font-bold text-primary transition-colors",
+                isDragOver
+                  ? "border-primary bg-primary-tint/40"
+                  : "border-primary/30 bg-primary-tint/30 hover:border-primary hover:bg-primary-tint",
+              )}
+            >
+              <span className="flex size-10 items-center justify-center rounded-full bg-surface text-primary shadow-sm">
+                <ImagePlus className="size-5" aria-hidden />
+              </span>
+              <span>اسحب صور العقار هنا أو اخترها</span>
               <input
                 className="sr-only"
                 type="file"
@@ -307,6 +493,7 @@ export function EditPropertyForm({ propertyId }: { propertyId: string }) {
                 onChange={selectImages}
               />
             </label>
+
             {form.formState.errors.newImages?.message && (
               <p className="mt-2 text-caption text-error" role="alert">
                 {form.formState.errors.newImages.message}
@@ -348,7 +535,7 @@ function ImageTile({ image, onRemove }: { image: PropertyImage; onRemove: () => 
 
 function PreviewTile({ src, name, onRemove }: { src: string; name: string; onRemove: () => void }) {
   return (
-    <figure className="relative aspect-[4/3] overflow-hidden rounded-control bg-background">
+    <figure className="relative aspect-4/3 overflow-hidden rounded-control bg-background">
       {/* Existing property images may be backend-relative, so use the same URL contract as the gallery. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={src} alt={name} className="h-full w-full object-cover" />
