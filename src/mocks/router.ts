@@ -916,7 +916,17 @@ export function dispatch(
   }
 
   /* ------------- reverse marketplace: tenant requests (PRO-05) ----------- */
+  if (path === "/tenant-requests" && method === "GET") {
+    const items = db.tenantRequests
+      .filter((r) => r.status === "APPROVED")
+      .map((r) => ({
+        ...r,
+        offersCount: db.offers.filter((o) => o.tenantRequestId === r.id).length,
+      }));
+    return ok({ items });
+  }
   if (path === "/tenant/requests" && method === "GET") {
+
     if (!user) return unauth();
     const items = db.tenantRequests
       .filter((r) => r.tenantId === user.id)

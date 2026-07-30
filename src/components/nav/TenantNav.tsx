@@ -1,5 +1,7 @@
 "use client";
 
+import { useSession } from "@/src/features/auth/hooks/useSession";
+
 import { FileText, Heart, Inbox, MessageCircle, Search } from "lucide-react";
 import { RoleNav, UserProfileHeaderNav } from "./RoleNav";
 
@@ -14,5 +16,9 @@ const items = [
 
 /** Client wrapper so Lucide icon components never cross the RSC boundary. */
 export function TenantNav() {
-  return <RoleNav items={items} rightSlot={<UserProfileHeaderNav />} />;
+  const { data: user } = useSession();
+  const navItems = user ? items : [{ href: "/guest", label: "تصفّح", Icon: Search }];
+  return <RoleNav items={navItems} rightSlot={<UserProfileHeaderNav />} />;
+
 }
+

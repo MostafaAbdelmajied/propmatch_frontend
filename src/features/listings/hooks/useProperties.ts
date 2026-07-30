@@ -71,3 +71,11 @@ export function useMyProperties() {
     queryFn: () => api.get<Paginated<PropertySummary>>("landlord/properties"),
   });
 }
+
+export function usePublicTenantRequests() {
+  return useQuery<{ items: any[] }>({
+    queryKey: ["tenant-requests", "public"],
+    queryFn: () => api.get<{ items: any[] }>("tenant-requests"),
+  });
+}
+

@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/src/components/ui/Button";
 import { Logo } from "@/src/components/ui/Logo";
 import { useLogout, useSession } from "@/src/features/auth/hooks/useSession";
 import { useHideOnScroll } from "@/src/hooks/useHideOnScroll";
@@ -9,6 +10,7 @@ import { BadgeCheck, Bell, LogOut } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NotificationBell } from "./NotificationBell";
+
 
 export interface NavItem {
   href: string;
@@ -22,10 +24,9 @@ export function UserProfileHeaderNav() {
 
   return (
     <div className="flex items-center gap-2 sm:gap-3">
-      <NotificationBell />
-
-      {user && (
+      {user ? (
         <>
+          <NotificationBell />
           {/* Profile Link Badge */}
           <Link
             href="/profile"
@@ -55,7 +56,6 @@ export function UserProfileHeaderNav() {
             </span>
           </Link>
 
-
           {/* Logout Button */}
           <button
             type="button"
@@ -67,10 +67,22 @@ export function UserProfileHeaderNav() {
             <LogOut className="size-4" />
           </button>
         </>
+      ) : (
+        <>
+          <Link href="/login">
+            <Button variant="ghost" size="sm">
+              تسجيل الدخول
+            </Button>
+          </Link>
+          <Link href="/signup">
+            <Button size="sm">إنشاء حساب</Button>
+          </Link>
+        </>
       )}
     </div>
   );
 }
+
 
 /**
  * Mobile: sticky bottom tab bar. Desktop: fixed top nav. Shared between

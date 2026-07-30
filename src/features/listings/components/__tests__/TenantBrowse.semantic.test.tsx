@@ -1,12 +1,17 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { TenantBrowse } from "../TenantBrowse";
-import { useApprovedProperties, useSemanticPropertySearch } from "../../hooks/useProperties";
+import { useApprovedProperties, useSemanticPropertySearch, usePublicTenantRequests } from "../../hooks/useProperties";
 
 jest.mock("next/navigation", () => ({ useRouter: () => ({ push: jest.fn() }) }));
 jest.mock("../../hooks/useProperties", () => ({
   useApprovedProperties: jest.fn(),
   useSemanticPropertySearch: jest.fn(),
+  usePublicTenantRequests: jest.fn(),
 }));
+jest.mock("@/src/features/auth/hooks/useSession", () => ({
+  useSession: () => ({ data: { role: "tenant", fullName: "Test User", verificationStatus: "APPROVED" }, isLoading: false }),
+}));
+
 jest.mock("@/src/lib/api/browserClient", () => ({
   isApiClientError: (value: unknown) =>
     typeof value === "object" &&
@@ -20,6 +25,10 @@ const approvedProperties = useApprovedProperties as jest.MockedFunction<
 const semanticPropertySearch = useSemanticPropertySearch as jest.MockedFunction<
   typeof useSemanticPropertySearch
 >;
+const publicRequests = usePublicTenantRequests as jest.MockedFunction<
+  typeof usePublicTenantRequests
+>;
+
 
 const noRelevantMatchResponse = {
   items: [],
@@ -48,7 +57,14 @@ function setupSemanticSearch(result = successfulSemanticSearch()) {
     refetch: jest.fn(),
   } as ReturnType<typeof useApprovedProperties>);
   semanticPropertySearch.mockReturnValue(result);
+  publicRequests.mockReturnValue({
+    data: { items: [] },
+    isLoading: false,
+    isError: false,
+    refetch: jest.fn(),
+  } as any);
 }
+
 
 function submitQuery(query = "شقة مفروشة في المنصورة") {
   fireEvent.change(screen.getByRole("textbox", { name: "ابحث بوصف العقار الذي تحتاجه" }), {

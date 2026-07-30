@@ -1,8 +1,9 @@
 import type { NextRequest } from "next/server";
 import { BackendApiError, backendFetch } from "@/src/lib/api/client";
-import { ACCESS_TOKEN_COOKIE } from "@/src/lib/api/cookies";
+import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE } from "@/src/lib/api/cookies";
 import { POST as login } from "../login/route";
 import { GET as me } from "../me/route";
+import { POST as refresh } from "../refresh/route";
 import { POST as register } from "../register/route";
 
 jest.mock("@/src/lib/api/client", () => {
@@ -113,5 +114,45 @@ describe("auth BFF routes", () => {
     mockedBackendFetch.mockRejectedValue(new BackendApiError(401, "Unauthorized"));
     const expired = await me({ cookies: { get: jest.fn().mockReturnValue({ value: "expired-token" }) } } as unknown as NextRequest);
     expect(expired.status).toBe(401);
+  });
+
+  it("rotates cookie-only tokens from the refresh-token cookie", async () => {
+    mockedBackendFetch.mockResolvedValue(validTokens);
+    const request = {
+      cookies: { get: jest.fn().mockReturnValue({ value: "old-refresh-token" }) },
+    } as unknown as NextRequest;
+
+    const response = await refresh(request);
+
+    expect(request.cookies.get).toHaveBeenCalledWith(REFRESH_TOKEN_COOKIE);
+    expect(mockedBackendFetch).toHaveBeenCalledWith("/auth/refresh", {
+      method: "POST",
+      body: { refreshToken: "old-refresh-token" },
+    });
+    expect(response.status).toBe(200);
+    const cookies = response.headers.get("set-cookie") ?? "";
+    expect(cookies).toContain("propmatch_access_token=access-token");
+    expect(cookies).toContain("propmatch_refresh_token=refresh-token");
+    await expect(response.json()).resolves.toEqual({
+      user: expect.objectContaining({
+        id: backendUser.id,
+        role: backendUser.role,
+        verificationStatus: backendUser.verificationStatus,
+      }),
+    });
+  });
+
+  it("clears auth cookies when the backend rejects a refresh token", async () => {
+    mockedBackendFetch.mockRejectedValue(new BackendApiError(401, "Invalid refresh token"));
+    const request = {
+      cookies: { get: jest.fn().mockReturnValue({ value: "invalid-refresh-token" }) },
+    } as unknown as NextRequest;
+
+    const response = await refresh(request);
+
+    expect(response.status).toBe(401);
+    const cookies = response.headers.get("set-cookie") ?? "";
+    expect(cookies).toContain("propmatch_access_token=");
+    expect(cookies).toContain("propmatch_refresh_token=");
   });
 });
