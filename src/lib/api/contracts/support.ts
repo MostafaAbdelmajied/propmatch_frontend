@@ -18,8 +18,10 @@ export const ChatMessageSchema = z.object({
   attachmentUrl: z.string().nullable().optional(),
   attachmentType: z.enum(["IMAGE", "VIDEO", "AUDIO"]).nullable().optional(),
   attachmentName: z.string().nullable().optional(),
+  suggestedGuide: z.array(z.string()).optional(),
 });
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
+
 
 export const ChatRequestSchema = z.object({
   message: z.string().min(1).max(2000),

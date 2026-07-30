@@ -3,12 +3,12 @@
 import { Button } from "@/src/components/ui/Button";
 import { Skeleton } from "@/src/components/ui/Skeleton";
 import { useToast } from "@/src/components/ui/Toast";
+import { AttachmentBar, type PendingAttachment } from "@/src/features/messages/components/AttachmentBar";
+import { ChatAttachmentView } from "@/src/features/messages/components/ChatAttachmentView";
 import { streamPost } from "@/src/lib/api/browserClient";
 import { ticketStatusLabels, type ChatMessage, type TicketStatus } from "@/src/lib/api/contracts/support";
 import { cn } from "@/src/utils/cn";
 import { formatRelativeTime } from "@/src/utils/format";
-import { AttachmentBar, type PendingAttachment } from "@/src/features/messages/components/AttachmentBar";
-import { ChatAttachmentView } from "@/src/features/messages/components/ChatAttachmentView";
 import {
   AlertTriangle,
   Bot,
@@ -188,7 +188,7 @@ const FormattedMarkdownText = React.memo(function FormattedMarkdownText({ text }
 });
 
 function renderInlineFormatting(str: string) {
-  const parts = str.split(/(\*\*.*?\*\*|`.*?`)/g);
+  const parts = str.split(/(\*\*.*?\*\*|`.*?`|!\[.*?\]\(.*?\))/g);
   return parts.map((part, i) => {
     if (part.startsWith("**") && part.endsWith("**")) {
       return <strong key={i} className="font-bold">{part.slice(2, -2)}</strong>;
@@ -199,6 +199,20 @@ function renderInlineFormatting(str: string) {
           {part.slice(1, -1)}
         </code>
       );
+    }
+    if (part.startsWith("![") && part.endsWith(")")) {
+      const match = part.match(/!\[(.*?)\]\((.*?)\)/);
+      if (match) {
+        const [, alt, url] = match;
+        return (
+          <img
+            key={i}
+            src={url}
+            alt={alt}
+            className="my-2 max-w-full rounded-card border border-hairline object-contain shadow-sm"
+          />
+        );
+      }
     }
     return part;
   });
@@ -215,7 +229,10 @@ export interface UnifiedAiAssistantProps {
 export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }: UnifiedAiAssistantProps) {
   const toast = useToast();
   const [mode, setMode] = useState<ChatMode>("SUPPORT");
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    return window.innerWidth >= 768;
+  });
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
 
   // SEPARATE chat histories for Support vs Legal agents
@@ -233,12 +250,7 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
   // Accordion state
   const [ticketsAccordionOpen, setTicketsAccordionOpen] = useState(true);
 
-  // On phones the sidebar overlays the chat, so start it collapsed.
-  useEffect(() => {
-    if (typeof window !== "undefined" && window.innerWidth < 768) {
-      setSidebarOpen(false);
-    }
-  }, []);
+  // On phones the sidebar overlays the chat; initial state is derived from window width.
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const createTicket = useCreateSupportTicket();
@@ -370,7 +382,7 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
       if (mode === "LEGAL") {
         setLegalMessages((m) => m.map((msg) => (msg.id === replyId ? { ...msg, declined: done.declined } : msg)));
       } else {
-        setSupportMessages((m) => m.map((msg) => (msg.id === replyId ? { ...msg, declined: done.declined } : msg)));
+        setSupportMessages((m) => m.map((msg) => (msg.id === replyId ? { ...msg, declined: done.declined, suggestedGuide: done.suggestedGuide } : msg)));
         if (done.escalated) {
           setFrustrated(true);
         }
@@ -432,7 +444,7 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
       <div
         className={cn(
           "flex flex-col border-e border-hairline bg-background transition-[width] duration-200",
-          "max-md:absolute max-md:inset-y-0 max-md:start-0 max-md:z-30 max-md:shadow-xl",
+          "max-md:absolute max-md:inset-y-0 max-md:inset-s-0 max-md:z-30 max-md:shadow-xl",
           sidebarOpen ? "w-72 max-w-[85%]" : "w-0 overflow-hidden border-none",
         )}
       >
@@ -637,6 +649,52 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
                       <FormattedMarkdownText text={m.content} />
                     ) : (
                       m.content && <span>{m.content}</span>
+                    )}
+                    {m.role === "assistant" && m.suggestedGuide && m.suggestedGuide.length > 0 && (
+                      <div className="mt-2.5 flex flex-wrap gap-2 pt-2 border-t border-hairline/80">
+                        {m.suggestedGuide.map((guide) => {
+                          if (guide === "KYC_GUIDE") {
+                            return (
+                              <Button
+                                key={guide}
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => window.location.href = "/verify"}
+                                className="text-caption font-bold"
+                              >
+                                💳 بدء عملية التوثيق الإلكتروني
+                              </Button>
+                            );
+                          }
+                          if (guide === "PROPERTY_GUIDE") {
+                            return (
+                              <Button
+                                key={guide}
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => window.location.href = "/landlord/properties/new"}
+                                className="text-caption font-bold"
+                              >
+                                🏠 إضافة عقار جديد
+                              </Button>
+                            );
+                          }
+                          if (guide === "REQUEST_GUIDE") {
+                            return (
+                              <Button
+                                key={guide}
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => window.location.href = "/tenant/requests/new"}
+                                className="text-caption font-bold"
+                              >
+                                📋 نشر طلب سكن جديد
+                              </Button>
+                            );
+                          }
+                          return null;
+                        })}
+                      </div>
                     )}
                   </div>
                 </div>
