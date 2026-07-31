@@ -99,7 +99,10 @@ export function MatchScoreRing({ score, reasons, size = 56, loading, className }
         <div
           role="tooltip"
           className={cn(
-            "absolute bottom-full start-1/2 z-10 mb-2 -translate-x-1/2 rounded-control bg-ink px-3 py-2 text-caption text-white shadow-card rtl:translate-x-1/2",
+            // z-40 matches NotificationBell's dropdown — this codebase's
+            // convention for floating above RoleNav's sticky header (z-30),
+            // which otherwise clips the tooltip for the topmost list item.
+            "absolute bottom-full start-1/2 z-40 mb-2 -translate-x-1/2 rounded-control bg-ink px-3 py-2 text-caption text-white shadow-card rtl:translate-x-1/2",
             reasons && reasons.length > 0 ? "w-max max-w-56 text-start" : "whitespace-nowrap",
           )}
         >
