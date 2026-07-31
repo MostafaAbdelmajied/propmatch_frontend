@@ -21,6 +21,8 @@ export const MatchConnectionSchema = z.object({
   ownerId: z.string(),
   /** ERD: "Stored AI calculated score". Server-authoritative (ASSUMPTIONS #7). */
   matchScore: z.number().min(0).max(100),
+  /** Explainability — why this connection's score came out the way it did. */
+  matchReasons: z.array(z.object({ code: z.string(), text: z.string() })).optional(),
   status: MatchConnectionStatusSchema,
   createdAt: z.string(),
 });
@@ -33,6 +35,8 @@ export type MatchConnection = z.infer<typeof MatchConnectionSchema>;
 export const MatchResultSchema = z.object({
   property: PropertySummarySchema,
   matchScore: z.number().min(0).max(100),
+  /** Explainability — why this result scored the way it did. */
+  matchReasons: z.array(z.object({ code: z.string(), text: z.string() })).optional(),
 });
 export type MatchResult = z.infer<typeof MatchResultSchema>;
 

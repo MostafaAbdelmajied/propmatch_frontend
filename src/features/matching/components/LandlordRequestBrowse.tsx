@@ -102,7 +102,12 @@ function RequestCard({ request, onOffer }: { request: BrowsableTenantRequest; on
             {request.preferredLocations}
           </p>
         </div>
-        <MatchScoreRing score={request.matchScore} size={52} className="shrink-0" />
+        <MatchScoreRing
+          score={request.matchScore}
+          reasons={request.matchReasons?.map((r) => r.text)}
+          size={52}
+          className="shrink-0"
+        />
       </div>
 
       {request.bestMatchingProperty && (
