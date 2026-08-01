@@ -96,7 +96,12 @@ function OfferCard({ offer }: { offer: ReceivedOffer }) {
           <OfferStatusChip status={offer.status} />
           <span className="text-caption text-muted">{formatRelativeTime(offer.createdAt)}</span>
         </div>
-        <MatchScoreRing score={offer.matchScore} size={48} className="shrink-0" />
+        <MatchScoreRing
+          score={offer.matchScore}
+          reasons={offer.matchReasons?.map((r) => r.text)}
+          size={48}
+          className="shrink-0"
+        />
       </div>
 
       <PropertyCard

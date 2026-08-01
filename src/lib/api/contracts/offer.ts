@@ -59,6 +59,8 @@ export const ReceivedOfferSchema = z.object({
   proposedPrice: z.number(),
   status: OfferStatusSchema,
   matchScore: z.number().min(0).max(100).nullable(),
+  /** Explainability — why this offer's property scored the way it did. */
+  matchReasons: z.array(z.object({ code: z.string(), text: z.string() })).optional(),
   createdAt: z.string(),
   /** Populated only once status === ACCEPTED. */
   ownerName: z.string().nullable(),

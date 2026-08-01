@@ -132,6 +132,8 @@ export const BrowsableTenantRequestSchema = z.object({
   createdAt: z.string(),
   /** Best match score across this landlord's own properties (0–100), if any. */
   matchScore: z.number().min(0).max(100).nullable(),
+  /** Explainability — why the best matching property scored the way it did. */
+  matchReasons: z.array(z.object({ code: z.string(), text: z.string() })).optional(),
   /** True once this landlord has already offered on this request. */
   alreadyOffered: z.boolean(),
   bestMatchingProperty: z
