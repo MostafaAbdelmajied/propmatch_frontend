@@ -1,22 +1,28 @@
 "use client";
 
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Plus, BadgeCheck, ShieldAlert, TrendingUp } from "lucide-react";
+import { useState } from "react";
+import { useMyProperties } from "@/src/features/listings/hooks/useProperties";
+import { useSession } from "@/src/features/auth/hooks/useSession";
 import { PropertyCard } from "@/src/components/PropertyCard";
 import { Button } from "@/src/components/ui/Button";
 import { PropertyCardSkeleton } from "@/src/components/ui/Skeleton";
 import { EmptyState, ErrorState } from "@/src/components/ui/States";
 import { StatusChip } from "@/src/components/ui/StatusChip";
-import { useSession } from "@/src/features/auth/hooks/useSession";
-import { useMyProperties } from "@/src/features/listings/hooks/useProperties";
-import { Plus, ShieldAlert, TrendingUp } from "lucide-react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { ArchivePropertyAction } from "./ArchivePropertyAction";
 
 export function LandlordDashboard() {
   const router = useRouter();
   const { data: session } = useSession();
   const { data, isLoading, isError, refetch } = useMyProperties();
+  const [filter, setFilter] = useState<"ALL" | "ACTIVE" | "ARCHIVED">("ALL");
 
   const notVerified = session && session.verificationStatus !== "APPROVED";
+  const properties = data?.items.filter((property) =>
+    filter === "ALL" ? true : filter === "ARCHIVED" ? property.status === "ARCHIVED" : property.status !== "ARCHIVED",
+  );
 
   return (
     <div className="flex flex-col gap-5">
@@ -78,16 +84,42 @@ export function LandlordDashboard() {
           }
         />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {data.items.map((property) => (
+        <>
+          <div className="flex flex-wrap gap-2" aria-label="تصفية العقارات">
+            {([
+              ["ALL", "الكل"],
+              ["ACTIVE", "النشطة"],
+              ["ARCHIVED", "المؤرشفة"],
+            ] as const).map(([value, label]) => (
+              <Button
+                key={value}
+                type="button"
+                size="sm"
+                variant={filter === value ? "primary" : "ghost"}
+                onClick={() => setFilter(value)}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+          {properties?.length === 0 ? (
+            <EmptyState title="لا توجد عقارات في هذا القسم" />
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {properties?.map((property) => (
             <div key={property.id} className="relative">
               <div className="absolute inset-e-3 top-3 z-10">
                 <StatusChip status={property.status} />
               </div>
               <PropertyCard property={property} onClick={() => router.push(`/landlord/properties/${property.id}`)} />
+              <div className="border-t border-hairline px-3 py-2">
+                <ArchivePropertyAction propertyId={property.id} status={property.status} />
+              </div>
             </div>
           ))}
-        </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

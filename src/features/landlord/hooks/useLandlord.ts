@@ -192,3 +192,39 @@ export function useDeleteProperty(propertyId: string) {
     },
   });
 }
+
+export function useArchiveProperty(propertyId: string) {
+  const qc = useQueryClient();
+  return useMutation<{ property: PropertyDetail }, LandlordActionError, void>({
+    retry: false,
+    mutationFn: async () => {
+      try {
+        return await api.patch<{ property: PropertyDetail }>(`properties/${propertyId}/archive`);
+      } catch (e) {
+        throw toActionError(e);
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["properties", "mine"] });
+      qc.invalidateQueries({ queryKey: ["properties", propertyId] });
+    },
+  });
+}
+
+export function useUnarchiveProperty(propertyId: string) {
+  const qc = useQueryClient();
+  return useMutation<{ property: PropertyDetail }, LandlordActionError, void>({
+    retry: false,
+    mutationFn: async () => {
+      try {
+        return await api.patch<{ property: PropertyDetail }>(`properties/${propertyId}/unarchive`);
+      } catch (e) {
+        throw toActionError(e);
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["properties", "mine"] });
+      qc.invalidateQueries({ queryKey: ["properties", propertyId] });
+    },
+  });
+}

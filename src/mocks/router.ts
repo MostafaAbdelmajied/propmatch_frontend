@@ -264,7 +264,7 @@ const editedPropertyQueueItem = (p: MockProperty): QueueItem => ({
   type: "propertyEdit",
   subjectId: p.id,
   title: p.title,
-  subtitle: `${p.district} · ${p.rentAmount} ج.م/شهريًا · تعديل`,
+  subtitle: `${p.district} · ${p.rentAmount} ج.م/شهريًا · إعادة للمراجعة`,
   submittedAt: p.updatedAt,
 });
 
@@ -698,9 +698,7 @@ export function dispatch(
   if (path === "/landlord/properties" && method === "GET") {
     if (!user) return unauth();
     if (user.role !== "landlord") return forbidden();
-    const items = db.properties.filter(
-      (p) => p.ownerId === user.id && p.status !== "ARCHIVED",
-    );
+    const items = db.properties.filter((p) => p.ownerId === user.id);
     return ok({ items: items.map(toSummary), total: items.length, page: 1, pageSize: 50 });
   }
   if (path === "/landlord/properties" && method === "POST") {
@@ -902,17 +900,21 @@ export function dispatch(
     if (!p) return err(404, "غير موجود");
     return quotaExhausted("BOOST_LISTING", PRICES.BOOST_LISTING);
   }
-  if (
-    seg[0] === "landlord" &&
-    seg[1] === "properties" &&
-    seg[3] === "archive" &&
-    method === "POST"
-  ) {
+  if (seg[0] === "properties" && seg[2] === "archive" && method === "PATCH") {
     if (!user) return unauth();
-    const p = db.properties.find((x) => x.id === seg[2] && x.ownerId === user.id);
-    if (!p) return err(404, "غير موجود");
+    const p = db.properties.find((x) => x.id === seg[1]);
+    if (!p || p.ownerId !== user.id) return forbidden();
     p.status = "ARCHIVED"; // ERD: soft-archive, never delete (ASSUMPTIONS #16)
-    return ok();
+    return ok({ property: toDetail(p, user) });
+  }
+  if (seg[0] === "properties" && seg[2] === "unarchive" && method === "PATCH") {
+    if (!user) return unauth();
+    const p = db.properties.find((x) => x.id === seg[1]);
+    if (!p || p.ownerId !== user.id) return forbidden();
+    p.status = "PENDING";
+    p.isBoosted = false;
+    announceQueueItem(editedPropertyQueueItem(p));
+    return ok({ property: toDetail(p, user) });
   }
 
   /* ------------- reverse marketplace: tenant requests (PRO-05) ----------- */
