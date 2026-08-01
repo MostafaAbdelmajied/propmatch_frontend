@@ -11,13 +11,21 @@ export interface SheetProps {
   children: React.ReactNode;
   /** Prevent dismissal while an operation is in flight. */
   dismissible?: boolean;
+  maxWidth?: "md" | "lg" | "xl" | "2xl" | "3xl";
 }
 
 /**
  * Bottom sheet on mobile/tablet, centered modal on desktop (design spec §4.3):
  * scrim at ink/45%, rounded top corners + drag handle on mobile.
  */
-export function Sheet({ open, onClose, title, children, dismissible = true }: SheetProps) {
+export function Sheet({
+  open,
+  onClose,
+  title,
+  children,
+  dismissible = true,
+  maxWidth = "lg",
+}: SheetProps) {
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -33,6 +41,14 @@ export function Sheet({ open, onClose, title, children, dismissible = true }: Sh
 
   if (!open) return null;
 
+  const widthClass = {
+    md: "md:max-w-md",
+    lg: "md:max-w-lg",
+    xl: "md:max-w-xl",
+    "2xl": "md:max-w-2xl",
+    "3xl": "md:max-w-3xl",
+  }[maxWidth];
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center md:items-center">
       <div
@@ -46,7 +62,8 @@ export function Sheet({ open, onClose, title, children, dismissible = true }: Sh
         aria-label={title}
         className={cn(
           "relative w-full max-h-[90dvh] overflow-y-auto bg-surface shadow-sheet",
-          "rounded-t-card md:max-w-lg md:rounded-card",
+          "rounded-t-card md:rounded-card",
+          widthClass,
           "animate-[sheet-in_.25s_ease-out]",
         )}
       >

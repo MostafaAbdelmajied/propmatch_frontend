@@ -3,6 +3,9 @@ import { z } from "zod";
 /** Products that can be purchased under the revised, broker-free plan. */
 export const PaymentTypeSchema = z.enum([
   "PREMIUM_OWNER",
+  "OWNER_PLUS",
+  "SINGLE_LISTING",
+  "SINGLE_OFFER",
   "BOOST_LISTING",
   "AI_ADDON",
 ]);
@@ -10,12 +13,18 @@ export type PaymentType = z.infer<typeof PaymentTypeSchema>;
 
 export const paymentTypeLabels: Record<PaymentType, string> = {
   PREMIUM_OWNER: "اشتراك المالك المميز",
+  OWNER_PLUS: "اشتراك المالك Plus",
+  SINGLE_LISTING: "إضافة عقار منفرد",
+  SINGLE_OFFER: "إرسال عرض منفرد",
   BOOST_LISTING: "تمييز إعلان عقاري",
   AI_ADDON: "حزمة الذكاء الاصطناعي",
 };
 
 export const paymentTypePrices: Record<PaymentType, number> = {
   PREMIUM_OWNER: 999,
+  OWNER_PLUS: 499,
+  SINGLE_LISTING: 149,
+  SINGLE_OFFER: 99,
   BOOST_LISTING: 349,
   AI_ADDON: 199,
 };
@@ -27,6 +36,7 @@ export const CreateCheckoutRequestSchema = z.object({
   paymentType: PaymentTypeSchema,
   /** Required for BOOST_LISTING; the backend verifies ownership and approval. */
   propertyId: z.string().uuid().optional(),
+  method: z.enum(["CARD", "WALLET"]).optional(),
 });
 export type CreateCheckoutRequest = z.infer<typeof CreateCheckoutRequestSchema>;
 
@@ -43,7 +53,6 @@ const HistoricalPaymentTypeSchema = z.union([
   PaymentTypeSchema,
   z.enum([
     "DOCS_PACK",
-    "OWNER_PLUS",
     "LEGACY_OWNER_PLUS",
     "LEGACY_NEW_LISTING",
     "LEGACY_BOOST_LISTING",

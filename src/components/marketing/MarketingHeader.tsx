@@ -4,12 +4,10 @@ import { Logo } from "@/src/components/ui/Logo";
 
 interface MarketingHeaderProps {
   overlay?: boolean;
+  withCard?: boolean;
 }
 
-const logoClassName =
-  "[&>div]:overflow-visible [&>div]:rounded-none [&>div]:border-0 [&>div]:bg-transparent [&>div]:p-0 [&>div]:shadow-none [&_img]:rounded-none";
-
-export function MarketingHeader({ overlay = false }: MarketingHeaderProps) {
+export function MarketingHeader({ overlay = false, withCard = false }: MarketingHeaderProps) {
   return (
     <header
       className={
@@ -19,7 +17,7 @@ export function MarketingHeader({ overlay = false }: MarketingHeaderProps) {
       }
     >
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-        <Logo href="/" size="lg" className={logoClassName} />
+        <Logo href="/" size="lg" withCard={withCard} />
 
         <nav
           aria-label="التنقل الرئيسي"

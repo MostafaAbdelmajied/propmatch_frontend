@@ -107,6 +107,9 @@ const quotaExhausted = (paymentType: PaymentType, priceEgp: number) =>
 
 const PRICES: Record<PaymentType, number> = {
   PREMIUM_OWNER: 999,
+  OWNER_PLUS: 499,
+  SINGLE_LISTING: 149,
+  SINGLE_OFFER: 99,
   BOOST_LISTING: 349,
   AI_ADDON: 199,
 };

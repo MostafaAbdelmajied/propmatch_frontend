@@ -65,5 +65,6 @@ export const stepFields = {
     "hasElevator",
     "hasParking",
   ],
-  mediaAndDescription: ["images", "description", "propertyAroundServices"],
+  mediaAndServices: ["images", "propertyAroundServices", "description"],
+  aiOptimization: ["description"],
 } as const;

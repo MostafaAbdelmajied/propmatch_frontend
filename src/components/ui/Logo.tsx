@@ -8,6 +8,7 @@ interface LogoProps {
   size?: "sm" | "md" | "lg" | "xl";
   showText?: boolean;
   href?: string;
+  withCard?: boolean;
 }
 
 export function Logo({
@@ -15,6 +16,7 @@ export function Logo({
   size = "md",
   showText = false,
   href = "/",
+  withCard = false,
 }: LogoProps) {
   const dimensions = {
     sm: "h-7 w-auto",
@@ -25,11 +27,19 @@ export function Logo({
 
   const content = (
     <div className={cn("inline-flex items-center gap-3", className)}>
-      <div className={cn("relative overflow-hidden rounded-2xl border border-hairline/80 bg-surface shadow-md shrink-0 flex items-center justify-center p-1", dimensions)}>
+      <div
+        className={cn(
+          "relative overflow-hidden shrink-0 flex items-center justify-center transition-all",
+          withCard
+            ? "rounded-2xl border border-hairline/80 bg-surface shadow-md p-1"
+            : "bg-transparent border-0 shadow-none p-0",
+          dimensions,
+        )}
+      >
         <img
           src="/logo.png"
           alt="PropMatch Logo"
-          className="h-full w-auto object-contain rounded-xl"
+          className={cn("h-full w-auto object-contain", withCard && "rounded-xl")}
         />
       </div>
       {showText && (

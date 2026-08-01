@@ -19,7 +19,7 @@ const validValues = {
 };
 
 describe("add property wizard schema", () => {
-  it("groups all existing fields into the requested two steps", () => {
+  it("groups all existing fields into three steps with optimization as final step", () => {
     expect(stepFields).toEqual({
       propertyDetails: [
         "propertyType",
@@ -36,8 +36,23 @@ describe("add property wizard schema", () => {
         "hasElevator",
         "hasParking",
       ],
-      mediaAndDescription: ["images", "description", "propertyAroundServices"],
+      mediaAndServices: ["images", "propertyAroundServices", "description"],
+      aiOptimization: ["description"],
     });
+  });
+
+  it("requires propertyAroundServices to be non-empty", () => {
+    const result = addPropertyFormSchema.safeParse({
+      ...validValues,
+      propertyAroundServices: "",
+      images: [new File(["image"], "property-image.jpg", { type: "image/jpeg" })],
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const fieldErrors = result.error.flatten().fieldErrors;
+      expect(fieldErrors.propertyAroundServices).toContain("الخدمات القريبة مطلوبة");
+    }
   });
 
   it.each(["image/jpeg", "image/png", "image/webp"])("accepts selected %s files", (type) => {
