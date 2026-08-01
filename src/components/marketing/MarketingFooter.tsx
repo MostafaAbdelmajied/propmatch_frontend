@@ -4,15 +4,12 @@ import Link from "next/link";
 import { contactEmail } from "./marketingLinks";
 import { SocialLinks } from "./SocialLinks";
 
-const logoClassName =
-  "[&>div]:overflow-visible [&>div]:rounded-none [&>div]:border-0 [&>div]:bg-transparent [&>div]:p-0 [&>div]:shadow-none [&_img]:rounded-none";
-
 export function MarketingFooter() {
   return (
     <footer className="border-t border-hero-ink/8 bg-white">
       <div className="mx-auto grid max-w-7xl gap-10 px-4 py-14 sm:px-6 md:grid-cols-[1.4fr_0.7fr_0.7fr] lg:px-8">
         <div>
-          <Logo href="/" size="lg" className={logoClassName} />
+          <Logo href="/" size="lg" />
           <p className="mt-4 max-w-sm text-sm leading-7 text-landing-muted">
             نساعدك تلاقي بيت ترتاح فيه، أو مستأجر تطمئن له — بشكل مباشر، وبدون سمسار أو عمولة.
           </p>

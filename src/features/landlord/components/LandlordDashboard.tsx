@@ -11,7 +11,6 @@ import { Button } from "@/src/components/ui/Button";
 import { PropertyCardSkeleton } from "@/src/components/ui/Skeleton";
 import { EmptyState, ErrorState } from "@/src/components/ui/States";
 import { StatusChip } from "@/src/components/ui/StatusChip";
-import { ArchivePropertyAction } from "./ArchivePropertyAction";
 
 export function LandlordDashboard() {
   const router = useRouter();
@@ -107,16 +106,13 @@ export function LandlordDashboard() {
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {properties?.map((property) => (
-            <div key={property.id} className="relative">
-              <div className="absolute inset-e-3 top-3 z-10">
-                <StatusChip status={property.status} />
-              </div>
-              <PropertyCard property={property} onClick={() => router.push(`/landlord/properties/${property.id}`)} />
-              <div className="border-t border-hairline px-3 py-2">
-                <ArchivePropertyAction propertyId={property.id} status={property.status} />
-              </div>
-            </div>
-          ))}
+                <div key={property.id} className="relative">
+                  <div className="absolute inset-e-3 top-3 z-10">
+                    <StatusChip status={property.status} />
+                  </div>
+                  <PropertyCard property={property} onClick={() => router.push(`/landlord/properties/${property.id}`)} />
+                </div>
+              ))}
             </div>
           )}
         </>

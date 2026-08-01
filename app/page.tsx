@@ -81,7 +81,7 @@ export default async function LandingPage() {
 
   return (
     <main className="overflow-hidden bg-landing-canvas text-hero-ink">
-      <MarketingHeader overlay />
+      <MarketingHeader overlay withCard />
 
       <section className="relative isolate min-h-190 bg-white pb-20 pt-32 lg:min-h-205 lg:pb-28 lg:pt-40">
         <div className="absolute inset-0 overflow-hidden" aria-hidden>

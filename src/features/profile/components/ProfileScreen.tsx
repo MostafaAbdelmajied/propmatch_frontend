@@ -11,7 +11,7 @@ import { useLogout, useSession } from "@/src/features/auth/hooks/useSession";
 import { useQuota } from "@/src/features/landlord/hooks/useLandlord";
 import { PaymentSheet } from "@/src/features/payments/PaymentSheet";
 import { api } from "@/src/lib/api/browserClient";
-import type { PaymentType } from "@/src/lib/api/contracts/payment";
+import type { PaymentTransaction, PaymentType } from "@/src/lib/api/contracts/payment";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
@@ -76,9 +76,11 @@ export function ProfileScreen() {
   const { data: user, isLoading } = useSession();
   const quotaQuery = useQuota();
   const { data: quota, isLoading: isQuotaLoading } = quotaQuery;
+  const { refetch: refetchQuota } = quotaQuery;
   const logout = useLogout();
 
   const [activePaymentType, setActivePaymentType] = useState<PaymentType | null>(null);
+  const [isReconcilingPayments, setIsReconcilingPayments] = useState(false);
   const [showOfferInfo, setShowOfferInfo] = useState(false);
   
   // Avatar uploading state
@@ -104,6 +106,28 @@ export function ProfileScreen() {
       setEditPhone(user.phoneNumber);
     }
   }, [user]);
+
+  useEffect(() => {
+    if (user?.role !== "landlord") return;
+    let cancelled = false;
+
+    async function reconcilePendingPayments() {
+      setIsReconcilingPayments(true);
+      try {
+        const transactions = await api.post<PaymentTransaction[]>("payments/reconcile-pending", {});
+        if (!cancelled && transactions.some((transaction) => transaction.status === "SUCCESS")) {
+          await refetchQuota();
+        }
+      } finally {
+        if (!cancelled) setIsReconcilingPayments(false);
+      }
+    }
+
+    void reconcilePendingPayments();
+    return () => {
+      cancelled = true;
+    };
+  }, [refetchQuota, user?.role]);
 
   async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -382,6 +406,13 @@ export function ProfileScreen() {
           <div className="flex flex-col gap-3">
             <h3 className="text-title font-bold text-ink">خطط اشتراك المالك المتاحة</h3>
 
+            {isReconcilingPayments && (
+              <p className="flex items-center gap-2 text-small text-muted" role="status">
+                <Loader2 className="size-4 animate-spin" aria-hidden />
+                جارٍ التحقق من حالة المدفوعات السابقة…
+              </p>
+            )}
+
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               {/* Free Owner Plan */}
               <div className="flex flex-col justify-between rounded-card border border-hairline bg-surface p-4 shadow-xs">
@@ -417,47 +448,6 @@ export function ProfileScreen() {
                 )}
               </div>
 
-              {/* Owner Plus Plan */}
-              <div className="flex flex-col justify-between rounded-card border-2 border-primary bg-primary-tint/20 p-4 shadow-xs relative">
-                <span className="absolute -top-3 right-4 rounded-pill bg-primary px-2.5 py-0.5 text-[11px] font-bold text-white">
-                  الأكثر إقبالاً
-                </span>
-                <div>
-                  <div className="flex items-center justify-between mb-2 mt-1">
-                    <span className="text-body font-bold text-primary">خطة Plus</span>
-                  </div>
-                  <p className="text-h2 font-extrabold text-ink mb-3">
-                    499 <span className="text-caption font-normal text-muted">ج.م / شهرياً</span>
-                  </p>
-                  <ul className="flex flex-col gap-2 text-caption text-body-text mb-4">
-                    <li className="flex items-center gap-1.5">
-                      <Check className="size-3.5 text-primary shrink-0" /> حتى 3 وحدات عقارية نشطة
-                    </li>
-                    <li className="flex items-center gap-1.5">
-                      <Check className="size-3.5 text-primary shrink-0" /> 10 عروض إيجار مباشرة للمستأجرين
-                    </li>
-                    <li className="flex items-center gap-1.5">
-                      <Check className="size-3.5 text-primary shrink-0" /> 10 استخدامات محسن الذكاء الاصطناعي
-                    </li>
-                    <li className="flex items-center gap-1.5">
-                      <Check className="size-3.5 text-primary shrink-0" /> تنبيهات أولوية للطلبات المناسبة
-                    </li>
-                  </ul>
-                </div>
-                {quota?.planType === "OWNER_PLUS" ? (
-                  <span className="rounded-card bg-primary-tint py-2 text-center text-caption font-bold text-primary">
-                    الخطة الحالية
-                  </span>
-                ) : (
-                  <Button
-                    size="sm"
-                    onClick={() => setActivePaymentType("OWNER_PLUS")}
-                  >
-                    اشترك مقابل 499 ج.م شهرياً
-                  </Button>
-                )}
-              </div>
-
               {/* Premium Owner Plan */}
               <div className="flex flex-col justify-between rounded-card border border-hairline bg-surface p-4 shadow-xs">
                 <div>
@@ -472,13 +462,13 @@ export function ProfileScreen() {
                       <Check className="size-3.5 text-success shrink-0" /> حتى 5 وحدات عقارية نشطة
                     </li>
                     <li className="flex items-center gap-1.5">
-                      <Check className="size-3.5 text-success shrink-0" /> 50 عرض إيجار مباشر للمستأجرين
+                      <Check className="size-3.5 text-success shrink-0" /> حتى 5 وحدات عقارية نشطة
                     </li>
                     <li className="flex items-center gap-1.5">
-                      <Check className="size-3.5 text-success shrink-0" /> 20 استخدام محسن الذكاء الاصطناعي
+                      <Check className="size-3.5 text-success shrink-0" /> 5 استخدامات لمحسن الذكاء الاصطناعي
                     </li>
                     <li className="flex items-center gap-1.5">
-                      <Check className="size-3.5 text-success shrink-0" /> تحليلات متقدمة وجدولة المعاينات
+                      <Check className="size-3.5 text-success shrink-0" /> تتجدد المزايا شهريًا أثناء الاشتراك
                     </li>
                   </ul>
                 </div>
@@ -490,11 +480,34 @@ export function ProfileScreen() {
                   <Button
                     variant="secondary"
                     size="sm"
+                    loading={isReconcilingPayments}
                     onClick={() => setActivePaymentType("PREMIUM_OWNER")}
                   >
                     اشترك مقابل 999 ج.م شهرياً
                   </Button>
                 )}
+              </div>
+              <div className="flex flex-col justify-between rounded-card border border-hairline bg-surface p-4 shadow-xs">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-body font-bold text-ink">باقة استخدام الذكاء الاصطناعي</span>
+                    <Sparkles className="size-5 text-accent" aria-hidden />
+                  </div>
+                  <p className="text-h2 font-extrabold text-ink mb-3">
+                    199 <span className="text-caption font-normal text-muted">ج.م لمرة واحدة</span>
+                  </p>
+                  <p className="text-caption leading-relaxed text-body-text mb-4">
+                    أضف استخدامًا واحدًا لمحسن وصف العقار عند نفاد رصيدك.
+                  </p>
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  loading={isReconcilingPayments}
+                  onClick={() => setActivePaymentType("AI_ADDON")}
+                >
+                  شراء باقة الذكاء الاصطناعي
+                </Button>
               </div>
             </div>
           </div>

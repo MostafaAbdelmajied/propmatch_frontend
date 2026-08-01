@@ -85,7 +85,7 @@ export function SendOfferSheet({ request, onClose }: SendOfferSheetProps) {
           toast("info", "وثّق هويتك أولًا لإرسال العروض");
           router.push("/landlord/verify");
         } else if (e.code === "QUOTA_EXHAUSTED") {
-          setPaywall("PREMIUM_OWNER");
+          setPaywall("SINGLE_OFFER");
         } else {
           toast("error", e.message);
         }
