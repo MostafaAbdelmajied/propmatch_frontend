@@ -11,7 +11,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NotificationBell } from "./NotificationBell";
 
-
 export interface NavItem {
   href: string;
   label: string;
@@ -83,7 +82,6 @@ export function UserProfileHeaderNav() {
   );
 }
 
-
 /**
  * Mobile: sticky bottom tab bar. Desktop: fixed top nav. Shared between
  * tenant/landlord/admin surfaces — pass role-specific items.
@@ -103,11 +101,11 @@ export function RoleNav({
 
   return (
     <>
-      {/* Desktop top nav */}
-      <header className="sticky top-0 z-30 hidden border-b border-hairline bg-surface/90 backdrop-blur md:block">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+      {/* Top Header for Mobile & Desktop */}
+      <header className="sticky top-0 z-30 border-b border-hairline bg-surface/90 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-2.5">
           <Logo href="/" />
-          <nav className="flex items-center gap-1">
+          <nav className="hidden md:flex items-center gap-1">
             {items.map(({ href, label, Icon }) => (
               <Link
                 key={href}
@@ -126,10 +124,10 @@ export function RoleNav({
         </div>
       </header>
 
-      {/* Mobile bottom tab bar — hides on scroll-down, reveals on scroll-up (§4.5) */}
+      {/* Mobile bottom tab bar */}
       <nav
         className={cn(
-          "fixed inset-x-0 bottom-0 z-30 flex items-stretch border-t border-hairline bg-surface transition-transform duration-300 md:hidden",
+          "fixed inset-x-0 bottom-0 z-30 flex items-stretch border-t border-hairline bg-surface transition-transform duration-300 overflow-x-auto no-scrollbar md:hidden",
           bottomNavVisible ? "translate-y-0" : "translate-y-full",
         )}
       >
@@ -138,12 +136,12 @@ export function RoleNav({
             key={href}
             href={href}
             className={cn(
-              "flex flex-1 flex-col items-center gap-0.5 py-2 text-caption font-medium transition-colors",
-              isActive(href) ? "text-primary" : "text-muted",
+              "flex flex-1 min-w-[60px] flex-col items-center gap-0.5 py-2 text-caption font-medium transition-colors text-center",
+              isActive(href) ? "text-primary font-bold" : "text-muted",
             )}
           >
-            <Icon className="size-5" aria-hidden />
-            {label}
+            <Icon className="size-5 shrink-0" aria-hidden />
+            <span className="truncate max-w-[64px]">{label}</span>
           </Link>
         ))}
       </nav>

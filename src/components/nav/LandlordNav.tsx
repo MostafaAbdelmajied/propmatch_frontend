@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, LayoutDashboard, MessageCircle, Send, Users } from "lucide-react";
+import { FileText, LayoutDashboard, MessageCircle, Send, User, Users } from "lucide-react";
 import { RoleNav, UserProfileHeaderNav } from "./RoleNav";
 
 const items = [
@@ -9,6 +9,7 @@ const items = [
   { href: "/landlord/offers", label: "عروضي", Icon: Send },
   { href: "/contracts", label: "عقودي", Icon: FileText },
   { href: "/landlord/messages", label: "الرسائل", Icon: MessageCircle },
+  { href: "/profile", label: "حسابي", Icon: User },
 ];
 
 /** Client wrapper so Lucide icon components never cross the RSC boundary. */
