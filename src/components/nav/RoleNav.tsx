@@ -3,8 +3,6 @@
 import { Button } from "@/src/components/ui/Button";
 import { Logo } from "@/src/components/ui/Logo";
 import { useLogout, useSession } from "@/src/features/auth/hooks/useSession";
-import { useHideOnScroll } from "@/src/hooks/useHideOnScroll";
-import { useSessionUiStore } from "@/src/lib/store/useSessionUiStore";
 import { cn } from "@/src/utils/cn";
 import { BadgeCheck, Bell, LogOut } from "lucide-react";
 import Link from "next/link";
@@ -26,7 +24,7 @@ export function UserProfileHeaderNav() {
       {user ? (
         <>
           <NotificationBell />
-          {/* Profile Link Badge */}
+          {/* Profile Capsule Badge */}
           <Link
             href="/profile"
             className="flex items-center gap-2 rounded-pill border border-hairline bg-surface/80 px-2.5 py-1 hover:border-primary/40 hover:bg-surface transition-all shadow-xs"
@@ -83,8 +81,7 @@ export function UserProfileHeaderNav() {
 }
 
 /**
- * Mobile: sticky bottom tab bar. Desktop: fixed top nav. Shared between
- * tenant/landlord/admin surfaces — pass role-specific items.
+ * Mobile: permanent sticky bottom tab bar. Desktop: fixed top nav.
  */
 export function RoleNav({
   items,
@@ -96,8 +93,6 @@ export function RoleNav({
 }) {
   const pathname = usePathname();
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
-  const bottomNavVisible = useSessionUiStore((s) => s.bottomNavVisible);
-  useHideOnScroll();
 
   return (
     <>
@@ -124,13 +119,8 @@ export function RoleNav({
         </div>
       </header>
 
-      {/* Mobile bottom tab bar */}
-      <nav
-        className={cn(
-          "fixed inset-x-0 bottom-0 z-30 flex items-stretch border-t border-hairline bg-surface transition-transform duration-300 overflow-x-auto no-scrollbar md:hidden",
-          bottomNavVisible ? "translate-y-0" : "translate-y-full",
-        )}
-      >
+      {/* Mobile permanent bottom tab bar — always sticky to the bottom */}
+      <nav className="fixed inset-x-0 bottom-0 z-30 flex items-stretch border-t border-hairline bg-surface overflow-x-auto no-scrollbar md:hidden">
         {items.map(({ href, label, Icon }) => (
           <Link
             key={href}
@@ -141,7 +131,7 @@ export function RoleNav({
             )}
           >
             <Icon className="size-5 shrink-0" aria-hidden />
-            <span className="truncate max-w-[64px]">{label}</span>
+            <span className="truncate max-w-[68px]">{label}</span>
           </Link>
         ))}
       </nav>
