@@ -162,7 +162,8 @@ export function useRealtime(): RealtimeState {
     const onQueueItem = (item: QueueItem) => {
       qc.setQueryData<AdminQueuesResponse>(["admin", "queues"], (prev) => {
         if (!prev) return prev;
-        const key = `${item.type}Queue` as keyof AdminQueuesResponse;
+        const key: keyof AdminQueuesResponse =
+          item.type === "propertyEdit" ? "editedPropertyQueue" : `${item.type}Queue`;
         const existing = prev[key];
         if (existing.some((q) => q.id === item.id)) return prev;
         return { ...prev, [key]: [item, ...existing] };

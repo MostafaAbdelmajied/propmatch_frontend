@@ -1,20 +1,19 @@
 "use client";
 
-import Image from "next/image";
-import Link from "next/link";
-import { BedDouble, Bath, Ruler, Sofa, ArrowUpDown, Car, ImageOff, MapPin, Lock } from "lucide-react";
-import { useProperty } from "../hooks/useProperties";
-import { MatchScoreRing } from "@/src/components/ui/MatchScoreRing";
-import { VerifiedBadge, OwnershipDisclaimer } from "@/src/components/ui/VerifiedBadge";
-import { StatusChip } from "@/src/components/ui/StatusChip";
+import { Button } from "@/src/components/ui/Button";
 import { Skeleton } from "@/src/components/ui/Skeleton";
 import { ErrorState } from "@/src/components/ui/States";
-import { formatNumber } from "@/src/utils/format";
-import { propertyTypeLabels } from "@/src/lib/api/contracts/property";
-import { PropertyImageGallery } from "./PropertyImageGallery";
-import { PropertyReviews } from "./PropertyReviews";
+import { OwnershipDisclaimer, VerifiedBadge } from "@/src/components/ui/VerifiedBadge";
 import { useSession } from "@/src/features/auth/hooks/useSession";
 import { MakeOfferButton } from "@/src/features/matching/components/MakeOfferButton";
+import { propertyTypeLabels } from "@/src/lib/api/contracts/property";
+import { formatNumber } from "@/src/utils/format";
+import { ArrowUpDown, Bath, BedDouble, Car, Lock, MapPin, Ruler, Sofa } from "lucide-react";
+import Link from "next/link";
+import { useProperty } from "../hooks/useProperties";
+import { PropertyImageGallery } from "./PropertyImageGallery";
+import { PropertyReviews } from "./PropertyReviews";
+
 
 export function PropertyDetailView({
   id,
@@ -32,10 +31,12 @@ export function PropertyDetailView({
   /** Favorite toggle, injected by the tenant surface (see PropertyCard). */
   favoriteSlot?: React.ReactNode;
 }) {
+
   const { data: p, isLoading, isError, refetch } = useProperty(id);
+  const { data: user, isLoading: isSessionLoading } = useSession();
 
   if (isError) return <ErrorState onRetry={() => refetch()} />;
-  if (isLoading || !p) {
+  if (isLoading || isSessionLoading || !p) {
     return (
       <div className="flex flex-col gap-4">
         <Skeleton className="h-64 w-full" />
@@ -44,6 +45,8 @@ export function PropertyDetailView({
       </div>
     );
   }
+
+  const isGuest = !user;
 
   const facts = [
     { Icon: BedDouble, label: "غرف النوم", value: formatNumber(p.bedrooms) },
@@ -57,14 +60,24 @@ export function PropertyDetailView({
   return (
     <div className="grid gap-6 lg:grid-cols-3">
       <div className="flex flex-col gap-5 lg:col-span-2">
-        <PropertyImageGallery
-          images={p.images}
-          title={p.title}
-          isBoosted={p.isBoosted}
-          status={p.status}
-          favoriteSlot={favoriteSlot}
-          matchScore={matchScore}
-        />
+        {isGuest ? (
+          <div className="relative h-64 w-full overflow-hidden rounded-card border border-hairline bg-background flex flex-col items-center justify-center p-4 text-center">
+            <span className="flex size-14 items-center justify-center rounded-full bg-primary-tint text-primary mb-3">
+              <Lock className="size-7" />
+            </span>
+            <h3 className="text-body font-bold text-ink">صور العقار مخفية</h3>
+            <p className="mt-1 text-small text-muted">سجل الدخول أو أنشئ حسابًا لعرض الصور الكاملة لهذا العقار.</p>
+          </div>
+        ) : (
+          <PropertyImageGallery
+            images={p.images}
+            title={p.title}
+            isBoosted={p.isBoosted}
+            status={p.status}
+            favoriteSlot={favoriteSlot}
+            matchScore={matchScore}
+          />
+        )}
 
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -80,44 +93,63 @@ export function PropertyDetailView({
           </div>
         </div>
 
-        <VerifiedBadge status={p.ownerVerified ? "APPROVED" : "NOT_SUBMITTED"} />
-        <OwnershipDisclaimer />
-        <TenantHousingRequestAction />
-
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {facts.map(({ Icon, label, value }) => (
-            <div key={label} className="flex items-center gap-2 rounded-control border border-hairline bg-surface p-3">
-              <Icon className="size-5 text-primary" aria-hidden />
-              <div>
-                <p className="text-caption text-muted">{label}</p>
-                <p className="text-small font-bold text-ink">{value}</p>
-              </div>
+        {isGuest ? (
+          <div className="rounded-card border border-primary/20 bg-primary-tint p-6 text-center shadow-card flex flex-col items-center gap-4">
+            <h3 className="text-title font-bold text-ink">التفاصيل الكاملة مقفلة</h3>
+            <p className="text-body text-body-text max-w-lg leading-relaxed">
+              هذا العقار متاح للمستخدمين المسجلين فقط. يرجى تسجيل الدخول أو إنشاء حساب جديد مجانًا للاطلاع على الصور والوصف الكامل وتفاصيل الخدمات المحيطة والتواصل المباشر مع مالك العقار.
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-3 w-full max-w-sm">
+              <Link href="/login" className="flex-1 min-w-32">
+                <Button className="w-full justify-center">تسجيل الدخول</Button>
+              </Link>
+              <Link href="/signup" className="flex-1 min-w-32">
+                <Button variant="secondary" className="w-full justify-center">أنشئ حساباً</Button>
+              </Link>
             </div>
-          ))}
-        </div>
+          </div>
+        ) : (
+          <>
+            <VerifiedBadge status={p.ownerVerified ? "APPROVED" : "NOT_SUBMITTED"} />
+            <OwnershipDisclaimer />
+            <TenantHousingRequestAction />
 
-        <section>
-          <h2 className="mb-2 text-title font-bold text-ink">الوصف</h2>
-          <p className="whitespace-pre-line leading-relaxed text-body text-body-text">{p.description}</p>
-        </section>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {facts.map(({ Icon, label, value }) => (
+                <div key={label} className="flex items-center gap-2 rounded-control border border-hairline bg-surface p-3">
+                  <Icon className="size-5 text-primary" aria-hidden />
+                  <div>
+                    <p className="text-caption text-muted">{label}</p>
+                    <p className="text-small font-bold text-ink">{value}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
 
-        {p.propertyAroundServices && (
-          <section>
-            <h2 className="mb-2 text-title font-bold text-ink">الخدمات المحيطة</h2>
-            <p className="leading-relaxed text-body text-body-text">{p.propertyAroundServices}</p>
-          </section>
+            <section>
+              <h2 className="mb-2 text-title font-bold text-ink">الوصف</h2>
+              <p className="whitespace-pre-line leading-relaxed text-body text-body-text">{p.description}</p>
+            </section>
+
+            {p.propertyAroundServices && (
+              <section>
+                <h2 className="mb-2 text-title font-bold text-ink">الخدمات المحيطة</h2>
+                <p className="leading-relaxed text-body text-body-text">{p.propertyAroundServices}</p>
+              </section>
+            )}
+
+            {showReviews && <PropertyReviews propertyId={id} />}
+          </>
         )}
-
-        {showReviews && <PropertyReviews propertyId={id} />}
       </div>
 
       {!hideContact && (
         <aside className="flex flex-col gap-3 lg:sticky lg:top-20 lg:h-fit">
-          {p.status === "APPROVED" && !p.contactRevealed && (
+          {!isGuest && p.status === "APPROVED" && !p.contactRevealed && (
             <MakeOfferButton propertyId={id} askingRent={p.rentAmount} />
           )}
           <ContactPanel
-            revealed={p.contactRevealed}
+            revealed={!isGuest && p.contactRevealed}
             ownerName={p.ownerName}
             ownerPhoneNumber={p.ownerPhoneNumber}
             manualAddress={p.manualAddress}
@@ -127,6 +159,7 @@ export function PropertyDetailView({
     </div>
   );
 }
+
 
 function TenantHousingRequestAction() {
   const { data: user, isLoading } = useSession();

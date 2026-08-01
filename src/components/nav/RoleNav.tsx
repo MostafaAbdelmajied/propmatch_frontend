@@ -1,14 +1,16 @@
 "use client";
 
+import { Button } from "@/src/components/ui/Button";
 import { Logo } from "@/src/components/ui/Logo";
 import { useLogout, useSession } from "@/src/features/auth/hooks/useSession";
 import { useHideOnScroll } from "@/src/hooks/useHideOnScroll";
 import { useSessionUiStore } from "@/src/lib/store/useSessionUiStore";
 import { cn } from "@/src/utils/cn";
-import { Bell, LogOut } from "lucide-react";
+import { BadgeCheck, Bell, LogOut } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NotificationBell } from "./NotificationBell";
+
 
 export interface NavItem {
   href: string;
@@ -22,28 +24,34 @@ export function UserProfileHeaderNav() {
 
   return (
     <div className="flex items-center gap-2 sm:gap-3">
-      <NotificationBell />
-
-      {user && (
+      {user ? (
         <>
+          <NotificationBell />
           {/* Profile Link Badge */}
           <Link
             href="/profile"
             className="flex items-center gap-2 rounded-pill border border-hairline bg-surface/80 px-2.5 py-1 hover:border-primary/40 hover:bg-surface transition-all shadow-xs"
             title="الصفحة الشخصية"
           >
-            {user.avatarUrl ? (
-              <img
-                src={user.avatarUrl}
-                alt={user.fullName}
-                className="size-7 rounded-full object-cover border border-primary/30"
-              />
-            ) : (
-              <span className="flex size-7 items-center justify-center rounded-full bg-primary-tint text-caption font-bold text-primary">
-                {user.fullName.charAt(0)}
-              </span>
-            )}
-            <span className="text-small font-bold text-ink max-w-[110px] truncate hidden sm:inline">
+            <div className="relative">
+              {user.avatarUrl ? (
+                <img
+                  src={user.avatarUrl}
+                  alt={user.fullName}
+                  className="size-7 rounded-full object-cover border border-primary/30"
+                />
+              ) : (
+                <span className="flex size-7 items-center justify-center rounded-full bg-primary-tint text-caption font-bold text-primary">
+                  {user.fullName.charAt(0)}
+                </span>
+              )}
+              {user.verificationStatus === "APPROVED" && (
+                <span className="absolute -bottom-0.5 -inset-e-0.5 flex size-3.5 items-center justify-center rounded-full bg-success text-white ring-1 ring-surface shadow-xs" title="حساب موثق">
+                  <BadgeCheck className="size-2.5" />
+                </span>
+              )}
+            </div>
+            <span className="text-small font-bold text-ink max-w-27.5 truncate hidden sm:inline">
               {user.fullName}
             </span>
           </Link>
@@ -59,10 +67,22 @@ export function UserProfileHeaderNav() {
             <LogOut className="size-4" />
           </button>
         </>
+      ) : (
+        <>
+          <Link href="/login">
+            <Button variant="ghost" size="sm">
+              تسجيل الدخول
+            </Button>
+          </Link>
+          <Link href="/signup">
+            <Button size="sm">إنشاء حساب</Button>
+          </Link>
+        </>
       )}
     </div>
   );
 }
+
 
 /**
  * Mobile: sticky bottom tab bar. Desktop: fixed top nav. Shared between
@@ -70,7 +90,6 @@ export function UserProfileHeaderNav() {
  */
 export function RoleNav({
   items,
-  brand = "PropMatch AI",
   rightSlot,
 }: {
   items: NavItem[];

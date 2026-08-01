@@ -1,15 +1,15 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Plus, BadgeCheck, ShieldAlert, TrendingUp } from "lucide-react";
-import { useMyProperties } from "@/src/features/listings/hooks/useProperties";
-import { useSession } from "@/src/features/auth/hooks/useSession";
 import { PropertyCard } from "@/src/components/PropertyCard";
-import { StatusChip } from "@/src/components/ui/StatusChip";
+import { Button } from "@/src/components/ui/Button";
 import { PropertyCardSkeleton } from "@/src/components/ui/Skeleton";
 import { EmptyState, ErrorState } from "@/src/components/ui/States";
-import { Button } from "@/src/components/ui/Button";
+import { StatusChip } from "@/src/components/ui/StatusChip";
+import { useSession } from "@/src/features/auth/hooks/useSession";
+import { useMyProperties } from "@/src/features/listings/hooks/useProperties";
+import { Plus, ShieldAlert, TrendingUp } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 export function LandlordDashboard() {
   const router = useRouter();
@@ -34,7 +34,7 @@ export function LandlordDashboard() {
       </div>
 
       {/* Verification banner */}
-      {notVerified ? (
+      {notVerified && (
         <Link
           href="/landlord/verify"
           className="flex items-center gap-3 rounded-card border border-pending/30 bg-pending-tint px-4 py-3"
@@ -46,18 +46,17 @@ export function LandlordDashboard() {
           </div>
           <span className="text-small font-semibold text-pending">ابدأ التوثيق ←</span>
         </Link>
-      ) : (
-        <div className="flex items-center gap-2 rounded-card border border-success/30 bg-success-tint px-4 py-2.5 text-small font-semibold text-success">
-          <BadgeCheck className="size-5" aria-hidden />
-          هويتك موثّقة
+      )}
+
+
+      {/* Free listing banner */}
+      {!isLoading && !isError && data && data.items.length === 0 && (
+        <div className="flex items-center gap-2 rounded-card bg-primary-tint px-4 py-2.5 text-small font-semibold text-primary-dark">
+          <TrendingUp className="size-5" aria-hidden />
+          أول إعلان مجانًا
         </div>
       )}
 
-      {/* Free listing banner */}
-      <div className="flex items-center gap-2 rounded-card bg-primary-tint px-4 py-2.5 text-small font-semibold text-primary-dark">
-        <TrendingUp className="size-5" aria-hidden />
-        أول إعلان مجانًا
-      </div>
 
       {isError ? (
         <ErrorState onRetry={() => refetch()} />
@@ -82,7 +81,7 @@ export function LandlordDashboard() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {data.items.map((property) => (
             <div key={property.id} className="relative">
-              <div className="absolute end-3 top-3 z-10">
+              <div className="absolute inset-e-3 top-3 z-10">
                 <StatusChip status={property.status} />
               </div>
               <PropertyCard property={property} onClick={() => router.push(`/landlord/properties/${property.id}`)} />

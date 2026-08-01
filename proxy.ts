@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ACCESS_TOKEN_COOKIE } from "@/src/lib/api/cookies";
+import { backendFetch, BackendApiError } from "@/src/lib/api/client";
+import {
+  ACCESS_TOKEN_COOKIE,
+  REFRESH_TOKEN_COOKIE,
+  clearAuthCookies,
+  setAuthCookies,
+} from "@/src/lib/api/cookies";
+import { BackendAuthTokensSchema } from "@/src/lib/api/contracts/auth";
 
 /**
  * Coarse route protection only — redirects unauthenticated users away from
@@ -33,7 +40,13 @@ function decodeJwtExpiry(token: string): number | null {
   }
 }
 
-export function proxy(request: NextRequest) {
+function redirectToLogin(request: NextRequest) {
+  const loginUrl = new URL("/login", request.url);
+  loginUrl.searchParams.set("redirectTo", `${request.nextUrl.pathname}${request.nextUrl.search}`);
+  return NextResponse.redirect(loginUrl);
+}
+
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isProtected = PROTECTED_PREFIXES.some((prefix) => pathname.startsWith(prefix));
   if (!isProtected) return NextResponse.next();
@@ -42,13 +55,28 @@ export function proxy(request: NextRequest) {
   const expiry = token ? decodeJwtExpiry(token) : null;
   const isLikelyValid = expiry !== null && expiry * 1000 > Date.now();
 
-  if (!isLikelyValid) {
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("redirectTo", pathname);
-    return NextResponse.redirect(loginUrl);
-  }
+  if (isLikelyValid) return NextResponse.next();
 
-  return NextResponse.next();
+  const refreshToken = request.cookies.get(REFRESH_TOKEN_COOKIE)?.value;
+  if (!refreshToken) return redirectToLogin(request);
+
+  try {
+    const backendResponse = await backendFetch<unknown>("/auth/refresh", {
+      method: "POST",
+      body: { refreshToken },
+    });
+    const tokens = BackendAuthTokensSchema.parse(backendResponse);
+
+    // Cookies set on this response are visible only on the next request. Reload
+    // the same protected URL so its Server Components receive the fresh token.
+    const response = NextResponse.redirect(request.nextUrl);
+    setAuthCookies(response, tokens);
+    return response;
+  } catch (error) {
+    const response = redirectToLogin(request);
+    if (error instanceof BackendApiError && error.statusCode === 401) clearAuthCookies(response);
+    return response;
+  }
 }
 
 export const config = {

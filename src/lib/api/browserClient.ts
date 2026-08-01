@@ -1,5 +1,7 @@
 "use client";
 
+import { reconnectSocket } from "@/src/lib/socket/useRealtime";
+
 /**
  * Browser-side fetch wrapper. Talks only to our own Next.js Route Handlers
  * (same origin), which attach the httpOnly token and proxy to the backend.
@@ -20,15 +22,54 @@ function makeError(statusCode: number, message: string, body: unknown): ApiClien
   return err;
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+const REFRESH_PATH = "/api/auth/refresh";
+const AUTH_MUTATION_PATHS = new Set([
+  "/api/auth/login",
+  "/api/auth/register",
+  "/api/auth/logout",
+  REFRESH_PATH,
+]);
+
+let refreshPromise: Promise<boolean> | null = null;
+
+async function refreshSession(): Promise<boolean> {
+  if (!refreshPromise) {
+    refreshPromise = fetch(REFRESH_PATH, {
+      method: "POST",
+      cache: "no-store",
+    })
+      .then((response) => {
+        if (!response.ok) return false;
+        reconnectSocket();
+        return true;
+      })
+      .catch(() => false)
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+
+  return refreshPromise;
+}
+
+function executeRequest(method: string, path: string, body?: unknown): Promise<Response> {
   const isFormData = body instanceof FormData;
-  const res = await fetch(path, {
+
+  return fetch(path, {
     method,
     headers: body !== undefined && !isFormData ? { "Content-Type": "application/json" } : undefined,
     // FormData deliberately has no manually supplied Content-Type: fetch adds
     // the multipart boundary required by the backend.
     body: body !== undefined ? (isFormData ? body : JSON.stringify(body)) : undefined,
   });
+}
+
+async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  let res = await executeRequest(method, path, body);
+
+  if (res.status === 401 && !AUTH_MUTATION_PATHS.has(path) && (await refreshSession())) {
+    res = await executeRequest(method, path, body);
+  }
 
   const data = res.status === 204 ? null : await res.json().catch(() => null);
 
@@ -55,7 +96,10 @@ export const api = {
 };
 
 export async function downloadProtectedPdf(path: string): Promise<{ blob: Blob; filename: string }> {
-  const res = await fetch(`/api/backend/${path}`, { cache: "no-store" });
+  const target = `/api/backend/${path}`;
+  const download = () => fetch(target, { cache: "no-store" });
+  let res = await download();
+  if (res.status === 401 && (await refreshSession())) res = await download();
   if (!res.ok) throw makeError(res.status, "تعذر تجهيز ملف PDF حاليًا.", await res.json().catch(() => null));
   if (!res.headers.get("content-type")?.includes("application/pdf")) throw makeError(502, "تعذر تجهيز ملف PDF حاليًا.", null);
   const raw = res.headers.get("content-disposition")?.match(/filename="?([^";]+)"?/i)?.[1] ?? "rental-contract-draft.pdf";
@@ -68,6 +112,7 @@ export const authApi = {
   register: <T>(body: unknown) => request<T>("POST", "/api/auth/register", body),
   logout: () => request<{ success: boolean }>("POST", "/api/auth/logout", {}),
   me: <T>() => request<T>("GET", "/api/auth/me"),
+  refresh: <T>() => request<T>("POST", REFRESH_PATH),
 };
 
 export function isApiClientError(e: unknown): e is ApiClientError {
@@ -78,7 +123,8 @@ export function isApiClientError(e: unknown): e is ApiClientError {
 
 export type StreamChunk =
   | { type: "token"; value: string }
-  | { type: "done"; id: string; declined?: boolean; escalated?: boolean };
+  | { type: "done"; id: string; declined?: boolean; escalated?: boolean; suggestedGuide?: string[] };
+
 
 export interface StreamHandlers {
   onToken: (value: string) => void;
@@ -99,12 +145,16 @@ export async function streamPost(
   body: unknown,
   { onToken, signal }: StreamHandlers,
 ): Promise<Extract<StreamChunk, { type: "done" }>> {
-  const res = await fetch(`/api/backend/${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-    body: JSON.stringify(body),
-    signal,
-  });
+  const stream = () =>
+    fetch(`/api/backend/${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+      body: JSON.stringify(body),
+      signal,
+    });
+
+  let res = await stream();
+  if (res.status === 401 && !signal?.aborted && (await refreshSession())) res = await stream();
 
   if (!res.ok || !res.body) {
     const data = await res.json().catch(() => null);

@@ -23,6 +23,31 @@ export const addPropertyFormSchema = CreatePropertyRequestSchema.omit({ images: 
 });
 export type AddPropertyForm = z.infer<typeof addPropertyFormSchema>;
 
+/** Existing images can be retained while optional new files are uploaded. */
+export const editPropertyFormSchema = CreatePropertyRequestSchema.omit({ images: true }).extend({
+  existingImageIds: z.array(z.string()),
+  newImages: z.array(
+    z
+      .custom<File>(
+        (value) =>
+          typeof File !== "undefined" &&
+          value instanceof File &&
+          PROPERTY_IMAGE_TYPES.includes(value.type),
+        "يُسمح فقط بصور JPG وJPEG وPNG وWEBP",
+      )
+      .refine((file) => file.size <= MAX_PROPERTY_IMAGE_SIZE, "حجم الصورة يتجاوز 5 ميجابايت"),
+  ),
+}).superRefine((value, context) => {
+  const imageCount = value.existingImageIds.length + value.newImages.length;
+  if (imageCount < 1) {
+    context.addIssue({ code: "custom", path: ["newImages"], message: "أضف صورة واحدة على الأقل" });
+  }
+  if (imageCount > 10) {
+    context.addIssue({ code: "custom", path: ["newImages"], message: "يمكنك إضافة 10 صور كحد أقصى" });
+  }
+});
+export type EditPropertyForm = z.infer<typeof editPropertyFormSchema>;
+
 /** Field groups per wizard step, used to validate incrementally (PRO-04). */
 export const stepFields = {
   propertyDetails: [

@@ -46,6 +46,8 @@ stand in for it).
 - No maps/GPS, no in-app scheduling, no conversational contract drafting
   (form-to-PDF only). See the UI Generation Prompt Section 9 for the full
   out-of-scope list.
+- **Do not modify the mock backend files (`src/mocks/**`):** Mock updates are not necessary. We are moving forward to production. Focus strictly on production code in features, routers, and gateways.
+
 
 ## Repo layout
 

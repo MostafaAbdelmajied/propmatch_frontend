@@ -17,17 +17,17 @@ export function Logo({
   href = "/",
 }: LogoProps) {
   const dimensions = {
-    sm: "h-9 w-auto",
-    md: "h-12 w-auto",
-    lg: "h-16 w-auto",
-    xl: "h-24 w-auto",
+    sm: "h-7 w-auto",
+    md: "h-9 w-auto",
+    lg: "h-12 w-auto",
+    xl: "h-16 w-auto",
   }[size];
 
   const content = (
     <div className={cn("inline-flex items-center gap-3", className)}>
       <div className={cn("relative overflow-hidden rounded-2xl border border-hairline/80 bg-surface shadow-md shrink-0 flex items-center justify-center p-1", dimensions)}>
         <img
-          src="/logo.jpg"
+          src="/logo.png"
           alt="PropMatch Logo"
           className="h-full w-auto object-contain rounded-xl"
         />
