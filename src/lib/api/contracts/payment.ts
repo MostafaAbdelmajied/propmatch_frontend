@@ -3,27 +3,21 @@ import { z } from "zod";
 /** Products that can be purchased under the revised, broker-free plan. */
 export const PaymentTypeSchema = z.enum([
   "PREMIUM_OWNER",
-  "OWNER_PLUS",
   "BOOST_LISTING",
   "AI_ADDON",
-  "DOCS_PACK",
 ]);
 export type PaymentType = z.infer<typeof PaymentTypeSchema>;
 
 export const paymentTypeLabels: Record<PaymentType, string> = {
   PREMIUM_OWNER: "اشتراك المالك المميز",
-  OWNER_PLUS: "اشتراك مالك بلس",
   BOOST_LISTING: "تمييز إعلان عقاري",
   AI_ADDON: "حزمة الذكاء الاصطناعي",
-  DOCS_PACK: "حزمة تنظيم المستندات",
 };
 
 export const paymentTypePrices: Record<PaymentType, number> = {
   PREMIUM_OWNER: 999,
-  OWNER_PLUS: 499,
   BOOST_LISTING: 349,
   AI_ADDON: 199,
-  DOCS_PACK: 299,
 };
 
 export const PaymentStatusSchema = z.enum(["PENDING", "SUCCESS", "FAILED"]);
@@ -48,6 +42,8 @@ export type CheckoutSession = z.infer<typeof CheckoutSessionSchema>;
 const HistoricalPaymentTypeSchema = z.union([
   PaymentTypeSchema,
   z.enum([
+    "DOCS_PACK",
+    "OWNER_PLUS",
     "LEGACY_OWNER_PLUS",
     "LEGACY_NEW_LISTING",
     "LEGACY_BOOST_LISTING",
@@ -79,7 +75,6 @@ export const UserQuotaSchema = z.object({
   freeListingsLeft: z.number().int(),
   optimizerUsesLeft: z.number().int().nonnegative(),
   freeOffersLeft: z.number().int().nonnegative(),
-  documentationPackCredits: z.number().int().nonnegative(),
   lastResetDate: z.string().nullable(),
 });
 export type UserQuota = z.infer<typeof UserQuotaSchema>;

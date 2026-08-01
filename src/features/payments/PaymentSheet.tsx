@@ -23,6 +23,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 
 type Phase = "form" | "creating_checkout" | "checkout" | "checking" | "success" | "error";
+const PENDING_PAYMENT_STORAGE_KEY = "propmatch:pending-payment";
 
 export interface PaymentSheetProps {
   open: boolean;
@@ -83,6 +84,10 @@ export function PaymentSheet({
       }
 
       setSession(checkout);
+      window.localStorage.setItem(
+        PENDING_PAYMENT_STORAGE_KEY,
+        JSON.stringify({ providerOrderId: checkout.providerOrderId, paymentType: checkout.paymentType }),
+      );
       checkoutWindow.location.href = checkout.checkoutUrl;
       setPhase("checkout");
       watchCheckoutWindow(checkout.providerOrderId);
@@ -163,6 +168,7 @@ export function PaymentSheet({
       setIsCheckoutWindowOpen(false);
 
       if (transaction.status === "SUCCESS") {
+        window.localStorage.removeItem(PENDING_PAYMENT_STORAGE_KEY);
         setPhase("success");
         onActivated?.();
         return;
@@ -188,6 +194,7 @@ export function PaymentSheet({
       const status = await pollTerminalStatus(providerOrderId);
 
       if (status === "SUCCESS") {
+        window.localStorage.removeItem(PENDING_PAYMENT_STORAGE_KEY);
         setPhase("success");
         onActivated?.();
         return;

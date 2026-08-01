@@ -29,8 +29,11 @@ export function PaymentResultClient() {
     async function verifyReturnedPayment() {
       try {
         const raw = window.localStorage.getItem(PENDING_PAYMENT_STORAGE_KEY);
-        const pending = raw ? (JSON.parse(raw) as { paymobOrderId?: string }) : null;
-        if (!pending?.paymobOrderId) {
+        const pending = raw
+          ? (JSON.parse(raw) as { paymobOrderId?: string; providerOrderId?: string })
+          : null;
+        const providerOrderId = pending?.providerOrderId ?? pending?.paymobOrderId;
+        if (!providerOrderId) {
           const transactions = await api.post<PaymentTransaction[]>(
             "payments/reconcile-pending",
             {},
@@ -48,7 +51,7 @@ export function PaymentResultClient() {
         }
 
         const transaction = await api.post<PaymentTransaction>(
-          `payments/${pending.paymobOrderId}/reconcile`,
+          `payments/${providerOrderId}/reconcile`,
           {},
         );
         if (transaction.status === "SUCCESS") {

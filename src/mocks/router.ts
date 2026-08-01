@@ -107,10 +107,8 @@ const quotaExhausted = (paymentType: PaymentType, priceEgp: number) =>
 
 const PRICES: Record<PaymentType, number> = {
   PREMIUM_OWNER: 999,
-  OWNER_PLUS: 499,
   BOOST_LISTING: 349,
   AI_ADDON: 199,
-  DOCS_PACK: 299,
 };
 
 /* ------------------------------ projections ------------------------------ */
@@ -413,7 +411,6 @@ export function dispatch(
         freeListingsLeft: 0,
         optimizerUsesLeft: 0,
         freeOffersLeft: 3,
-        documentationPackCredits: 0,
         lastResetDate: null,
       });
     }
@@ -1195,7 +1192,6 @@ export function dispatch(
             offersUnlimited:
               q.planType === "PREMIUM" &&
               Boolean(q.planExpiresAt && new Date(q.planExpiresAt) > new Date()),
-            documentationPackCredits: q.documentationPackCredits,
             lastResetDate: q.lastResetDate,
           }
         : null,

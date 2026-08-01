@@ -69,7 +69,6 @@ export interface MockQuota {
   freeListingsLeft: number;
   optimizerUsesLeft: number;
   freeOffersLeft: number;
-  documentationPackCredits: number;
   lastResetDate: string | null;
 }
 
@@ -347,7 +346,6 @@ function makeQuota(userId: string): MockQuota {
     freeListingsLeft: 0,
     optimizerUsesLeft: 0,
     freeOffersLeft: 3,
-    documentationPackCredits: 0,
     lastResetDate: null,
   };
 }
