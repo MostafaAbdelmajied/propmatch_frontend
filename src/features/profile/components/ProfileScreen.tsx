@@ -29,6 +29,7 @@ import {
   ShieldAlert,
   Sparkles,
   Trash2,
+  UserCheck,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -185,36 +186,33 @@ export function ProfileScreen() {
   const isLandlord = user.role === "landlord";
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6 pb-10">
-      <div className="flex items-center justify-between">
+    <div className="mx-auto flex max-w-3xl flex-col gap-6 pb-12">
+      {/* Page Title Header */}
+      <div>
         <h1 className="text-h1 font-bold text-ink">حسابي</h1>
-        <Button size="sm" variant="secondary" onClick={() => { setUpdateStep(1); setShowUpdateWizard(true); }}>
-          <Edit className="size-4" />
-          تعديل الحساب
-        </Button>
+        <p className="mt-0.5 text-small text-muted">إدارة بيانات حسابك، الاشتراكات، ورصيد المزايا</p>
       </div>
 
-      {/* User Info Card */}
-      <div className="flex flex-col gap-4 rounded-card border border-hairline bg-surface p-5 shadow-card">
-        <div className="flex items-center justify-between">
+      {/* Main Profile Card */}
+      <div className="flex flex-col gap-5 rounded-card border border-hairline bg-surface p-5 sm:p-6 shadow-card">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            {/* Avatar Upload Container */}
-            <div className="relative group">
+            {/* Avatar Container with Upload Camera Overlay */}
+            <div className="relative shrink-0">
               {user.avatarUrl ? (
                 <img
                   src={user.avatarUrl}
                   alt={user.fullName}
-                  className="size-16 rounded-full object-cover border-2 border-primary/30 shadow-xs"
+                  className="size-18 rounded-full object-cover border-2 border-primary/30 shadow-xs"
                 />
               ) : (
-                <span className="flex size-16 items-center justify-center rounded-full bg-primary-tint text-primary font-extrabold text-h2">
+                <span className="flex size-18 items-center justify-center rounded-full bg-primary-tint text-primary font-extrabold text-h1 shadow-xs">
                   {user.fullName.charAt(0)}
                 </span>
               )}
 
-              {/* Progress Overlay */}
               {uploadingAvatar && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center rounded-full bg-ink/60 text-white backdrop-blur-xs">
+                <div className="absolute inset-0 flex flex-col items-center justify-center rounded-full bg-ink/70 text-white backdrop-blur-xs">
                   <Loader2 className="size-5 animate-spin" />
                   <span className="text-[9px] font-bold mt-0.5">{avatarProgress}%</span>
                 </div>
@@ -235,66 +233,78 @@ export function ProfileScreen() {
               </label>
             </div>
 
-            <div>
-              <p className="text-title font-bold text-ink">{user.fullName}</p>
-              <VerifiedBadge status={user.verificationStatus} />
+            {/* User Details & Status Badges */}
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-h2 font-bold text-ink">{user.fullName}</h2>
+                <span className="rounded-pill bg-hairline px-2.5 py-0.5 text-caption font-semibold text-body-text">
+                  {isLandlord ? "مالك عقار" : user.role === "admin" ? "مدير النظام" : "مستأجر"}
+                </span>
+              </div>
+              <div className="mt-0.5">
+                <VerifiedBadge status={user.verificationStatus} />
+              </div>
             </div>
           </div>
 
-          {/* Current Active Plan Badge for Landlords */}
+          {/* Active Subscription Badge (For Landlords) */}
           {isLandlord && (
-            <div className="flex flex-col items-end gap-1">
+            <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-1 border-t sm:border-t-0 border-hairline pt-3 sm:pt-0">
               <span
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-pill px-3 py-1 text-caption font-bold shadow-xs",
+                  "inline-flex items-center gap-1.5 rounded-pill px-3.5 py-1.5 text-small font-bold whitespace-nowrap shrink-0 shadow-xs",
                   quota?.planType === "PREMIUM" && "bg-amber-500/15 text-amber-600 border border-amber-500/30",
                   quota?.planType === "OWNER_PLUS" && "bg-primary-tint text-primary border border-primary/30",
                   (quota?.planType === "FREE" || !quota?.planType) && "bg-background text-muted border border-hairline",
                 )}
               >
-                {quota?.planType === "PREMIUM" && <Crown className="size-3.5" />}
-                {quota?.planType === "OWNER_PLUS" && <Sparkles className="size-3.5" />}
+                {quota?.planType === "PREMIUM" && <Crown className="size-4 shrink-0 text-amber-500" />}
+                {quota?.planType === "OWNER_PLUS" && <Sparkles className="size-4 shrink-0 text-primary" />}
                 {quota?.planType === "PREMIUM"
-                  ? "الخطة الـ Premium"
+                  ? "الخطة المميزة Premium"
                   : quota?.planType === "OWNER_PLUS"
-                  ? "خطة Plus"
+                  ? "خطة المالك Plus"
                   : "الخطة المجانية"}
               </span>
               {quota?.planExpiresAt && (
-                <span className="text-[10px] text-muted font-medium">
+                <span className="text-caption text-muted font-semibold whitespace-nowrap">
                   تجدد في {new Date(quota.planExpiresAt).toLocaleDateString("ar-EG")}
                 </span>
               )}
             </div>
           )}
         </div>
-        <div className="flex flex-col gap-2 border-t border-hairline pt-3 text-small text-body-text">
-          <p className="flex items-center gap-2">
-            <Mail className="size-4 text-muted" aria-hidden />
-            {user.email}
+
+        {/* Contact Info Footer Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 border-t border-hairline pt-4 text-small text-body-text">
+          <p className="flex items-center gap-2 rounded-control bg-background/60 px-3 py-2">
+            <Mail className="size-4 text-muted shrink-0" aria-hidden />
+            <span className="truncate">{user.email}</span>
           </p>
-          <p className="flex items-center gap-2">
-            <Phone className="size-4 text-muted" aria-hidden />
-            {user.phoneNumber}
+          <p className="flex items-center gap-2 rounded-control bg-background/60 px-3 py-2">
+            <Phone className="size-4 text-muted shrink-0" aria-hidden />
+            <span>{user.phoneNumber}</span>
           </p>
         </div>
       </div>
 
-      {/* Verification CTA */}
+      {/* Verification CTA Banner */}
       {user.verificationStatus !== "APPROVED" && user.role !== "admin" && (
         <Link
           href="/verify"
-          className="flex items-center gap-3 rounded-card border border-pending/30 bg-pending-tint px-4 py-3 hover:bg-pending-tint/80 transition-colors"
+          className="flex items-center justify-between gap-3 rounded-card border border-amber-500/30 bg-amber-500/10 px-4 py-3.5 hover:bg-amber-500/15 transition-colors shadow-xs"
         >
-          <ShieldAlert className="size-5 text-pending" aria-hidden />
-          <span className="flex-1 text-small font-semibold text-pending">
-            وثّق حسابك لتفعيل كل المزايا
-          </span>
-          <span className="text-small text-pending">←</span>
+          <div className="flex items-center gap-2.5">
+            <ShieldAlert className="size-5 text-amber-600 shrink-0" aria-hidden />
+            <span className="text-small font-bold text-amber-700">
+              وثّق حسابك الآن لتفعيل شارة التوثيق والاستفادة الكاملة من المزايا
+            </span>
+          </div>
+          <span className="text-small font-bold text-amber-700 shrink-0">←</span>
         </Link>
       )}
 
-      {/* Landlord Subscription & Quota Dashboard */}
+      {/* Landlord Quota & Subscriptions */}
       {isLandlord && (
         <div className="flex flex-col gap-5">
           <div className="flex items-center justify-between">
@@ -462,7 +472,7 @@ export function ProfileScreen() {
                       <Check className="size-3.5 text-success shrink-0" /> حتى 5 وحدات عقارية نشطة
                     </li>
                     <li className="flex items-center gap-1.5">
-                      <Check className="size-3.5 text-success shrink-0" /> حتى 5 وحدات عقارية نشطة
+                      <Check className="size-3.5 text-success shrink-0" /> عروض إيجار لا محدودة مع المستأجرين
                     </li>
                     <li className="flex items-center gap-1.5">
                       <Check className="size-3.5 text-success shrink-0" /> 5 استخدامات لمحسن الذكاء الاصطناعي
@@ -487,17 +497,19 @@ export function ProfileScreen() {
                   </Button>
                 )}
               </div>
+
+              {/* AI Addon Plan */}
               <div className="flex flex-col justify-between rounded-card border border-hairline bg-surface p-4 shadow-xs">
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-body font-bold text-ink">باقة استخدام الذكاء الاصطناعي</span>
+                    <span className="text-body font-bold text-ink">باقة الذكاء الاصطناعي</span>
                     <Sparkles className="size-5 text-accent" aria-hidden />
                   </div>
                   <p className="text-h2 font-extrabold text-ink mb-3">
                     199 <span className="text-caption font-normal text-muted">ج.م لمرة واحدة</span>
                   </p>
                   <p className="text-caption leading-relaxed text-body-text mb-4">
-                    أضف استخدامًا واحدًا لمحسن وصف العقار عند نفاد رصيدك.
+                    +10 استخدامات جديدة لمحسن وصف العقار بالذكاء الاصطناعي عند نفاد رصيدك.
                   </p>
                 </div>
                 <Button
@@ -514,23 +526,39 @@ export function ProfileScreen() {
         </div>
       )}
 
-      {/* Account Settings & Danger Zone */}
-      <div className="flex flex-col gap-3 rounded-card border border-hairline bg-surface p-5 shadow-card">
+      {/* Clean, Well-Arranged Account Settings Card */}
+      <div className="flex flex-col gap-4 rounded-card border border-hairline bg-surface p-5 sm:p-6 shadow-card">
         <h3 className="text-title font-bold text-ink">إعدادات الحساب والأمان</h3>
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-          <div className="flex items-center gap-3">
-            <Button variant="secondary" size="sm" onClick={() => { setUpdateStep(1); setShowUpdateWizard(true); }}>
-              <Edit className="size-4" />
-              تعديل بيانات الحساب
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => logout.mutate()} loading={logout.isPending}>
-              <LogOut className="size-4" />
-              تسجيل الخروج
-            </Button>
-          </div>
+        
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <Button
+            variant="secondary"
+            size="md"
+            onClick={() => { setUpdateStep(1); setShowUpdateWizard(true); }}
+            className="whitespace-nowrap shrink-0 justify-center font-bold"
+          >
+            <Edit className="size-4 shrink-0" />
+            تعديل بيانات الحساب
+          </Button>
 
-          <Button variant="danger" size="sm" onClick={() => { setDeleteStep(1); setDeleteConfirmInput(""); setShowDeleteWizard(true); }}>
-            <Trash2 className="size-4" />
+          <Button
+            variant="ghost"
+            size="md"
+            onClick={() => logout.mutate()}
+            loading={logout.isPending}
+            className="whitespace-nowrap shrink-0 justify-center font-bold text-muted hover:text-error hover:bg-error-tint border border-hairline"
+          >
+            <LogOut className="size-4 shrink-0" />
+            تسجيل الخروج
+          </Button>
+
+          <Button
+            variant="danger"
+            size="md"
+            onClick={() => { setDeleteStep(1); setDeleteConfirmInput(""); setShowDeleteWizard(true); }}
+            className="whitespace-nowrap shrink-0 justify-center font-bold"
+          >
+            <Trash2 className="size-4 shrink-0" />
             حذف الحساب نهائياً
           </Button>
         </div>
