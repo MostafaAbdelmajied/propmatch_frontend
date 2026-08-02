@@ -12,11 +12,3 @@ export function landingAfterLogin(role: AccountRole): string {
       return "/tenant";
   }
 }
-
-/**
- * Under the strict role-based account system, accounts are dedicated and isolated.
- * There is no tenant/landlord mode switching for unified profiles.
- */
-export function isDualCapable(role?: AccountRole): boolean {
-  return false;
-}

@@ -14,11 +14,17 @@ export async function POST(request: NextRequest) {
       method: "POST",
       body: parsed.data,
     });
-    const tokens = BackendAuthTokensSchema.parse(backendResponse);
+    const tokensResult = BackendAuthTokensSchema.safeParse(backendResponse);
+    if (!tokensResult.success) {
+      return NextResponse.json(
+        { statusCode: 502, message: "Invalid authentication response from backend" },
+        { status: 502 },
+      );
+    }
 
-    const body: AuthResponse = { user: tokens.user };
+    const body: AuthResponse = { user: tokensResult.data.user };
     const response = NextResponse.json(body);
-    setAuthCookies(response, tokens);
+    setAuthCookies(response, tokensResult.data);
     return response;
   } catch (error) {
     if (error instanceof BackendApiError) {

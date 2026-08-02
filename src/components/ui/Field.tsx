@@ -1,7 +1,7 @@
 "use client";
 
-import { forwardRef, useId } from "react";
-import { AlertCircle, CheckCircle2 } from "lucide-react";
+import { forwardRef, useId, useState } from "react";
+import { AlertCircle, CheckCircle2, ChevronDown, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/src/utils/cn";
 
 interface FieldWrapperProps {
@@ -59,14 +59,38 @@ export interface InputFieldProps extends React.InputHTMLAttributes<HTMLInputElem
 }
 
 export const InputField = forwardRef<HTMLInputElement, InputFieldProps>(function InputField(
-  { label, error, successMessage, hint, required, className, id: idProp, ...rest },
+  { label, error, successMessage, hint, required, className, id: idProp, type, ...rest },
   ref,
 ) {
   const autoId = useId();
   const id = idProp ?? autoId;
+  const [showPassword, setShowPassword] = useState(false);
+
+  const isPassword = type === "password";
+  const effectiveType = isPassword ? (showPassword ? "text" : "password") : type;
+
   return (
     <FieldWrapper label={label} error={error} success={successMessage} hint={hint} required={required} id={id}>
-      <input ref={ref} id={id} className={cn(inputClasses(!!error), className)} {...rest} />
+      <div className="relative flex items-center">
+        <input
+          ref={ref}
+          id={id}
+          type={effectiveType}
+          className={cn(inputClasses(!!error), isPassword && "pe-10", className)}
+          {...rest}
+        />
+        {isPassword && (
+          <button
+            type="button"
+            onClick={() => setShowPassword((prev) => !prev)}
+            className="absolute end-3 flex items-center justify-center text-muted hover:text-ink transition-colors focus:outline-none"
+            aria-label={showPassword ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"}
+            tabIndex={-1}
+          >
+            {showPassword ? <EyeOff className="size-4 shrink-0" /> : <Eye className="size-4 shrink-0" />}
+          </button>
+        )}
+      </div>
     </FieldWrapper>
   );
 });
@@ -106,14 +130,29 @@ export const SelectField = forwardRef<HTMLSelectElement, SelectFieldProps>(funct
   const id = idProp ?? autoId;
   return (
     <FieldWrapper label={label} error={error} hint={hint} required={required} id={id}>
-      <select ref={ref} id={id} className={cn(inputClasses(!!error), "appearance-none", className)} {...rest}>
-        {placeholder && <option value="">{placeholder}</option>}
-        {options.map((opt) => (
-          <option key={opt.value} value={opt.value}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
+      <div className={cn("relative flex items-center", className)}>
+        <select
+          ref={ref}
+          id={id}
+          className={cn(
+            inputClasses(!!error),
+            "appearance-none pe-9 bg-surface text-ink cursor-pointer font-medium w-full",
+          )}
+          {...rest}
+        >
+          {placeholder && (
+            <option value="" className="bg-surface text-muted py-1">
+              {placeholder}
+            </option>
+          )}
+          {options.map((opt) => (
+            <option key={opt.value} value={opt.value} className="bg-surface text-ink py-1">
+              {opt.label}
+            </option>
+          ))}
+        </select>
+        <ChevronDown className="pointer-events-none absolute end-3 size-4 text-muted shrink-0" aria-hidden />
+      </div>
     </FieldWrapper>
   );
 });

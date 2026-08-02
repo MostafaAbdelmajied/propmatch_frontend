@@ -41,17 +41,49 @@ interface BackendFetchOptions extends Omit<RequestInit, "body"> {
   accessToken?: string;
 }
 
+/**
+ * Like `backendFetch`, but hands back the raw `Response` so the caller can
+ * pass a body stream straight through (PRO-10/17 SSE). Buffering it here —
+ * which `backendFetch` does via `.json()` — would defeat the point: the client
+ * would wait for the whole answer and then paint it at once.
+ */
+export async function backendStream(path: string, options: BackendFetchOptions = {}): Promise<Response> {
+  const { body, accessToken, headers, ...rest } = options;
+  return fetch(`${getBackendUrl()}${path}`, {
+    ...rest,
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "text/event-stream",
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      ...headers,
+    },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+    cache: "no-store",
+  });
+}
+
+/** Raw backend response for protected binary downloads (never JSON-parse it). */
+export async function backendRaw(path: string, options: BackendFetchOptions = {}): Promise<Response> {
+  const { body, accessToken, headers, ...rest } = options;
+  return fetch(`${getBackendUrl()}${path}`, {
+    ...rest,
+    headers: { ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), ...headers },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+    cache: "no-store",
+  });
+}
+
 export async function backendFetch<T>(path: string, options: BackendFetchOptions = {}): Promise<T> {
   const { body, accessToken, headers, ...rest } = options;
 
   const response = await fetch(`${getBackendUrl()}${path}`, {
     ...rest,
     headers: {
-      "Content-Type": "application/json",
+      ...(body !== undefined && !(body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       ...headers,
     },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    body: body !== undefined ? (body instanceof FormData ? body : JSON.stringify(body)) : undefined,
     cache: "no-store",
   });
 

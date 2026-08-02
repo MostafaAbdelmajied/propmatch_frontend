@@ -1,26 +1,29 @@
 import { z } from "zod";
+import { VerificationStatusSchema } from "./verification";
 
 /**
- * Auth contracts. Field names/shapes are assumptions pending the real ERD —
- * see ASSUMPTIONS.md, "Auth & account model".
+ * Mirrors the Final ERD's `USER` entity. ERD fields are snake_case; the API
+ * boundary is assumed to map them to camelCase (ASSUMPTIONS.md #2).
+ * `password_hash` never crosses the wire.
  */
 
 /**
- * Normal marketplace accounts share the same base role. The legacy
- * tenant/landlord/both values are accepted while the backend contract is
- * reconciled, but new signups use "user"; listing capability comes from
- * verificationStatus, not role.
+ * ERD: `USER.role ENUM "TENANT, LANDLORD, ADMIN"` — one role per account.
+ * Someone who is both an owner and a tenant creates two separate accounts,
+ * each with its own eKYC (docs/analysis/conflicts.md A1). `BROKER` is a Later
+ * role (A2): add it here, never by hardcoding role names in UI/logic.
  */
 export const AccountRoleSchema = z.enum(["tenant", "landlord", "admin"]);
 export type AccountRole = z.infer<typeof AccountRoleSchema>;
 
+/** Public signup is explicitly Tenant OR Landlord (PRO-02). Admins are seeded. */
 export const SignupRoleSchema = z.enum(["tenant", "landlord"]);
 export type SignupRole = z.infer<typeof SignupRoleSchema>;
 
 export const RegisterRequestSchema = z.object({
   fullName: z.string().min(2),
   email: z.string().email(),
-  phone: z.string().min(8),
+  phoneNumber: z.string().min(8),
   password: z.string().min(8),
   role: SignupRoleSchema,
 });
@@ -32,33 +35,65 @@ export const LoginRequestSchema = z.object({
 });
 export type LoginRequest = z.infer<typeof LoginRequestSchema>;
 
-export const VerificationStatusSchema = z.enum(["unverified", "pending_review", "verified", "rejected"]);
-export type VerificationStatus = z.infer<typeof VerificationStatusSchema>;
-
 export const UserSchema = z.object({
   id: z.string(),
   fullName: z.string(),
   email: z.string().email(),
-  phone: z.string(),
+  phoneNumber: z.string(),
   role: AccountRoleSchema,
+  avatarUrl: z.string().nullable().optional(),
+  createdAt: z.string(),
+  /** Canonical lifecycle value; GET /verification/me remains the gate source. */
   verificationStatus: VerificationStatusSchema,
-  verificationRejectedAt: z.string().datetime().nullable().optional(),
-  verificationResubmitAfter: z.string().datetime().nullable().optional(),
-  verificationRejectionReason: z.string().nullable().optional(),
-  createdAt: z.string().datetime(),
 });
 export type User = z.infer<typeof UserSchema>;
 
-/** What the BFF route handler returns to the browser — never the raw tokens. */
-export const AuthResponseSchema = z.object({
-  user: UserSchema,
-});
+/** What the BFF returns to the browser — never the raw tokens. */
+export const AuthResponseSchema = z.object({ user: UserSchema });
 export type AuthResponse = z.infer<typeof AuthResponseSchema>;
 
-/** Internal shape returned by the real NestJS backend; consumed only inside app/api/auth/*. */
-export const BackendAuthTokensSchema = z.object({
-  accessToken: z.string(),
-  refreshToken: z.string(),
-  user: UserSchema,
+/** Shape returned by Nest; consumed only inside app/api/auth/*. */
+const BackendUserSchema = z.object({
+  id: z.string(),
+  fullName: z.string(),
+  email: z.string().email(),
+  phoneNumber: z.string(),
+  role: AccountRoleSchema,
+  avatarUrl: z.string().nullable().optional(),
+  isActive: z.boolean().optional(),
+  lastLoginAt: z.string().nullable().optional(),
+  createdAt: z.string(),
+  updatedAt: z.string().optional(),
+  verificationStatus: VerificationStatusSchema,
 });
+
+export const BackendUserResponseSchema = BackendUserSchema.transform((user): User => ({
+  id: user.id,
+  fullName: user.fullName,
+  email: user.email,
+  phoneNumber: user.phoneNumber,
+  role: user.role,
+  avatarUrl: user.avatarUrl ?? null,
+  createdAt: user.createdAt,
+  verificationStatus: user.verificationStatus,
+}));
+
+export const BackendMeResponseSchema = z.union([
+  BackendUserResponseSchema,
+  z.object({ user: BackendUserResponseSchema }).transform(({ user }) => user),
+]);
+
+export const BackendAuthTokensSchema = z.object({
+  accessToken: z.string().optional(),
+  accesstoken: z.string().optional(),
+  refreshToken: z.string(),
+  user: BackendUserResponseSchema,
+}).refine((tokens) => Boolean(tokens.accessToken ?? tokens.accesstoken), {
+  message: "Backend auth response must include an access token.",
+  path: ["accessToken"],
+}).transform((tokens) => ({
+  accessToken: tokens.accessToken ?? tokens.accesstoken!,
+  refreshToken: tokens.refreshToken,
+  user: tokens.user,
+}));
 export type BackendAuthTokens = z.infer<typeof BackendAuthTokensSchema>;

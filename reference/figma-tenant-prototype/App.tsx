@@ -1,36 +1,36 @@
 import { useState } from 'react'
-import type { Screen, UserRole, AppState } from './types'
 import { PaymentModal } from './components/shared/PaymentModal'
+import type { AppState, Screen, UserRole } from './types'
 
 // Screens
-import { LandingScreen } from './screens/LandingScreen'
-import { AuthScreen } from './screens/AuthScreen'
-import { DashboardScreen } from './screens/DashboardScreen'
-import { KycFlow } from './screens/KycFlow'
-import { TenantBrowse } from './screens/TenantBrowse'
-import { TenantMatchForm } from './screens/TenantMatchForm'
-import { TenantMatchResults } from './screens/TenantMatchResults'
-import { PropertyDetail } from './screens/PropertyDetail'
-import { LegalChatbot } from './screens/LegalChatbot'
-import { ContractForm } from './screens/ContractForm'
-import { ContractPreview } from './screens/ContractPreview'
-import { LandlordDashboard } from './screens/LandlordDashboard'
 import { AddProperty } from './screens/AddProperty'
-import { LandlordInquiries } from './screens/LandlordInquiries'
 import { AdminDashboard } from './screens/AdminDashboard'
 import { AdminPropertyReview } from './screens/AdminPropertyReview'
 import { AdminUserReview } from './screens/AdminUserReview'
+import { AuthScreen } from './screens/AuthScreen'
+import { ContractForm } from './screens/ContractForm'
+import { ContractPreview } from './screens/ContractPreview'
+import { DashboardScreen } from './screens/DashboardScreen'
+import { KycFlow } from './screens/KycFlow'
+import { LandingScreen } from './screens/LandingScreen'
+import { LandlordDashboard } from './screens/LandlordDashboard'
+import { LandlordInquiries } from './screens/LandlordInquiries'
+import { LegalChatbot } from './screens/LegalChatbot'
 import { ProfileScreen } from './screens/ProfileScreen'
+import { PropertyDetail } from './screens/PropertyDetail'
+import { TenantBrowse } from './screens/TenantBrowse'
+import { TenantMatchForm } from './screens/TenantMatchForm'
+import { TenantMatchResults } from './screens/TenantMatchResults'
 
 export default function App() {
   const [state, setState] = useState<AppState>({
     screen: 'landing',
     role: 'tenant',
     isLoggedIn: false,
-    isKycVerified: false,
+    isKycVerified: true,
     freeMatches: 3,
     paymentContext: null,
-    showPaymentModal: false,
+    showPaymentModal: true,
   })
 
   const nav = (screen: Screen) => setState(s => ({ ...s, screen }))

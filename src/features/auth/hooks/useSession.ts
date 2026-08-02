@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { authApi, isApiClientError } from "@/src/lib/api/browserClient";
+import { reconnectSocket } from "@/src/lib/socket/useRealtime";
 import type { AuthResponse, LoginRequest, RegisterRequest, User } from "@/src/lib/api/contracts/auth";
 
 const SESSION_KEY = ["session"] as const;
@@ -28,7 +29,11 @@ export function useLogin() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: LoginRequest) => authApi.login<AuthResponse>(body),
-    onSuccess: (res) => qc.setQueryData(SESSION_KEY, res.user),
+    onSuccess: (res) => {
+      qc.setQueryData(SESSION_KEY, res.user);
+      // Re-auth the realtime socket with the freshly-set cookie.
+      reconnectSocket();
+    },
   });
 }
 
@@ -36,7 +41,10 @@ export function useRegister() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: RegisterRequest) => authApi.register<AuthResponse>(body),
-    onSuccess: (res) => qc.setQueryData(SESSION_KEY, res.user),
+    onSuccess: (res) => {
+      qc.setQueryData(SESSION_KEY, res.user);
+      reconnectSocket();
+    },
   });
 }
 
@@ -48,6 +56,8 @@ export function useLogout() {
     onSuccess: () => {
       qc.setQueryData(SESSION_KEY, null);
       qc.clear();
+      // Drop the authenticated socket so it no longer sits in the old user's room.
+      reconnectSocket();
       router.push("/");
     },
   });

@@ -1,0 +1,79 @@
+name: CI
+
+# Runs on every PR, plus direct pushes to the long-lived branches. Without
+# this, nothing checked typecheck/lint/tests before merge — which is how `dev`
+# ended up sitting on a lint failure.
+on:
+  pull_request:
+  push:
+    branches: [main, dev]
+
+# A new push to the same branch/PR makes the previous run pointless.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+# Node 22, deliberately below the 24 devs run locally: CI on the lower
+# supported version catches accidental use of newer-Node APIs. The reverse
+# (CI above local/deploy) passes here and breaks in production. package.json
+# `engines` records Next's real floor, >=20.9.
+
+jobs:
+  # Split into parallel jobs on purpose: as one sequential script, a typecheck
+  # failure hides whether lint and the tests would also have failed, so you fix
+  # one thing, push, and wait to discover the next.
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # --max-warnings=0 (set in the lint script): an unused import is how the
+      # `p: any` in SendOfferSheet slipped through unnoticed.
+      - run: npm run lint
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test -- --ci
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # No env deliberately: the build must not depend on local .env.local. If
+      # someone introduces a build-time env dependency, this failing is the
+      # point — it would otherwise only break in deployment.
+      - run: npm run build

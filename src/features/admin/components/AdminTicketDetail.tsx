@@ -1,17 +1,19 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { ArrowRight, Bot, User as UserIcon, Send, StickyNote, UserPlus } from "lucide-react";
-import { useTicket, useTicketActions } from "../hooks/useTickets";
-import { Skeleton } from "@/src/components/ui/Skeleton";
-import { ErrorState } from "@/src/components/ui/States";
 import { Button } from "@/src/components/ui/Button";
 import { SelectField } from "@/src/components/ui/Field";
+import { Skeleton } from "@/src/components/ui/Skeleton";
+import { ErrorState } from "@/src/components/ui/States";
 import { useToast } from "@/src/components/ui/Toast";
+import { ticketStatusLabels, type TicketStatus } from "@/src/lib/api/contracts/support";
 import { cn } from "@/src/utils/cn";
 import { formatRelativeTime } from "@/src/utils/format";
-import { ticketStatusLabels, type TicketStatus } from "@/src/lib/api/contracts/support";
+import { ArrowRight, Bot, Send, StickyNote, User as UserIcon, UserPlus } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { useTicket, useTicketActions } from "../hooks/useTickets";
+import { AttachmentBar, type PendingAttachment } from "@/src/features/messages/components/AttachmentBar";
+import { ChatAttachmentView } from "@/src/features/messages/components/ChatAttachmentView";
 
 const statuses: TicketStatus[] = ["new", "assigned", "in_progress", "waiting", "closed"];
 
@@ -22,18 +24,29 @@ export function AdminTicketDetail({ id }: { id: string }) {
   const { reply, assign, setStatus } = useTicketActions(id);
   const [text, setText] = useState("");
   const [internal, setInternal] = useState(false);
+  const [pending, setPending] = useState<PendingAttachment | null>(null);
 
   if (isError) return <ErrorState onRetry={() => refetch()} />;
   if (isLoading || !ticket) return <Skeleton className="h-96 w-full" />;
 
+  const canSend = Boolean(text.trim() || pending);
+
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!text.trim()) return;
+    if (!canSend) return;
     reply.mutate(
-      { content: text.trim(), internal },
+      {
+        content: text.trim() || undefined,
+        internal,
+        attachmentUrl: pending?.url,
+        attachmentType: pending?.type,
+        attachmentName: pending?.name,
+        attachmentDurationMs: pending?.durationMs,
+      },
       {
         onSuccess: () => {
           setText("");
+          setPending(null);
           toast("success", internal ? "تم حفظ الملاحظة الداخلية" : "تم إرسال الرد للعميل");
         },
       },
@@ -57,9 +70,10 @@ export function AdminTicketDetail({ id }: { id: string }) {
           <SelectField
             aria-label="حالة التذكرة"
             options={statuses.map((s) => ({ value: s, label: ticketStatusLabels[s] }))}
-            value={ticket.status}
+            value={ticket.status?.toLowerCase()}
+            disabled={setStatus.isPending}
             onChange={(e) => setStatus.mutate(e.target.value as TicketStatus)}
-            className="w-36"
+            className="w-40 min-w-[150px]"
           />
         </div>
       </div>
@@ -76,29 +90,37 @@ export function AdminTicketDetail({ id }: { id: string }) {
       {/* Thread */}
       <div className="flex flex-col gap-3 rounded-card border border-hairline bg-surface p-4">
         {ticket.messages.map((m) => {
-          const isUser = m.author === "user";
+          const authorVal = String(m.authorType || m.author || "").toLowerCase();
+          const isUser = authorVal === "user";
+          const isAdmin = authorVal === "admin";
+          const isAi = authorVal === "ai";
+          const timestamp = m.createdAt || m.at || new Date().toISOString();
+
           return (
             <div key={m.id} className={cn("flex", isUser ? "justify-start" : "justify-end")}>
               <div className={cn("flex max-w-[85%] flex-col gap-1", isUser ? "items-start" : "items-end")}>
                 <span className="flex items-center gap-1 text-caption text-muted">
-                  {m.author === "ai" ? <Bot className="size-3" aria-hidden /> : <UserIcon className="size-3" aria-hidden />}
-                  {m.authorName}
+                  {isAi ? <Bot className="size-3" aria-hidden /> : <UserIcon className="size-3" aria-hidden />}
+                  {isAdmin ? "الدعم الفني" : m.authorName}
                   {m.internal && <span className="rounded bg-pending-tint px-1 text-pending">ملاحظة داخلية</span>}
-                  <span>· {formatRelativeTime(m.at)}</span>
+                  <span>· {formatRelativeTime(timestamp)}</span>
                 </span>
                 <div
                   className={cn(
-                    "whitespace-pre-line rounded-card px-4 py-2.5 text-body leading-relaxed",
+                    "flex flex-col gap-2 whitespace-pre-line rounded-card px-4 py-2.5 text-body leading-relaxed",
                     m.internal
                       ? "border border-dashed border-pending/40 bg-pending-tint/40 text-ink"
                       : isUser
                         ? "bg-background text-ink"
-                        : m.author === "admin"
+                        : isAdmin
                           ? "bg-primary text-white"
                           : "bg-primary-tint text-ink",
                   )}
                 >
-                  {m.content}
+                  {m.attachmentUrl && m.attachmentType && (
+                    <ChatAttachmentView url={m.attachmentUrl} type={m.attachmentType} name={m.attachmentName} durationMs={m.attachmentDurationMs} />
+                  )}
+                  {m.content && <span>{m.content}</span>}
                 </div>
               </div>
             </div>
@@ -114,13 +136,14 @@ export function AdminTicketDetail({ id }: { id: string }) {
           placeholder={internal ? "اكتب ملاحظة داخلية (لا تظهر للعميل)…" : "اكتب ردك للعميل…"}
           className="min-h-20 w-full rounded-control border border-hairline bg-surface px-3.5 py-2.5 text-body focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
         />
+        <AttachmentBar pending={pending} onChange={setPending} disabled={reply.isPending} />
         <div className="flex items-center justify-between">
           <label className="flex cursor-pointer items-center gap-1.5 text-small text-body-text">
-            <input type="checkbox" checked={internal} onChange={(e) => setInternal(e.target.checked)} className="size-4 accent-[var(--color-primary)]" />
+            <input type="checkbox" checked={internal} onChange={(e) => setInternal(e.target.checked)} className="size-4 accent-primary" />
             <StickyNote className="size-4 text-muted" aria-hidden />
             ملاحظة داخلية
           </label>
-          <Button type="submit" loading={reply.isPending} disabled={!text.trim()}>
+          <Button type="submit" loading={reply.isPending} disabled={!canSend}>
             <Send className="size-4 rtl:-scale-x-100" aria-hidden />
             {internal ? "حفظ الملاحظة" : "إرسال الرد"}
           </Button>

@@ -19,7 +19,7 @@ export function AdminUserReview({ userId }: { userId: string }) {
   const [rejectionReason, setRejectionReason] = useState("");
 
   function decide(decision: "approve" | "reject") {
-    if (decision === "reject" && rejectionReason.trim().length < 5) {
+    if (decision === "reject" && rejectionReason.trim().length < 3) {
       toast("error", "اكتب سبب الرفض أولًا");
       return;
     }
@@ -57,16 +57,26 @@ export function AdminUserReview({ userId }: { userId: string }) {
 
         <dl className="flex flex-col gap-3 border-t border-hairline pt-4 text-body">
           <Row label="المستخدم" value={data.userName} />
+          {/* The only screen that may show the full national ID (rbac.md). */}
+          <Row label="الرقم القومي" value={data.nationalId} ltr />
           <Row label="تاريخ الإرسال" value={formatDate(data.submittedAt)} />
-          {data.documents.map((doc) => (
-            <Row key={doc.type} label={doc.label} value={formatDate(doc.uploadedAt)} />
-          ))}
         </dl>
+
+        {/* ID images: reviewed here only, never sent to any AI/LLM and never
+            stored in the vector DB (build prompt §6). */}
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { label: "صورة البطاقة — الوجه الأمامي", url: data.nationalIdFrontUrl },
+            { label: "صورة البطاقة — الوجه الخلفي", url: data.nationalIdBackUrl },
+            { label: "الصورة الشخصية", url: data.selfieUrl },
+          ].map(({ label, url }) => <KycImage key={label} label={label} url={url} />)}
+        </div>
 
         <OwnershipDisclaimer />
 
         <TextAreaField
           label="سبب الرفض"
+          required
           placeholder="اكتب ما يحتاج المستخدم لتصحيحه عند الرفض"
           value={rejectionReason}
           onChange={(e) => setRejectionReason(e.target.value)}
@@ -87,12 +97,21 @@ export function AdminUserReview({ userId }: { userId: string }) {
   );
 }
 
-function Row({ label, value, ltr }: { label: string; value: string; ltr?: boolean }) {
+function KycImage({ label, url }: { label: string; url: string }) {
+  const [failed, setFailed] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  return <figure className="flex flex-col gap-1"><div className="relative aspect-square overflow-hidden rounded-control border border-hairline">
+    {!loaded && !failed && <span className="absolute inset-0 grid place-items-center text-caption text-muted">جارٍ تحميل الصورة</span>}
+    {failed ? <span className="grid h-full place-items-center text-caption text-muted">تعذر تحميل الصورة</span> : <img src={url} alt={label} referrerPolicy="no-referrer" onLoad={() => setLoaded(true)} onError={() => setFailed(true)} className={`h-full w-full object-contain ${loaded ? "" : "opacity-0"}`} />}
+  </div><figcaption className="text-caption text-muted">{label}</figcaption></figure>;
+}
+
+function Row({ label, value, ltr }: { label: string; value: string | null; ltr?: boolean }) {
   return (
     <div className="flex items-center justify-between">
       <dt className="text-muted">{label}</dt>
       <dd className="font-bold text-ink" dir={ltr ? "ltr" : undefined}>
-        {value}
+        {value ?? "—"}
       </dd>
     </div>
   );

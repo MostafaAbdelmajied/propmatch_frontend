@@ -36,7 +36,7 @@ export function AdminReports() {
     { Icon: TrendingUp, label: "إجمالي الإيرادات", value: formatEGP(data.summary.totalRevenue), tone: "text-success" },
     { Icon: Receipt, label: "عدد المعاملات", value: formatNumber(data.summary.totalTransactions), tone: "text-trust-blue" },
     { Icon: Home, label: "إعلانات نشطة", value: formatNumber(data.summary.activeListings), tone: "text-primary" },
-    { Icon: Clock, label: "بانتظار المراجعة", value: formatNumber(data.summary.pendingReviews), tone: "text-pending" },
+    { Icon: Clock, label: "بانتظار المراجعة", value: formatNumber(data.summary.pendingModeration), tone: "text-pending" },
   ];
 
   return (
@@ -78,12 +78,12 @@ export function AdminReports() {
         <h2 className="mb-4 text-title font-bold text-ink">توزيع مراجعة الإعلانات</h2>
         <div className="h-56 w-full" dir="ltr">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data.reviewDistribution} layout="vertical" margin={{ top: 8, right: 16, bottom: 8, left: 8 }}>
+            <BarChart data={data.moderationDistribution} layout="vertical" margin={{ top: 8, right: 16, bottom: 8, left: 8 }}>
               <XAxis type="number" tick={{ fontSize: 12, fill: "var(--color-muted)" }} axisLine={false} tickLine={false} allowDecimals={false} />
               <YAxis type="category" dataKey="label" tick={{ fontSize: 12, fill: "var(--color-body-text)" }} axisLine={false} tickLine={false} width={90} />
               <Tooltip cursor={{ fill: "var(--color-background)" }} contentStyle={{ borderRadius: 12, border: "1px solid var(--color-hairline)", fontFamily: "inherit" }} />
               <Bar dataKey="value" radius={[0, 6, 6, 0]}>
-                {data.reviewDistribution.map((_, i) => (
+                {data.moderationDistribution.map((_, i) => (
                   <Cell key={i} fill={DIST_COLORS[i % DIST_COLORS.length]} />
                 ))}
               </Bar>

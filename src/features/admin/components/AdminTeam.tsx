@@ -181,6 +181,8 @@ function CreateAdminSheet({ open, onClose }: { open: boolean; onClose: () => voi
       <form onSubmit={handleSubmit(submit)} className="flex flex-col gap-4">
         <InputField label="الاسم بالكامل" error={errors.fullName?.message} {...register("fullName")} />
         <InputField label="البريد الإلكتروني" type="email" error={errors.email?.message} {...register("email")} />
+        <InputField label="رقم الهاتف" error={errors.phoneNumber?.message} {...register("phoneNumber")} />
+        <InputField label="كلمة المرور" type="password" error={errors.password?.message} {...register("password")} />
         <SelectField label="الدور" options={roleOptions} {...register("role")} />
         <p className="text-caption text-muted">
           يحدد الدور مجموعة الصلاحيات تلقائيًا (راجع مصفوفة الصلاحيات في وثائق RBAC).

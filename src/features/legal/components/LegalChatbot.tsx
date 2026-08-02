@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { Scale, Send, MessageCircle } from "lucide-react";
-import { api } from "@/src/lib/api/browserClient";
-import { cn } from "@/src/utils/cn";
+import { streamPost } from "@/src/lib/api/browserClient";
 import type { ChatMessage } from "@/src/lib/api/contracts/support";
+import { cn } from "@/src/utils/cn";
+import { MessageCircle, Scale, Send } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { LegalMarkdown } from "./LegalMarkdown";
 
 const examples = [
   "ما هي مدة الإخطار قبل إنهاء العقد؟",
@@ -12,9 +13,11 @@ const examples = [
   "ما حقوقي كمستأجر عند تأخر الصيانة؟",
 ];
 
-let localId = 0;
+function makeUniqueId(prefix: string): string {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+}
 
-export function LegalChatbot() {
+export function LegalChatbot({ }: { onBack?: () => void }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
@@ -24,19 +27,50 @@ export function LegalChatbot() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, typing]);
 
+  /**
+   * PRO-17: the answer streams in. The assistant bubble is appended empty and
+   * filled token by token, so `typing` only covers the wait before the first
+   * token — after that the growing text is the progress indicator.
+   */
   async function send(text: string) {
     const trimmed = text.trim();
     if (!trimmed || typing) return;
     setInput("");
-    setMessages((m) => [...m, { id: `local_${localId++}`, role: "user", content: trimmed }]);
+
+    const replyId = makeUniqueId("legal_reply");
+    setMessages((m) => [
+      ...m,
+      { id: makeUniqueId("user_msg"), role: "user", content: trimmed },
+    ]);
     setTyping(true);
+
+    let started = false;
     try {
-      const reply = await api.post<ChatMessage>("legal-chat", { message: trimmed });
-      setMessages((m) => [...m, reply]);
+      const done = await streamPost(
+        "legal-chat/stream",
+        { message: trimmed },
+        {
+          onToken: (token) => {
+            if (!started) {
+              started = true;
+              setTyping(false);
+              setMessages((m) => [...m, { id: replyId, role: "assistant", content: "" }]);
+            }
+            setMessages((m) =>
+              m.map((msg) => (msg.id === replyId ? { ...msg, content: msg.content + token } : msg)),
+            );
+          },
+        },
+      );
+      // `declined` only arrives with the terminal chunk, so the off-topic
+      // styling is applied once the answer is complete (SRS 3.3).
+      setMessages((m) =>
+        m.map((msg) => (msg.id === replyId ? { ...msg, declined: done.declined } : msg)),
+      );
     } catch {
       setMessages((m) => [
-        ...m,
-        { id: `local_${localId++}`, role: "assistant", content: "تعذر الاتصال، حاول مرة أخرى." },
+        ...m.filter((msg) => msg.id !== replyId || msg.content),
+        { id: makeUniqueId("legal_reply"), role: "assistant", content: "تعذر الاتصال، حاول مرة أخرى." },
       ]);
     } finally {
       setTyping(false);
@@ -55,11 +89,16 @@ export function LegalChatbot() {
         </div>
       </div>
 
-      <div ref={scrollRef} className="flex flex-1 flex-col gap-3 overflow-y-auto rounded-card border border-hairline bg-surface p-4">
+      <div
+        ref={scrollRef}
+        className="flex flex-1 flex-col gap-3 overflow-y-auto rounded-card border border-hairline bg-surface p-4"
+      >
         {messages.length === 0 && (
           <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
             <MessageCircle className="size-10 text-muted" aria-hidden />
-            <p className="text-small text-muted">اسأل عن أي شيء يخص الإيجار والقانون العقاري في مصر</p>
+            <p className="text-small text-muted">
+              اسأل عن أي شيء يخص الإيجار والقانون العقاري في مصر
+            </p>
             <div className="flex flex-col gap-2">
               {examples.map((ex) => (
                 <button
@@ -75,10 +114,13 @@ export function LegalChatbot() {
         )}
 
         {messages.map((m) => (
-          <div key={m.id} className={cn("flex", m.role === "user" ? "justify-start" : "justify-end")}>
+          <div
+            key={m.id}
+            className={cn("flex", m.role === "user" ? "justify-start" : "justify-end")}
+          >
             <div
               className={cn(
-                "max-w-[85%] rounded-card px-4 py-2.5 text-body leading-relaxed",
+                "min-w-0 max-w-[85%] wrap-break-word rounded-card px-4 py-2.5 text-body leading-relaxed",
                 m.role === "user"
                   ? "bg-primary text-white"
                   : m.declined
@@ -86,7 +128,7 @@ export function LegalChatbot() {
                     : "bg-background text-ink",
               )}
             >
-              {m.content}
+              {m.role === "assistant" ? <LegalMarkdown content={m.content} /> : m.content}
             </div>
           </div>
         ))}
@@ -95,7 +137,11 @@ export function LegalChatbot() {
           <div className="flex justify-end">
             <div className="flex gap-1 rounded-card bg-background px-4 py-3">
               {[0, 1, 2].map((i) => (
-                <span key={i} className="size-2 animate-bounce rounded-full bg-muted" style={{ animationDelay: `${i * 0.15}s` }} />
+                <span
+                  key={i}
+                  className="size-2 animate-bounce rounded-full bg-muted"
+                  style={{ animationDelay: `${i * 0.15}s` }}
+                />
               ))}
             </div>
           </div>

@@ -1,5 +1,5 @@
-import Link from "next/link";
-import { ShieldCheck, Sparkles, FileText } from "lucide-react";
+import { Logo } from "@/src/components/ui/Logo";
+import { FileText, ShieldCheck, Sparkles } from "lucide-react";
 
 const trustPoints = [
   { Icon: ShieldCheck, text: "ملاك موثّقو الهوية" },
@@ -12,9 +12,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     <div className="flex min-h-dvh flex-col md:flex-row">
       {/* Brand panel — hidden on mobile, full-height on desktop */}
       <aside className="hidden flex-col justify-between bg-primary p-10 text-white md:flex md:w-2/5 lg:w-1/2">
-        <Link href="/" className="text-h2 font-bold">
-          PropMatch AI
-        </Link>
+        <Logo href="/" size="xl" withCard />
         <div className="flex flex-col gap-6">
           <h1 className="text-display font-bold leading-tight">استأجر مباشرة من المالك.</h1>
           <p className="text-h2 font-semibold text-white/90">بدون سمسار، وبدون عمولة.</p>
@@ -34,9 +32,9 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
       <main className="flex flex-1 items-center justify-center p-6">
         <div className="w-full max-w-md">
-          <Link href="/" className="mb-6 block text-center text-h2 font-bold text-primary md:hidden">
-            PropMatch AI
-          </Link>
+          <div className="mb-6 flex justify-center md:hidden">
+            <Logo href="/" withCard />
+          </div>
           {children}
         </div>
       </main>

@@ -1,152 +1,174 @@
-# Requirements analysis
+# Requirements analysis (V1 — dual-discovery marketplace)
 
-Phase 1 deliverable. Cross-references: SRS (`../../../PropMatch AI - SRS.docx`),
-UI Generation Prompt (`../../../PropMatch AI - UI Generation Prompt.md`),
-the earlier draft spec in `reference/figma-tenant-prototype/src/imports/`.
+Against the Final ERD + SRS (Final) + Sprint Plan (PRO-01…19). Conflicts and
+their resolutions live in `conflicts.md`; assumptions in `../../ASSUMPTIONS.md`.
 
-## Conflicts between sources (higher-ranked wins per AGENTS.md)
+---
 
-1. **Account model.** The earlier draft (`prop-match-ai-design.md`,
-   "unified account") has every user sign up once and *switch* between
-   Tenant/Landlord views — a single implicit dual role. The UI Generation
-   Prompt (authoritative) instead has an explicit **three-way role choice at
-   signup** (مستأجر / مالك / الاثنين) — "both" is opt-in, not default.
-   **Resolution:** build the three-way choice. `AccountRoleSchema` in
-   `src/lib/api/contracts/auth.ts` already reflects this.
-2. **Brand tagline & some glossary wording differ** between the two drafts
-   (e.g. "أجر بيتك أو اسكن مباشرة..." vs "استأجر مباشرة من المالك...").
-   **Resolution:** Section 12 of the UI Generation Prompt is verbatim truth;
-   `messages/ar.json` uses it. Do not pull copy from the older draft.
-3. **In-app messaging.** The earlier draft explicitly lists "no direct
-   in-app messaging between users" as out of scope; the UI Generation Prompt
-   doesn't repeat this exclusion but also never specifies an in-app chat
-   screen for tenant↔landlord contact (only the gated "تواصل مع المالك"
-   reveal, implying off-platform contact via phone). **Assumption:** no
-   in-app messaging in V1 — "contact owner" reveals a phone number, contact
-   happens outside the platform. Logged in ASSUMPTIONS.md.
+## 1. Missing / ambiguous requirements
 
-## Missing business requirements
+### 1.1 Match score — computation & authorization (blocks PRO-11/13)
+The ERD stores `MATCH_CONNECTION.match_score` ("Stored AI calculated score");
+SRS 3.2.2 says the system "calculates a Match Score between the request and the
+landlord's properties". Unspecified:
+- **Formula/scale** — 0–100? 0–1? The Full-Features UI shows «٨٥٪».
+- **Direction** — the same score is shown to tenants (ranked results) *and*
+  landlords (match notifications). Is it symmetric?
+- **Stability** — is a score reproducible for a (request, property) pair, or
+  does it drift as embeddings change? Determines cacheability.
+- **Authorization** — can a landlord see the score for a request they haven't
+  offered on? (It leaks how well their property fits.) Assumed yes.
+- **When persisted** — a `MATCH_CONNECTION` row only exists once a tenant shows
+  interest, but scores are shown *before* that. **Assumption:** ranked search
+  returns transient scores; only `INTERESTED`+ persists a row.
+**Frontend stance:** treat scores as server-authoritative and volatile — never
+recompute client-side, never cache beyond the query session.
 
-- **No ERD or backend OpenAPI spec exists yet.** Every DTO in
-  `src/lib/api/contracts` is inferred from the SRS's functional requirements
-  and the UI form-field list, not a real schema. High risk of rework once
-  the real ERD lands — kept intentionally minimal (auth only) for this
-  reason; see `data-model.md`.
-- **Quota reset window is unspecified.** SRS FR2.5 says "free quota (e.g., 3
-  queries)" and FR3.4 "usage limit (e.g., 2 free uses)" but never states
-  whether quotas are lifetime (never reset) or reset on a cadence
-  (monthly?). **Assumption:** lifetime, per-account counters that only
-  increase via Paymob top-up — matches "first listing free" being a
-  one-time event, not a recurring one. Flag for confirmation.
-- **Match score computation is unauthenticated as a concept.** FR2.4 says
-  "return a calculated Match Score percentage" but not the formula (vector
-  similarity distance transform? weighted blend of hard-constraint match +
-  RAG similarity?). This is entirely a backend/RAG concern, but the frontend
-  needs to know: is the score stable/reproducible for a given
-  tenant-property pair, or does it change between requests? This affects
-  whether match results can be cached client-side. **Assumption:** treat
-  score as volatile, always refetch, never cache beyond the query session.
-- **No password-reset flow is specified** anywhere (SRS, UI prompt). The
-  landing/login screen list mentions "forgot password" as a UI element only.
-  **Assumption:** stub the route, block on the real backend endpoint before
-  building the flow (Phase 3).
-- **Tenant "inquiry" vs "match" lifecycle is unclear.** The landlord
-  "Inquiries" screen (#22) lists "ID-verified interested tenants," but
-  there's no defined event for a tenant to express interest beyond viewing
-  match results — is inquiry = tenant explicitly clicking "تواصل مع
-  المالك," or the mere existence of a favorable match score? **Assumption:**
-  an inquiry is created only when the tenant explicitly requests contact,
-  which is also the PII-reveal trigger event requiring both-party
-  acceptance (see below).
+### 1.2 PII reveal gating (safety-critical)
+SRS 3.4: phone + exact address (`PROPERTY.manual_address`) stay masked "until
+an Offer is accepted **or** a Match Connection is established" — two different
+triggers. `PROPERTY.contact_revealed` is a **per-property boolean**, which
+cannot express "revealed to tenant X but not tenant Y".
+- **Conflict:** a per-property flag is wrong for a multi-tenant reveal; the
+  real gate should be per-`MATCH_CONNECTION` (status `CONNECTED`).
+- **Assumption:** the frontend never receives masked fields at all — the
+  backend omits `phone_number`/`manual_address` until the requesting tenant has
+  an accepted offer or a `CONNECTED` match. The UI shows a general area
+  (governorate/city/district) pre-reveal. **[CONFIRM]** with backend.
+- **Never** rely on client-side masking; never place PII in URLs, query
+  strings, logs, or analytics.
 
-## Ambiguous / conflicting behaviors requiring a decision
+### 1.3 Quota resets & the feature-flagged free launch
+`USER_QUOTA.last_reset_date` implies periodic reset but no window is defined.
+Prompt §5 also mandates a "Full-Free-Launch": quotas + paywalls implemented but
+**behind feature flags** so core flows run free at launch.
+- **Assumption:** quotas are lifetime until a Paymob top-up; `last_reset_date`
+  is reserved for a future periodic reset. **[CONFIRM]**
+- **Assumption:** one flag (e.g. `NEXT_PUBLIC_PAYWALLS_ENABLED`) gates paywall
+  modals; the quota **chip stays visible** regardless (transparency), and the
+  server remains the entitlement authority in both modes.
 
-- **PII reveal gate — "both parties accept" is undefined as a UI flow.**
-  Section 3A(E) says PII reveals only after both accept, but no screen shows
-  a landlord-side "accept this tenant" action. The Landlord Inquiries screen
-  (#22 UI prompt) just lists interested tenants; if the landlord can already
-  see the tenant's name/inquiry, is that the landlord's "acceptance," and
-  does the tenant have a symmetric accept step? **Assumption for V1:**
-  tenant requests contact (implicit "accept" #1) → landlord's Inquiries list
-  shows the request → landlord clicking through to view tenant details
-  in an "accept" action (implicit "accept" #2) → PII unlocks both ways only
-  at that point. Needs product confirmation; document any UI for this
-  explicitly as "pending confirmation" until answered.
-- **Who can see PII pre-match, for support/dispute purposes.** NFR3.2 says
-  "unless specifically requested by the matched contracting parties" — this
-  implies admins with a `pii:reveal` capability can also see PII for support
-  cases, which needs an audit trail. See `rbac.md`.
-- **Concurrency on listing approval.** Two admins reviewing the same pending
-  listing simultaneously could both call approve/reject. **Assumption:**
-  the backend must treat this as a compare-and-swap on `status = pending`
-  (409 on second writer); frontend must handle a 409 by refetching the
-  queue item and showing a toast ("تمت مراجعة هذا الطلب بالفعل"), not by
-  silently retrying.
-- **Paymob webhook reconciliation vs. client-side "success" state.** FR6.2/
-  6.3 describe the webhook as the source of truth for activating a
-  quota/listing, but the Payment Modal (§4.3) shows a client-side "success"
-  state immediately after the Paymob iframe reports success. There's a race:
-  the webhook may not have landed yet when the client shows "paid."
-  **Assumption:** the payment modal's "success" state means "payment
-  captured by Paymob," not "entitlement activated." The UI must poll (or
-  the BFF must poll) the entitlement endpoint for a few seconds after
-  showing "success," with a spinner-to-checkmark transition, and only route
-  the user onward (e.g., dashboard showing the new listing as pending) once
-  the entitlement actually reflects. Falling back to "we'll notify you
-  shortly" copy if it doesn't land within ~10s.
-- **Audit log immutability** is never mentioned in the SRS. Given RBAC
-  actions (admin create/disable, refunds, PII reveal, moderation) are
-  security-sensitive, **assumption:** audit log entries are backend-owned,
-  append-only, and the frontend never provides an edit/delete UI for them —
-  only filter/search/export (read-only Admin surface).
-- **eKYC data retention.** FR1.5 says images are deleted from S3 once
-  verification is logged, but doesn't say how long the *verification
-  result* (extracted name, ID number, confidence score) is retained, or
-  whether a user can request deletion (GDPR-style — likely N/A for Egypt,
-  but worth flagging). **Assumption:** retain indefinitely while the
-  account is active; deletion on account closure is a backend/legal concern
-  out of this frontend's scope, noted for the team.
+### 1.4 Progressive verification — exact gates
+SRS 3.1/3.4 + prompt §8.1: unverified users may browse/draft; verification is
+required before **publishing a listing**, **publishing a request**, **accepting
+an offer**, or **revealing contact**. Not stated: whether an unverified landlord
+may *send* an offer (assumed **no** — offers lead to contact reveal), or whether
+an unverified tenant may favorite/review (assumed favorite **yes**, review
+**no**, since reviews are public content).
 
-## Security concerns
+### 1.5 `TENANT_REQUEST` lifecycle
+`FULFILLED` and `CLOSED` exist in the enum but nothing sets them. **Assumption:**
+`FULFILLED` = tenant accepted an offer on it; `CLOSED` = tenant manually closed.
+**[CONFIRM]**
 
-- National ID must never appear unmasked in any client-side state, prop, or
-  URL before a legitimate reveal event — includes React DevTools/Redux
-  DevTools exposure risk from Zustand/TanStack Query caches. Any query that
-  fetches a matched counterparty's PII should be scoped narrowly (a
-  dedicated `/matches/:id/reveal` endpoint) rather than embedded in a
-  generic user/property payload, so caches can't leak it into unrelated
-  views.
-- Access/refresh tokens live only in httpOnly cookies (`src/lib/api/cookies.ts`)
-  — never in `localStorage`/Zustand, per NFR1.2. Quota counters shown to the
-  user MAY be mirrored client-side for UX (persisted via localStorage per
-  the design spec's §4.4), but must never be trusted as the entitlement
-  check — every quota-gated action re-verifies server-side and handles a
-  403 gracefully (already the pattern in FR2.5).
-- Paymob webhook validation (HMAC) is backend-only (NFR1.3) — no frontend
-  implication beyond not trusting a client-reported "payment succeeded"
-  state as authoritative (see reconciliation note above).
+### 1.6 `OWNER_OFFER.property_id` nullable ("quick-add")
+The ERD comment says nullable "if quick-add", but no doc describes a quick-add
+flow. **Assumption:** V1 always requires selecting an existing approved
+property; nullable is reserved. **[CONFIRM]**
 
-## Scalability / performance
+### 1.7 `OWNER_OFFER.status = VIEWED`
+No doc says who/when. **Assumption:** set server-side when the tenant opens the
+offer detail (not on list render), so it means "tenant actually saw it".
 
-- RAG search must return in <1.5s (NFR2.1) — the frontend should show the
-  match-results loading skeleton immediately and treat >1.5s as a slow-path
-  (no special UI needed yet, but avoid client-side timeouts shorter than
-  ~5s to give headroom).
-- Admin review queue is WebSocket-driven and must "feel live" — needs
-  reconnect/backoff handling and a polling fallback if the socket drops,
-  since the spec explicitly says "degrade gracefully to polling."
-- Large admin lists (properties, users, transactions) need server-side
-  pagination from day one — do not fetch-all-then-paginate client-side.
+---
 
-## RTL / formatting concerns
+## 2. Edge cases
 
-- All prices/areas/dates render with Western Arabic numerals (0–9), not
-  Eastern Arabic-Indic digits — this is a non-default `Intl.NumberFormat`
-  behavior for `ar` locales (which default to Eastern digits), so every
-  numeric display must explicitly pass `numberingSystem: "latn"` (e.g.
-  `new Intl.NumberFormat("ar-EG", { numberingSystem: "latn" })`) rather than
-  relying on the bare `ar-EG` locale default. Centralize this in a shared
-  `formatArabicNumber` / `formatEGP` util (Phase 3) so it's never
-  reimplemented per-component.
-- Directional icons (chevrons, back arrows) must be mirrored for RTL — track
-  this per-component when building the design-system primitives (Phase 3).
+- **Offer on a property that later gets `ARCHIVED`/`REJECTED`** — must the offer
+  auto-withdraw? **Assumption:** offers referencing a non-`APPROVED` property
+  are hidden from the tenant and non-acceptable; backend should enforce.
+- **Tenant accepts two offers on the same request** — does the first acceptance
+  close the request (`FULFILLED`) and reject the rest? **Assumption:** accepting
+  one → request `FULFILLED`, sibling offers remain `SENT` but non-acceptable.
+  **[CONFIRM]** — real money/quota implications for landlords.
+- **Concurrent admin moderation** — two admins approving the same property/eKYC/
+  request/review. Backend must compare-and-swap on `PENDING`; frontend handles
+  **409** by refetching the queue + toast, never silent retry.
+- **eKYC rejected → resubmit** — ERD has no cooldown and no attempt counter.
+  Unbounded resubmission is a spam vector. **[CONFIRM]** (see conflicts B3/D3.)
+- **Landlord deletes a property with live offers/connections** — ERD has
+  `ARCHIVED` rather than delete; assume soft-archive only, never hard delete.
+- **Quota exhausted mid-flow** (e.g. offer form open, `free_offers_left` hits 0
+  in another tab) — server rejects with 403; UI must surface the paywall rather
+  than a generic error.
+- **Review on a property the tenant never connected with** — should reviews
+  require a `MATCH_CONNECTION`? ERD doesn't enforce it. **Assumption:** V1
+  allows any tenant to review; admin moderation is the spam control.
+  **[CONFIRM]** — this is a credibility risk.
+- **Paymob success but webhook delayed** — the client "success" state means
+  *payment captured*, not *quota credited*. Poll the quota after success; fall
+  back to "we'll update shortly".
+
+---
+
+## 3. Security
+
+- **ID documents.** `national_id_front_url`/`back`/`selfie` are the most
+  sensitive data in the system. Frontend obligations: never send images to any
+  AI/LLM (prompt §6); never place signed URLs in logs/analytics; render only for
+  admins with `kyc:review`; mask `national_id` to last 4 everywhere except the
+  admin review screen and the generated contract. **Backend must log every
+  access to an ID document** (who/when/why) — request an audit endpoint.
+- **Prompt injection / PII redaction** (SRS §4) are backend duties, but the
+  frontend must not echo unsanitised model output as HTML (render as text) and
+  must not send PII into the chatbot context.
+- **Tokens** in httpOnly cookies only; the BFF proxies and attaches them.
+  `proxy.ts` (route gate) is UX, **not** the security boundary — NestJS
+  `@Roles()` is final.
+- **Paymob webhook** — HMAC validation + **idempotency** are backend-side
+  (duplicate webhook deliveries must not double-credit quota). Frontend must
+  never treat a client-reported payment result as authoritative.
+- **Data masking** — see 1.2; enforce server-side omission, not CSS/UI hiding.
+- **Reverse-marketplace PII** — approved `TENANT_REQUEST`s are published to
+  *all* verified landlords. Tenant identity must be hidden (no name/phone) until
+  the tenant accepts an offer. The request's free-text
+  `lifestyle_requirements` may leak PII the tenant typed — consider a backend
+  redaction pass. **[CONFIRM]**
+
+---
+
+## 4. Scalability & performance
+
+- **ChromaDB ↔ Postgres consistency (PRO-09).** Embeddings are written on admin
+  property approval. Failure modes: approval commits but embedding fails →
+  property is `APPROVED` yet invisible to semantic search; property later
+  `ARCHIVED`/edited → stale vector. Needs an outbox/retry + delete-on-archive.
+  Postgres stays source of truth; Chroma is an assist layer. Frontend impact:
+  a just-approved property may briefly miss from AI results — don't present
+  semantic results as exhaustive.
+- **Admin queue backpressure (PRO-06).** Socket.io pushes every new eKYC/
+  property/request/review. At volume this floods the dashboard. Mitigations:
+  server-side pagination, virtualized tables, coalesce bursts (batch/debounce
+  incoming events), cap in-memory queue length and refetch instead of appending
+  unboundedly, and reconnect with backoff + polling fallback.
+- **Hybrid search (PRO-11).** SQL hard-filters first, then semantic over the
+  subset (cost control). Frontend: server-side pagination, skeletons, and no
+  client-side re-ranking.
+- **Rendering.** RSC where sensible, code-split, TanStack Query cache + dedup,
+  `next/image`, virtualized admin tables.
+
+---
+
+## 5. RTL / formatting
+
+- Prices/areas/dates use **Western numerals (0–9)** — `ar-EG` `Intl` defaults to
+  Eastern Arabic-Indic, so every formatter must pin
+  `numberingSystem: "latn"` (centralised in `src/utils/format.ts`).
+- Prices suffixed `ج.م`. `area_m2` → «م²». Directional icons mirrored for RTL.
+- **Known trap:** custom `text-*` size tokens must be registered with
+  tailwind-merge or they strip `text-white` (see `src/utils/cn.ts`).
+
+---
+
+## 6. Data-model implications for the frontend
+
+- Mirror the ERD **exactly** in `src/lib/api/contracts` (Zod + TS). No invented
+  fields, no tables for out-of-scope features.
+- `PROPERTY_IMAGE` is a separate entity with `display_order` + `is_cover` — the
+  UI must sort by `display_order` and pick the cover, not assume `photos[0]`.
+- `USER_QUOTA` is **landlord-only** (1:1) — tenants have no quota row; the UI
+  must tolerate its absence.
+- `IDENTITY_VERIFICATION` is 1:1 and **may not exist** → that absence *is*
+  `NOT_SUBMITTED`.
+- `NOTIFICATION.type` is a fixed enum — the bell must switch on it, not on
+  free-text.

@@ -1,6 +1,7 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { UserSchema, type User } from "./contracts/auth";
+import { UserSchema, type AccountRole, type User } from "./contracts/auth";
+import { landingAfterLogin } from "@/src/features/auth/roleRouting";
 
 /**
  * Server-side session read for Server Components / layouts. Goes through our
@@ -38,5 +39,20 @@ export async function getServerSession(): Promise<User | null> {
 export async function requireSession(redirectTo: string): Promise<User> {
   const user = await getServerSession();
   if (!user) redirect(`/login?redirectTo=${encodeURIComponent(redirectTo)}`);
+  return user;
+}
+
+/**
+ * Requires a session **of a specific role**, sending anyone else to their own
+ * landing page.
+ *
+ * Without this, a signed-in user of the wrong role renders the surface fine
+ * and then every API call 403s — the screen fills with retry-able "something
+ * went wrong" errors that can never succeed. This is UX routing only: the
+ * backend's role guard is still the authority (docs/analysis/rbac.md).
+ */
+export async function requireRole(role: AccountRole, redirectTo: string): Promise<User> {
+  const user = await requireSession(redirectTo);
+  if (user.role !== role) redirect(landingAfterLogin(user.role));
   return user;
 }

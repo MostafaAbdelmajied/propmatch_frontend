@@ -1,8 +1,16 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, isApiClientError } from "@/src/lib/api/browserClient";
-import type { AdminQueuesResponse, AdminStats, KycReviewDetail, ReviewDecision } from "@/src/lib/api/contracts/admin";
+import type {
+  AdminPropertyReviewDetail,
+  AdminQueuesResponse,
+  AdminReviewDetail,
+  AdminStats,
+  AdminTenantRequestDetail,
+  KycReviewDetail,
+  ReviewDecision,
+} from "@/src/lib/api/contracts/admin";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 export function useAdminStats() {
   return useQuery({
@@ -12,15 +20,14 @@ export function useAdminStats() {
 }
 
 /**
- * Live queue via polling (design spec: WebSocket, degrade to polling — we ship
- * polling first per docs/analysis/mvp.md). refetchInterval gives the
- * auto-updating "feels live" behavior; the mock injects new items over time.
+ * Live queue (PRO-06). Driven 100% by WebSockets (Socket.IO).
+ * New items arrive over `SOCKET_EVENTS.adminQueueItem` and are pushed directly
+ * into the query cache by `useRealtime`.
  */
 export function useAdminQueues() {
   return useQuery({
     queryKey: ["admin", "queues"],
     queryFn: () => api.get<AdminQueuesResponse>("admin/queues"),
-    refetchInterval: 3000,
   });
 }
 
@@ -28,6 +35,17 @@ export function useKycReview(userId: string) {
   return useQuery({
     queryKey: ["admin", "kyc", userId],
     queryFn: () => api.get<KycReviewDetail>(`admin/kyc/${userId}`),
+    staleTime: 0,
+    refetchOnMount: "always",
+  });
+}
+
+export function useAdminPropertyReview(propertyId: string) {
+  return useQuery({
+    queryKey: ["admin", "property", propertyId],
+    queryFn: () => api.get<AdminPropertyReviewDetail>(`admin/properties/${propertyId}`),
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 }
 
@@ -58,6 +76,56 @@ export function useReviewKyc(userId: string) {
     mutationFn: async ({ decision }) => {
       try {
         return await api.post<{ ok: boolean }>(`admin/kyc/${userId}/review`, decision);
+      } catch (e) {
+        throw {
+          conflict: isApiClientError(e) && e.statusCode === 409,
+          message: isApiClientError(e) ? e.message : "تعذر تنفيذ الإجراء",
+        };
+      }
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["admin", "queues"] }),
+  });
+}
+
+/* ---------------- tenant requests + reviews (PRO-08 remainder) ------------- */
+
+export function useAdminTenantRequest(id: string) {
+  return useQuery({
+    queryKey: ["admin", "request", id],
+    queryFn: () => api.get<AdminTenantRequestDetail>(`admin/requests/${id}`),
+  });
+}
+
+export function useReviewTenantRequest(id: string) {
+  const qc = useQueryClient();
+  return useMutation<{ status: string }, { conflict: boolean; message: string }, ReviewVars>({
+    mutationFn: async ({ decision }) => {
+      try {
+        return await api.post<{ status: string }>(`admin/requests/${id}/review`, decision);
+      } catch (e) {
+        throw {
+          conflict: isApiClientError(e) && e.statusCode === 409,
+          message: isApiClientError(e) ? e.message : "تعذر تنفيذ الإجراء",
+        };
+      }
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["admin", "queues"] }),
+  });
+}
+
+export function useAdminReview(id: string) {
+  return useQuery({
+    queryKey: ["admin", "review", id],
+    queryFn: () => api.get<AdminReviewDetail>(`admin/reviews/${id}`),
+  });
+}
+
+export function useModerateReview(id: string) {
+  const qc = useQueryClient();
+  return useMutation<{ status: string }, { conflict: boolean; message: string }, ReviewVars>({
+    mutationFn: async ({ decision }) => {
+      try {
+        return await api.post<{ status: string }>(`admin/reviews/${id}/review`, decision);
       } catch (e) {
         throw {
           conflict: isApiClientError(e) && e.statusCode === 409,

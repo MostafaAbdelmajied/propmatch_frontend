@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-/** Legal chatbot messages (SRS FR4) — session-scoped, purged after session. */
+/**
+ * Legal Support Chatbot (PRO-17 / SRS 3.3). RAG over Egyptian tenancy law +
+ * platform T&Cs, with a strict on-topic guardrail. Session-scoped.
+ */
 
 export const ChatRoleSchema = z.enum(["user", "assistant"]);
 export type ChatRole = z.infer<typeof ChatRoleSchema>;
@@ -9,27 +12,38 @@ export const ChatMessageSchema = z.object({
   id: z.string(),
   role: ChatRoleSchema,
   content: z.string(),
-  /** True when the assistant declined an off-topic question (FR4.4). */
+  /** True when the assistant declined an off-topic question (SRS 3.3). */
   declined: z.boolean().optional(),
+  /** Legal chat: an image/voice note the user attached to this turn. */
+  attachmentUrl: z.string().nullable().optional(),
+  attachmentType: z.enum(["IMAGE", "VIDEO", "AUDIO"]).nullable().optional(),
+  attachmentName: z.string().nullable().optional(),
+  suggestedGuide: z.array(z.string()).optional(),
 });
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
+
 
 export const ChatRequestSchema = z.object({
   message: z.string().min(1).max(2000),
 });
 export type ChatRequest = z.infer<typeof ChatRequestSchema>;
 
-/* ---------------------------------------------------------------------------
- * Customer support (Module C). AI-first: the AI assistant answers platform
- * questions; when the user requests a human, the thread escalates into a
- * ticket that a support admin joins. Ticket lifecycle per the master brief:
- * new → assigned → in_progress → waiting → closed.
- * ------------------------------------------------------------------------- */
+/* ----------------------------- support tickets ---------------------------- */
+/* Aligned directly with backend Prisma schema (`SupportTicket` & `SupportMessage`) */
 
-export const TicketStatusSchema = z.enum(["new", "assigned", "in_progress", "waiting", "closed"]);
+/** Lifecycle: NEW → ASSIGNED → IN_PROGRESS → WAITING → CLOSED (supports upper & lower). */
+export const TicketStatusSchema = z.enum([
+  "NEW", "ASSIGNED", "IN_PROGRESS", "WAITING", "CLOSED",
+  "new", "assigned", "in_progress", "waiting", "closed",
+]);
 export type TicketStatus = z.infer<typeof TicketStatusSchema>;
 
-export const ticketStatusLabels: Record<TicketStatus, string> = {
+export const ticketStatusLabels: Record<string, string> = {
+  NEW: "جديد",
+  ASSIGNED: "معيّن",
+  IN_PROGRESS: "قيد المعالجة",
+  WAITING: "بانتظار العميل",
+  CLOSED: "مغلق",
   new: "جديد",
   assigned: "معيّن",
   in_progress: "قيد المعالجة",
@@ -37,41 +51,57 @@ export const ticketStatusLabels: Record<TicketStatus, string> = {
   closed: "مغلق",
 };
 
-/** Who authored a support message. AI + user are public; admin notes may be internal. */
-export const SupportAuthorSchema = z.enum(["ai", "user", "admin"]);
+/** Support Priority: LOW, NORMAL, HIGH, URGENT, CRITICAL (supports upper & lower). */
+export const SupportPrioritySchema = z.enum([
+  "LOW", "NORMAL", "HIGH", "URGENT", "CRITICAL",
+  "low", "normal", "high", "urgent", "critical",
+]);
+export type SupportPriority = z.infer<typeof SupportPrioritySchema>;
+
+export const priorityLabels: Record<string, string> = {
+  LOW: "منخفضة",
+  NORMAL: "عادية",
+  HIGH: "مرتفعة",
+  URGENT: "عاجلة",
+  CRITICAL: "حرجة جداً",
+  low: "منخفضة",
+  normal: "عادية",
+  high: "مرتفعة",
+  urgent: "عاجلة",
+  critical: "حرجة جداً",
+};
+
+/** Who authored a message: AI, USER, ADMIN (supports upper & lower). */
+export const SupportAuthorSchema = z.enum([
+  "AI", "USER", "ADMIN",
+  "ai", "user", "admin",
+]);
 export type SupportAuthor = z.infer<typeof SupportAuthorSchema>;
 
 export const SupportMessageSchema = z.object({
   id: z.string(),
-  author: SupportAuthorSchema,
+  authorType: SupportAuthorSchema.optional(),
+  author: SupportAuthorSchema.optional(),
   authorName: z.string(),
   content: z.string(),
-  /** Admin-only note, never returned to the customer. */
-  internal: z.boolean(),
-  at: z.string(),
+  internal: z.boolean().default(false),
+  attachmentUrl: z.string().nullable().optional(),
+  attachmentType: z.enum(["IMAGE", "VIDEO", "AUDIO"]).nullable().optional(),
+  attachmentName: z.string().nullable().optional(),
+  attachmentDurationMs: z.number().nullable().optional(),
+  createdAt: z.string().optional(),
+  at: z.string().optional(),
 });
 export type SupportMessage = z.infer<typeof SupportMessageSchema>;
 
-/** Customer-facing view of their own support conversation. */
-export const SupportThreadSchema = z.object({
-  ticketId: z.string().nullable(),
-  status: TicketStatusSchema.nullable(),
-  /** True once a human agent has been requested/assigned. */
-  escalated: z.boolean(),
-  messages: z.array(SupportMessageSchema),
-});
-export type SupportThread = z.infer<typeof SupportThreadSchema>;
-
-export const SupportSendRequestSchema = z.object({ message: z.string().min(1).max(2000) });
-export type SupportSendRequest = z.infer<typeof SupportSendRequestSchema>;
-
-/** Admin queue item + detail. */
 export const TicketSummarySchema = z.object({
   id: z.string(),
-  subject: z.string(),
-  userName: z.string(),
+  subject: z.string().optional().default("تذكرة دعم فني"),
+  userName: z.string().optional(),
   status: TicketStatusSchema,
-  assignedAdminName: z.string().nullable(),
+  assignedAdminName: z.string().nullable().optional(),
+  priority: SupportPrioritySchema.optional(),
+  escalationReason: z.string().nullable().optional(),
   lastMessageAt: z.string(),
   createdAt: z.string(),
 });
@@ -79,7 +109,8 @@ export type TicketSummary = z.infer<typeof TicketSummarySchema>;
 
 export const TicketDetailSchema = TicketSummarySchema.extend({
   userId: z.string(),
-  assignedAdminId: z.string().nullable(),
+  assignedAdminId: z.string().nullable().optional(),
+  aiSummary: z.string().nullable().optional(),
   messages: z.array(SupportMessageSchema),
 });
 export type TicketDetail = z.infer<typeof TicketDetailSchema>;

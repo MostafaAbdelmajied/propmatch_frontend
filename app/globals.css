@@ -31,6 +31,14 @@
   --color-background: #f7fafb;
   --color-surface: #ffffff;
 
+  /* Landing experience */
+  --color-hero-ink: #0e464d;
+  --color-landing-mid: #145a63;
+  --color-landing-teal: #0c6776;
+  --color-landing-muted: #6c949b;
+  --color-mist: #bedde3;
+  --color-landing-canvas: #ffffff;
+
   /* Radius */
   --radius-card: 16px;
   --radius-control: 12px;
@@ -63,6 +71,12 @@
   --color-background: var(--color-background);
   --color-surface: var(--color-surface);
   --color-scrim: var(--color-scrim);
+  --color-hero-ink: var(--color-hero-ink);
+  --color-landing-mid: var(--color-landing-mid);
+  --color-landing-teal: var(--color-landing-teal);
+  --color-landing-muted: var(--color-landing-muted);
+  --color-mist: var(--color-mist);
+  --color-landing-canvas: var(--color-landing-canvas);
 
   --radius-card: var(--radius-card);
   --radius-control: var(--radius-control);
@@ -71,7 +85,7 @@
   --shadow-card: var(--shadow-card);
   --shadow-sheet: var(--shadow-sheet);
 
-  --font-sans: var(--font-cairo);
+  --font-sans: "Cairo", system-ui, -apple-system, sans-serif;
 
   /* Type scale — Cairo, right-aligned by default (see app/layout.tsx dir="rtl") */
   --text-display: 2rem;
@@ -138,5 +152,59 @@ body {
     transform: translateY(0);
     opacity: 1;
     background-color: var(--color-surface);
+  }
+}
+
+@keyframes landing-rise {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes landing-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-1deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(1deg);
+  }
+}
+
+.landing-rise {
+  animation: landing-rise 700ms ease-out both;
+}
+
+.landing-rise-delayed {
+  animation: landing-rise 700ms 120ms ease-out both;
+}
+
+.landing-float {
+  animation: landing-float 5s ease-in-out infinite;
+}
+
+.landing-float-delayed {
+  animation: landing-float 5.5s 700ms ease-in-out infinite;
+}
+
+.landing-grid {
+  background-image:
+    linear-gradient(rgba(14, 70, 77, 0.35) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(14, 70, 77, 0.35) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: linear-gradient(to bottom, black, transparent 90%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-rise,
+  .landing-rise-delayed,
+  .landing-float,
+  .landing-float-delayed {
+    animation: none;
   }
 }

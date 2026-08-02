@@ -1,50 +1,89 @@
 import { z } from "zod";
 
-/**
- * Paymob payment DTOs (SRS FR6). The client never talks to Paymob directly —
- * it asks the backend for a checkout session, then polls the entitlement
- * after the client-side success signal (see ASSUMPTIONS.md #8, webhook race).
- */
+/** Products that can be purchased under the revised, broker-free plan. */
+export const PaymentTypeSchema = z.enum([
+  "PREMIUM_OWNER",
+  "OWNER_PLUS",
+  "SINGLE_LISTING",
+  "SINGLE_OFFER",
+  "BOOST_LISTING",
+  "AI_ADDON",
+]);
+export type PaymentType = z.infer<typeof PaymentTypeSchema>;
 
-export const PaymentContextSchema = z.enum(["listing", "boost", "matchmaker-refill"]);
-export type PaymentContext = z.infer<typeof PaymentContextSchema>;
-
-export const paymentContextLabels: Record<PaymentContext, string> = {
-  listing: "رسوم إضافة إعلان",
-  boost: "تمييز الإعلان",
-  "matchmaker-refill": "محاولات مطابقة إضافية",
+export const paymentTypeLabels: Record<PaymentType, string> = {
+  PREMIUM_OWNER: "اشتراك المالك المميز",
+  OWNER_PLUS: "اشتراك المالك Plus",
+  SINGLE_LISTING: "إضافة عقار منفرد",
+  SINGLE_OFFER: "إرسال عرض منفرد",
+  BOOST_LISTING: "تمييز إعلان عقاري",
+  AI_ADDON: "حزمة الذكاء الاصطناعي",
 };
 
+export const paymentTypePrices: Record<PaymentType, number> = {
+  PREMIUM_OWNER: 999,
+  OWNER_PLUS: 499,
+  SINGLE_LISTING: 149,
+  SINGLE_OFFER: 99,
+  BOOST_LISTING: 349,
+  AI_ADDON: 199,
+};
+
+export const PaymentStatusSchema = z.enum(["PENDING", "SUCCESS", "FAILED"]);
+export type PaymentStatus = z.infer<typeof PaymentStatusSchema>;
+
 export const CreateCheckoutRequestSchema = z.object({
-  context: PaymentContextSchema,
-  /** For listing/boost contexts: which property this payment activates. */
-  propertyId: z.string().optional(),
+  paymentType: PaymentTypeSchema,
+  /** Required for BOOST_LISTING; the backend verifies ownership and approval. */
+  propertyId: z.string().uuid().optional(),
+  method: z.enum(["CARD", "WALLET"]).optional(),
 });
 export type CreateCheckoutRequest = z.infer<typeof CreateCheckoutRequestSchema>;
 
 export const CheckoutSessionSchema = z.object({
-  checkoutId: z.string(),
-  amountEgp: z.number(),
-  context: PaymentContextSchema,
+  providerOrderId: z.string(),
+  amount: z.number(),
+  currency: z.literal("EGP"),
+  paymentType: PaymentTypeSchema,
+  checkoutUrl: z.string().nullable(),
 });
 export type CheckoutSession = z.infer<typeof CheckoutSessionSchema>;
 
-export const PaymentStatusSchema = z.enum(["pending", "success", "failed"]);
-export type PaymentStatus = z.infer<typeof PaymentStatusSchema>;
+const HistoricalPaymentTypeSchema = z.union([
+  PaymentTypeSchema,
+  z.enum([
+    "DOCS_PACK",
+    "LEGACY_OWNER_PLUS",
+    "LEGACY_NEW_LISTING",
+    "LEGACY_BOOST_LISTING",
+    "LEGACY_REFILL_MATCHES",
+    "LEGACY_OFFER_PACK",
+  ]),
+]);
 
-export const PaymentResultSchema = z.object({
-  checkoutId: z.string(),
-  status: PaymentStatusSchema,
-  /** True once the webhook landed and the entitlement is actually active. */
-  entitlementActive: z.boolean(),
-});
-export type PaymentResult = z.infer<typeof PaymentResultSchema>;
-
-export const TransactionSchema = z.object({
+export const PaymentTransactionSchema = z.object({
   id: z.string(),
-  context: PaymentContextSchema,
-  amountEgp: z.number(),
+  providerOrderId: z.string(),
+  providerTransactionId: z.string().nullable(),
+  amount: z.number(),
+  currency: z.literal("EGP"),
+  paymentType: HistoricalPaymentTypeSchema,
   status: PaymentStatusSchema,
+  paidAt: z.string().nullable(),
   createdAt: z.string(),
 });
-export type Transaction = z.infer<typeof TransactionSchema>;
+export type PaymentTransaction = z.infer<typeof PaymentTransactionSchema>;
+
+/** Server-authoritative owner plan and usage snapshot. */
+export const UserQuotaSchema = z.object({
+  planType: z.enum(["FREE", "OWNER_PLUS", "PREMIUM"]),
+  planExpiresAt: z.string().nullable(),
+  maxActiveListings: z.number().int().positive(),
+  activeUnitCount: z.number().int().nonnegative(),
+  offersUnlimited: z.boolean(),
+  freeListingsLeft: z.number().int(),
+  optimizerUsesLeft: z.number().int().nonnegative(),
+  freeOffersLeft: z.number().int().nonnegative(),
+  lastResetDate: z.string().nullable(),
+});
+export type UserQuota = z.infer<typeof UserQuotaSchema>;

@@ -1,9 +1,9 @@
-import { redirect } from "next/navigation";
-import { LayoutDashboard, LogOut } from "lucide-react";
-import Link from "next/link";
-import { requireSession } from "@/src/lib/api/serverSession";
-import { NotificationBell } from "@/src/components/nav/RoleNav";
+import { AdminLogoutButton } from "@/src/components/nav/AdminLogoutButton";
 import { AdminNavLinks } from "@/src/components/nav/AdminNavLinks";
+import { NotificationBell } from "@/src/components/nav/RoleNav";
+import { Logo } from "@/src/components/ui/Logo";
+import { requireSession } from "@/src/lib/api/serverSession";
+import { redirect } from "next/navigation";
 
 /**
  * Admin surface is desktop-first (data-dense). Only role === "admin" may
@@ -18,9 +18,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     <div className="flex min-h-dvh flex-col">
       <header className="sticky top-0 z-30 border-b border-hairline bg-surface">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-2">
-            <LayoutDashboard className="size-5 text-primary" aria-hidden />
-            <span className="text-h2 font-bold text-primary">PropMatch AI</span>
+          <div className="flex items-center gap-3">
+            <Logo href="/admin" />
             <span className="rounded-pill bg-primary-tint px-2 py-0.5 text-caption font-bold text-primary">
               لوحة المشرف
             </span>
@@ -29,9 +28,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <div className="flex items-center gap-3">
             <NotificationBell />
             <span className="text-small font-semibold text-body-text">{user.fullName}</span>
-            <Link href="/" className="text-muted hover:text-ink" aria-label="خروج">
-              <LogOut className="size-5" aria-hidden />
-            </Link>
+            <AdminLogoutButton />
           </div>
         </div>
       </header>

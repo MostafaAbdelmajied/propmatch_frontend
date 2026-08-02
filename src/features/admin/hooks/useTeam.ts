@@ -22,7 +22,7 @@ export function useTeam() {
 export function useCreateAdmin() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: CreateAdminRequest) => api.post<AdminTeamMember>("admin/team", body),
+    mutationFn: (body: CreateAdminRequest) => api.post<AdminTeamMember>("admin/register", body),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "team"] }),
   });
 }

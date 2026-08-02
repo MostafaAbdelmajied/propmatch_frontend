@@ -9,9 +9,10 @@ import { dispatch } from "./router";
  */
 async function resolve({ request }: { request: Request }) {
   const url = new URL(request.url);
-  const body =
-    request.method === "GET" || request.method === "HEAD"
-      ? undefined
+  const body = request.method === "GET" || request.method === "HEAD"
+    ? undefined
+    : request.headers.get("content-type")?.startsWith("multipart/form-data")
+      ? await request.formData()
       : await request.json().catch(() => undefined);
   const result = dispatch(
     request.method,

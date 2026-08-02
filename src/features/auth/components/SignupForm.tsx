@@ -28,7 +28,8 @@ export function SignupForm() {
   async function onSubmit(values: SignupFormValues) {
     try {
       const res = (await registerUser.mutateAsync(values)) as AuthResponse;
-      router.push(landingAfterLogin(res.user.role));
+      const target = landingAfterLogin(res.user.role);
+      window.location.replace(target);
     } catch (e) {
       const message = isApiClientError(e) ? e.message : "تعذر إنشاء الحساب، حاول مرة أخرى";
       setError("root", { message });
@@ -51,8 +52,8 @@ export function SignupForm() {
         type="tel"
         inputMode="numeric"
         placeholder="01xxxxxxxxx"
-        error={errors.phone?.message}
-        {...register("phone")}
+        error={errors.phoneNumber?.message}
+        {...register("phoneNumber")}
       />
       <InputField
         label="كلمة المرور"

@@ -1,79 +1,117 @@
-# RBAC design
+# RBAC — capability-based (V1: TENANT · LANDLORD · ADMIN)
 
-Capability-based, not role-name-based — UI and route guards check
-capabilities (`src/lib/api/contracts/common.ts`'s `CapabilitySchema`), never
-`if (role === "SuperAdmin")`. Roles are just named bundles of capabilities,
-assigned server-side; the frontend never hardcodes which capabilities a role
-has beyond what the backend returns on the session/user payload.
+**Roles say who you are; capabilities say what you may do; eKYC + moderation
+state say whether you may do it _yet_.** Never hardcode a role name in UI or
+logic — check a capability. This is what lets `BROKER` be added later without
+rework (build-prompt §1.2/§10).
 
-## Starting role set (confirm against ERD when it lands)
+The NestJS backend's `@Roles()` guards are the **final authority**. Everything
+here is defence-in-depth + UX.
 
-- **Super Admin** — every capability, including `admin:create`/`admin:manage`.
-- **Property/Listings Manager** — `listing:approve`, `listing:reject`.
-- **Verification (eKYC) Reviewer** — `kyc:review`.
-- **Finance Admin** — `payment:refund`, `report:export`.
-- **Reviews Manager** — `review:delete`.
-- **Customer Support** — `ticket:reply`, and `pii:reveal` scoped to an
-  active ticket (see enforcement note below).
-- **Read-only Viewer** — no mutating capabilities; dashboards/reports only.
+## Roles
 
-## Capability matrix
+| Role       | Source            | Notes                                                                                                                                  |
+| ---------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `TENANT`   | `USER.role` (ERD) | Free. Browses, posts requests, favorites, reviews, accepts offers.                                                                     |
+| `LANDLORD` | `USER.role` (ERD) | Revenue source. Listings, offers, boosts, packs. Has `USER_QUOTA`.                                                                     |
+| `ADMIN`    | `USER.role` (ERD) | Moderates eKYC / properties / requests / reviews; views payment + partner-lead records.                                                |
+| `BROKER`   | **Later**         | Reserved. Would receive a capability subset (likely `listing:create`, `offer:send` on behalf of owners). Do not add to the enum in V1. |
 
-| Capability | Super Admin | Listings Mgr | eKYC Reviewer | Finance Admin | Reviews Mgr | Support | Viewer |
-|---|---|---|---|---|---|---|---|
-| `listing:approve` / `listing:reject` | ✅ | ✅ | — | — | — | — | — |
-| `kyc:review` | ✅ | — | ✅ | — | — | — | — |
-| `payment:refund` | ✅ | — | — | ✅ | — | — | — |
-| `report:export` | ✅ | — | — | ✅ | — | — | — |
-| `review:delete` | ✅ | — | — | — | ✅ | — | — |
-| `ticket:reply` | ✅ | — | — | — | — | ✅ | — |
-| `pii:reveal` | ✅ | — | — | — | — | ✅ (scoped, audited) | — |
-| `admin:create` / `admin:manage` | ✅ | — | — | — | — | — | — |
+## Capabilities
 
-`pii:reveal` for Support is intentionally the one capability granted outside
-Super Admin without a dedicated "owns this domain" rationale — flagged in
-`requirements.md` as a security-sensitive default that should be confirmed,
-not assumed permanent. Every use must write an AuditLog entry with a reason
-string (dispute/support case reference), not just the actor and timestamp.
+```
+listing:create      listing:archive     listing:boost
+request:create      request:close
+offer:send          offer:accept        offer:reject
+review:create
+favorite:manage
+contract:generate
+pii:reveal          # see the gate below — not an admin power in V1
+property:approve    property:reject
+kyc:review
+request:approve     request:reject
+review:moderate
+payment:view
+partner_lead:view
+```
 
-## Enforcement layers (all three required, per the master prompt)
+## Matrix
 
-1. **`middleware.ts`** — coarse route-prefix gate (`/admin/*`, `/landlord/*`,
-   `/profile/*`) checking token *presence + expiry* only (Edge runtime can't
-   verify the backend's JWT signature). Redirects to `/login` on failure.
-   This is a UX optimization, not a security boundary.
-2. **Server-side (Route Handlers / Server Components / Server Actions)** —
-   every mutation calls the backend with the user's access token; the
-   backend's 401/403 is authoritative. The frontend must never assume a
-   capability locally without the backend confirming it on the actual
-   mutating call.
-3. **UI** — hide/disable controls the current user's capability set doesn't
-   include, so users aren't shown affordances that will 403. This is
-   convenience, not enforcement — capabilities arriving on the session
-   payload must be treated as a hint, re-verified server-side per (2).
+| Capability                                                                        | TENANT                                 | LANDLORD                                              | ADMIN                 |
+| --------------------------------------------------------------------------------- | -------------------------------------- | ----------------------------------------------------- | --------------------- |
+| `listing:create` / `listing:archive` / `listing:boost`                            | —                                      | ✅ (eKYC `APPROVED`)                                  | —                     |
+| `request:create` / `request:close`                                                | ✅ (eKYC `APPROVED` to publish)        | —                                                     | —                     |
+| `offer:send`                                                                      | —                                      | ✅ (eKYC `APPROVED` + `free_offers_left` > 0 or paid) | —                     |
+| `offer:accept` / `offer:reject`                                                   | ✅ (eKYC `APPROVED` to accept)         | —                                                     | —                     |
+| `review:create`                                                                   | ✅ (eKYC `APPROVED`)                   | —                                                     | —                     |
+| `favorite:manage`                                                                 | ✅                                     | —                                                     | —                     |
+| `contract:generate`                                                               | ✅                                     | ✅                                                    | —                     |
+| `pii:reveal`                                                                      | ⛔ _not a role capability_ — see below | ⛔                                                    | ⛔                    |
+| `property:approve` / `property:reject`                                            | —                                      | —                                                     | ✅                    |
+| `kyc:review`                                                                      | —                                      | —                                                     | ✅                    |
+| `request:approve` / `request:reject`                                              | —                                      | —                                                     | ✅                    |
+| `review:moderate`                                                                 | —                                      | —                                                     | ✅                    |
+| `payment:view` / `partner_lead:view`                                              | —                                      | —                                                     | ✅                    |
+| `report:export` · `ticket:reply` · `audit:view` · `admin:create` · `admin:manage` | —                                      | —                                                     | ✅ (super-admin only) |
 
-## PII reveal — special case
+**ADMIN is no longer flat.** The 7 sub-roles (super-admin / listings-manager /
+kyc-reviewer / finance-admin / reviews-manager / customer-support / read-only)
+were restored on the owner's instruction — `conflicts.md` B2-R. `ADMIN` is now
+a _bundle selector_: `ROLE_CAPABILITIES` in `contracts/admin.ts` is the single
+source of truth mapping each sub-role to its capabilities, and every admin
+endpoint checks a **capability**, never `role === "admin"`.
 
-`pii:reveal` gates two distinct things that must not be conflated:
+Caveat: the ERD still has no admin-role table, so `USER.admin_role` and the
+whole team/audit/ticket surface are frontend-invented (`ASSUMPTIONS.md` #26).
 
-- **Match-based reveal** (tenant ⇄ landlord, post-mutual-acceptance) is not
-  an admin capability at all — it's a state transition on the Match entity
-  itself, checked per-match, not via the admin capability matrix above.
-- **Support-based reveal** (an admin looking up a user's PII to resolve a
-  ticket/dispute) *is* the `pii:reveal` capability above, and is the only
-  path where an admin capability directly exposes tenant/landlord PII
-  outside the parties' own consent. Requires a reason string, is always
-  audited, and should be rate-limited/flagged for review (backend concern,
-  noted here so the frontend's reveal UI always collects and submits the
-  reason).
+Two rules this must keep:
 
-## Open questions for the team
+- **An admin cannot edit their own privileges** — otherwise a super-admin can
+  demote themselves and strand the team with no one holding `admin:manage`.
+- **`pii:reveal` is not a capability and must never become one.** See below.
 
-- Does the real backend model roles as a fixed enum or a dynamic
-  role→capability table (admin-configurable)? Assumption above is a fixed
-  starting set; if dynamic, `admin:manage` should include role/capability
-  editing UI (not currently scoped in V1, see `mvp.md`).
-- Should `Read-only Viewer` be a distinct role, or just "any role with all
-  mutating capabilities stripped"? Assumption: distinct role, since it's the
-  simplest mental model for admins/investors who need visibility without
-  edit rights.
+## The PII-reveal gate (safety-critical — not a role check)
+
+Phone + `manual_address` are **never** unlocked by a role. They unlock on a
+**relationship state**:
+
+> `OWNER_OFFER.status = ACCEPTED` (or `MATCH_CONNECTION.status = CONNECTED`)
+> between _this_ tenant and _this_ property.
+
+Rules:
+
+- The gate is **per connection**, not per property or per role. (`PROPERTY.
+contact_revealed` is a per-property boolean and cannot express this — see
+  `requirements.md` §1.2.)
+- Enforced by **omission**: the backend must not send the fields at all until
+  the gate passes. The client never "hides" PII it already holds.
+- **No role gets `pii:reveal` — the capability does not exist.** The
+  pre-deletion `customer-support` sub-role carried one; it was deliberately
+  left out of the B2-R restore. A support admin who can unmask any owner's
+  phone by role alone defeats the entire gate. Admins reach contact only via
+  `contactUnlocked`'s explicit admin branch, which is narrow and auditable.
+  If support staff genuinely need it, it must require a reason + an audit
+  entry per reveal — a decision to take deliberately, not a capability to
+  quietly re-add.
+- Pinned by `src/mocks/__tests__/reverseMarketplace.test.ts`, which fails if
+  the gate is loosened.
+
+## Enforcement layers
+
+1. **`proxy.ts`** — coarse route-prefix gate (`/tenant`, `/landlord`, `/admin`)
+   on token presence/expiry. Edge runtime can't verify the signature → **UX
+   only, not security**.
+2. **Server (Route Handlers / RSC)** — session from `/api/auth/me`; role +
+   capability + eKYC state checked before rendering role-scoped surfaces; the
+   backend's 401/403 is authoritative and must degrade safely.
+3. **UI** — hide/disable what the user can't do (and explain _why_: «وثّق
+   هويتك أولًا» vs «انتهت عروضك المجانية»), so no one is shown an affordance
+   that will 403.
+
+## Gate composition (the practical rule)
+
+A landlord may publish a listing only if **all** hold:
+`role === LANDLORD` **and** `capability listing:create` **and**
+`eKYC === APPROVED` **and** the number of active units is below the
+server-authoritative plan limit (1 for Free Owner, 5 for Premium Owner).
+Model these as distinct checks with distinct messages.

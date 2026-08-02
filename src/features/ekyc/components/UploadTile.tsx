@@ -1,6 +1,7 @@
 "use client";
 
-import { Camera, CheckCircle2, Loader2, AlertCircle, Lock } from "lucide-react";
+import { Camera, CheckCircle2, AlertCircle, Lock } from "lucide-react";
+import { useRef } from "react";
 import { cn } from "@/src/utils/cn";
 
 type TileState = "empty" | "uploading" | "captured" | "bad-quality" | "locked";
@@ -11,6 +12,7 @@ export function UploadTile({
   state,
   reason,
   onCapture,
+  onFileChange,
   Icon = Camera,
 }: {
   title: string;
@@ -18,14 +20,17 @@ export function UploadTile({
   state: TileState;
   reason?: string | null;
   onCapture?: () => void;
+  onFileChange?: (file: File | null) => void;
   Icon?: typeof Camera;
 }) {
+  const inputRef = useRef<HTMLInputElement>(null);
   const clickable = state === "empty" || state === "bad-quality";
+  const selectFile = () => {
+    if (onFileChange) inputRef.current?.click();
+    else onCapture?.();
+  };
   return (
-    <button
-      type="button"
-      disabled={!clickable}
-      onClick={onCapture}
+    <div
       className={cn(
         "flex w-full flex-col items-center gap-2 rounded-card border-2 border-dashed p-6 text-center transition-colors",
         state === "captured" && "border-success bg-success-tint/40",
@@ -35,6 +40,19 @@ export function UploadTile({
         clickable && "hover:border-primary hover:bg-primary-tint/30",
       )}
     >
+      {onFileChange && (
+        <input
+          ref={inputRef}
+          className="sr-only"
+          type="file"
+          aria-label={title}
+          accept="image/jpeg,image/png,image/webp"
+          disabled={!clickable}
+          onClick={(event) => { event.currentTarget.value = ""; }}
+          onChange={(event) => onFileChange(event.target.files?.[0] ?? null)}
+        />
+      )}
+      <button type="button" disabled={!clickable} onClick={selectFile} className="contents">
       <span
         className={cn(
           "flex size-12 items-center justify-center rounded-full",
@@ -44,9 +62,7 @@ export function UploadTile({
           (state === "empty" || state === "uploading") && "bg-primary-tint text-primary",
         )}
       >
-        {state === "uploading" ? (
-          <Loader2 className="size-6 animate-spin" aria-hidden />
-        ) : state === "captured" ? (
+        {state === "captured" ? (
           <CheckCircle2 className="size-6" aria-hidden />
         ) : state === "bad-quality" ? (
           <AlertCircle className="size-6" aria-hidden />
@@ -62,6 +78,7 @@ export function UploadTile({
       ) : hint ? (
         <span className="text-small text-muted">{hint}</span>
       ) : null}
-    </button>
+      </button>
+    </div>
   );
 }

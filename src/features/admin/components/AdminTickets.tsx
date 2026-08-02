@@ -1,15 +1,20 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { Headset, Clock, User as UserIcon, ChevronLeft } from "lucide-react";
-import { useTickets } from "../hooks/useTickets";
 import { Skeleton } from "@/src/components/ui/Skeleton";
 import { EmptyState, ErrorState } from "@/src/components/ui/States";
-import { formatRelativeTime } from "@/src/utils/format";
+import { ticketStatusLabels } from "@/src/lib/api/contracts/support";
 import { cn } from "@/src/utils/cn";
-import { ticketStatusLabels, type TicketStatus } from "@/src/lib/api/contracts/support";
+import { formatRelativeTime } from "@/src/utils/format";
+import { ChevronLeft, Clock, Headset, User as UserIcon } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useTickets } from "../hooks/useTickets";
 
-const statusTone: Record<TicketStatus, string> = {
+const statusTone: Record<string, string> = {
+  NEW: "bg-trust-blue-tint text-trust-blue",
+  ASSIGNED: "bg-primary-tint text-primary",
+  IN_PROGRESS: "bg-pending-tint text-pending",
+  WAITING: "bg-background text-muted",
+  CLOSED: "bg-success-tint text-success",
   new: "bg-trust-blue-tint text-trust-blue",
   assigned: "bg-primary-tint text-primary",
   in_progress: "bg-pending-tint text-pending",

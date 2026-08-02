@@ -1,15 +1,17 @@
-import { BadgeCheck, Clock, ShieldQuestion, XCircle } from "lucide-react";
+import { BadgeCheck, Clock, ShieldQuestion, XCircle, RotateCcw } from "lucide-react";
 import { cn } from "@/src/utils/cn";
-import type { VerificationStatus } from "@/src/lib/api/contracts/auth";
+import type { VerificationStatus } from "@/src/lib/api/contracts/verification";
 
-const config: Record<
-  VerificationStatus,
-  { label: string; className: string; Icon: typeof BadgeCheck }
-> = {
-  verified: { label: "مالك موثّق الهوية", className: "bg-success-tint text-success", Icon: BadgeCheck },
-  pending_review: { label: "التحقق قيد المراجعة", className: "bg-pending-tint text-pending", Icon: Clock },
-  unverified: { label: "غير موثّق", className: "bg-background text-muted", Icon: ShieldQuestion },
-  rejected: { label: "التحقق مرفوض", className: "bg-error-tint text-error", Icon: XCircle },
+/**
+ * Five UI states over the three the ERD persists (conflicts.md A5):
+ * NOT_SUBMITTED and RESUBMISSION_REQUIRED are derived.
+ */
+const config: Record<VerificationStatus, { label: string; className: string; Icon: typeof BadgeCheck }> = {
+  APPROVED: { label: "هوية موثّقة", className: "bg-success-tint text-success", Icon: BadgeCheck },
+  PENDING: { label: "التوثيق قيد المراجعة", className: "bg-pending-tint text-pending", Icon: Clock },
+  NOT_SUBMITTED: { label: "غير موثّق", className: "bg-background text-muted", Icon: ShieldQuestion },
+  REJECTED: { label: "التوثيق مرفوض", className: "bg-error-tint text-error", Icon: XCircle },
+  RESUBMISSION_REQUIRED: { label: "يلزم إعادة الإرسال", className: "bg-error-tint text-error", Icon: RotateCcw },
 };
 
 export function VerifiedBadge({
@@ -38,9 +40,8 @@ export function VerifiedBadge({
 }
 
 /**
- * The honest-trust rule (design spec §6): a verified badge must never appear
- * without this disclaimer nearby. Render it on eKYC screens, listing detail,
- * and landlord onboarding.
+ * The honest-trust rule: eKYC verifies **identity, not ownership**. A verified
+ * badge must never appear without this disclaimer nearby.
  */
 export function OwnershipDisclaimer({ className }: { className?: string }) {
   return (

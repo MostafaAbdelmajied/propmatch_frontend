@@ -22,16 +22,25 @@ const dateFormatter = new Intl.DateTimeFormat("ar-EG-u-nu-latn", {
   day: "numeric",
 });
 
-export function formatDate(date: Date | string): string {
-  return dateFormatter.format(typeof date === "string" ? new Date(date) : date);
+export function formatDate(date: Date | string | null | undefined): string {
+  if (!date) return "";
+  const d = typeof date === "string" ? new Date(date) : date;
+  if (!d || isNaN(d.getTime())) return "";
+  return dateFormatter.format(d);
 }
 
 /**
  * Admin-queue style relative timestamps: «منذ لحظة» → «منذ دقيقة» → «منذ س
  * دقائق» → falls back to an absolute date beyond a day.
  */
-export function formatRelativeTime(date: Date | string, now: Date = new Date()): string {
+export function formatRelativeTime(
+  date: Date | string | null | undefined,
+  now: Date = new Date(),
+): string {
+  if (!date) return "";
   const then = typeof date === "string" ? new Date(date) : date;
+  if (!then || isNaN(then.getTime())) return "";
+
   const seconds = Math.max(0, Math.floor((now.getTime() - then.getTime()) / 1000));
 
   if (seconds < 60) return "منذ لحظة";

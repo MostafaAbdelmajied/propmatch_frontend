@@ -15,13 +15,20 @@ export async function POST(request: NextRequest) {
   try {
     const backendResponse = await backendFetch<unknown>("/auth/register", {
       method: "POST",
-      body: parsed.data,
+      body: { ...parsed.data, role: parsed.data.role.toUpperCase() },
     });
-    const tokens = BackendAuthTokensSchema.parse(backendResponse);
 
-    const body: AuthResponse = { user: tokens.user };
+    const tokensResult = BackendAuthTokensSchema.safeParse(backendResponse);
+    if (!tokensResult.success) {
+      return NextResponse.json(
+        { statusCode: 502, message: "Invalid authentication response from backend" },
+        { status: 502 },
+      );
+    }
+
+    const body: AuthResponse = { user: tokensResult.data.user };
     const response = NextResponse.json(body);
-    setAuthCookies(response, tokens);
+    setAuthCookies(response, tokensResult.data);
     return response;
   } catch (error) {
     if (error instanceof BackendApiError) {
