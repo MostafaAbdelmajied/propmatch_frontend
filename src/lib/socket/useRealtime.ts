@@ -189,6 +189,20 @@ export function useRealtime(): RealtimeState {
       playNotificationChime();
     };
 
+    const onMessageEdited = (payload: { id: string; matchConnectionId: string; body: string }) => {
+      qc.setQueryData<MatchMessage[]>(["matches", payload.matchConnectionId, "messages"], (prev) =>
+        prev?.map((item) => (item.id === payload.id ? { ...item, body: payload.body } : item)) ?? prev,
+      );
+      qc.invalidateQueries({ queryKey: ["matches"] });
+    };
+
+    const onMessageDeleted = (payload: { id: string; matchConnectionId: string }) => {
+      qc.setQueryData<MatchMessage[]>(["matches", payload.matchConnectionId, "messages"], (prev) =>
+        prev?.filter((item) => item.id !== payload.id) ?? prev,
+      );
+      qc.invalidateQueries({ queryKey: ["matches"] });
+    };
+
     // Live support-ticket chat. The payload lacks the full message shape, so we
     // invalidate the affected ticket + list queries and let react-query refetch
     // the authoritative TicketDetail. Both the customer and the assigned agent
@@ -204,11 +218,15 @@ export function useRealtime(): RealtimeState {
     s.on(SOCKET_EVENTS.notification, onNotification);
     s.on(SOCKET_EVENTS.adminQueueItem, onQueueItem);
     s.on(SOCKET_EVENTS.message, onMessage);
+    s.on(SOCKET_EVENTS.messageEdited, onMessageEdited);
+    s.on(SOCKET_EVENTS.messageDeleted, onMessageDeleted);
     s.on(SOCKET_EVENTS.supportMessageReceived, onSupportMessage);
     return () => {
       s.off(SOCKET_EVENTS.notification, onNotification);
       s.off(SOCKET_EVENTS.adminQueueItem, onQueueItem);
       s.off(SOCKET_EVENTS.message, onMessage);
+      s.off(SOCKET_EVENTS.messageEdited, onMessageEdited);
+      s.off(SOCKET_EVENTS.messageDeleted, onMessageDeleted);
       s.off(SOCKET_EVENTS.supportMessageReceived, onSupportMessage);
     };
   }, [qc, toast]);

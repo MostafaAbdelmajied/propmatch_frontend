@@ -48,6 +48,10 @@ export const SOCKET_EVENTS = {
   /** A new item entered an admin moderation queue. */
   adminQueueItem: "admin:queue:item",
   message: "message",
+  /** A match message was edited by its sender. */
+  messageEdited: "message:edited",
+  /** A match message was deleted by its sender. */
+  messageDeleted: "message:deleted",
   /** A new support ticket was created (admins). */
   supportTicketCreated: "support:ticket:created",
   /** A new reply landed on a support ticket (customer or assigned agent). */
