@@ -60,6 +60,7 @@ export const ROLE_CAPABILITIES: Record<AdminRole, Capability[]> = {
     "audit:view",
     "admin:create",
     "admin:manage",
+    "user:delete",
   ],
   "listings-manager": ["property:approve", "property:reject"],
   "kyc-reviewer": ["kyc:review"],
@@ -267,3 +268,23 @@ export const LoginHistoryEntrySchema = z.object({
   success: z.boolean(),
 });
 export type LoginHistoryEntry = z.infer<typeof LoginHistoryEntrySchema>;
+
+/**
+ * GET /admin/users item — every non-deleted platform account (tenants,
+ * landlords, admins). Deliberately minimal (no ERD entity of its own; this
+ * mirrors what AdminService.listUsers() actually returns).
+ */
+export const AdminUserListItemSchema = z.object({
+  id: z.string(),
+  fullName: z.string(),
+  email: z.string(),
+  role: z.enum(["TENANT", "LANDLORD", "ADMIN"]),
+  isActive: z.boolean(),
+  createdAt: z.string(),
+});
+export type AdminUserListItem = z.infer<typeof AdminUserListItemSchema>;
+
+export const AdminUsersResponseSchema = z.object({
+  items: z.array(AdminUserListItemSchema),
+});
+export type AdminUsersResponse = z.infer<typeof AdminUsersResponseSchema>;

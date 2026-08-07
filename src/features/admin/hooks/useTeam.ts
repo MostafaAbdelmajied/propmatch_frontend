@@ -2,7 +2,15 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/src/lib/api/browserClient";
-import type { AdminSession, AdminTeamMember, AuditLogEntry, CreateAdminRequest, LoginHistoryEntry, UpdateAdminRequest } from "@/src/lib/api/contracts/admin";
+import type {
+  AdminSession,
+  AdminTeamMember,
+  AdminUsersResponse,
+  AuditLogEntry,
+  CreateAdminRequest,
+  LoginHistoryEntry,
+  UpdateAdminRequest,
+} from "@/src/lib/api/contracts/admin";
 
 /** The current admin's session (role + capabilities) for capability-gated UI. */
 export function useAdminSession() {
@@ -53,5 +61,26 @@ export function useLoginHistory() {
   return useQuery({
     queryKey: ["admin", "login-history"],
     queryFn: () => api.get<{ items: LoginHistoryEntry[] }>("admin/login-history"),
+  });
+}
+
+/** Every non-deleted platform account (tenants, landlords, admins). */
+export function useAdminUsers() {
+  return useQuery({
+    queryKey: ["admin", "users"],
+    queryFn: () => api.get<AdminUsersResponse>("admin/users"),
+  });
+}
+
+/**
+ * Soft-deletes a user (DELETE /admin/users/:id). Invalidates the list on
+ * success so the table drops the row without a full page reload — the
+ * caller still owns the confirm-dialog UX and the success/error toast.
+ */
+export function useDeleteUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete<{ success: boolean; id: string }>(`admin/users/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "users"] }),
   });
 }

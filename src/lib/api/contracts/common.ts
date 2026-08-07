@@ -73,6 +73,7 @@ export const CapabilitySchema = z.enum([
   "audit:view",
   "admin:create",
   "admin:manage",
+  "user:delete",
 ]);
 export type Capability = z.infer<typeof CapabilitySchema>;
 
