@@ -11,9 +11,9 @@ const response = {
   canSubmit: false,
 } as const;
 
-function input(nationalId?: string) {
+function input(nationalId = "29001011234567") {
   return {
-    ...(nationalId === undefined ? {} : { nationalId }),
+    nationalId,
     nationalIdFront: new File(["front"], "front.jpg", { type: "image/jpeg" }),
     nationalIdBack: new File(["back"], "back.png", { type: "image/png" }),
     selfie: new File(["selfie"], "selfie.webp", { type: "image/webp" }),
@@ -41,17 +41,18 @@ describe("verification API contract", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/backend/verification/me", expect.objectContaining({ method: "GET" }));
   });
 
-  it("submits exactly the required multipart fields without nationalId when omitted", async () => {
+  it("submits all required multipart fields including nationalId", async () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify(response), { status: 200 }));
     await submitVerification(input());
 
     const [, options] = fetchMock.mock.calls[0] as [string, RequestInit];
     const form = options.body as FormData;
-    expect([...form.keys()]).toEqual(["nationalIdFront", "nationalIdBack", "selfie"]);
+    expect([...form.keys()]).toEqual(["nationalId", "nationalIdFront", "nationalIdBack", "selfie"]);
+    expect(form.get("nationalId")).toBe("29001011234567");
     expect(options.headers).toBeUndefined();
   });
 
-  it("includes nationalId only when provided and preserves a backend 409", async () => {
+  it("includes nationalId and preserves a backend 409", async () => {
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(response), { status: 200 }));
     await submitVerification(input("29001011234567"));
     const [, options] = fetchMock.mock.calls[0] as [string, RequestInit];

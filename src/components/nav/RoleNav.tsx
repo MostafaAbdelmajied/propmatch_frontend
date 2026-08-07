@@ -15,6 +15,14 @@ export interface NavItem {
   Icon: typeof Bell;
 }
 
+export function getActiveNavHref(items: Pick<NavItem, "href">[], pathname: string): string | null {
+  return items.reduce<string | null>((activeHref, item) => {
+    const matches = pathname === item.href || pathname.startsWith(`${item.href}/`);
+    if (!matches || (activeHref && activeHref.length >= item.href.length)) return activeHref;
+    return item.href;
+  }, null);
+}
+
 export function UserProfileHeaderNav() {
   const { data: user } = useSession();
   const logout = useLogout();
@@ -92,7 +100,8 @@ export function RoleNav({
   rightSlot?: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
+  const activeHref = getActiveNavHref(items, pathname);
+  const isActive = (href: string) => href === activeHref;
 
   return (
     <>
