@@ -189,9 +189,11 @@ export function useRealtime(): RealtimeState {
       playNotificationChime();
     };
 
-    const onMessageEdited = (payload: { id: string; matchConnectionId: string; body: string }) => {
+    const onMessageEdited = (payload: { id: string; matchConnectionId: string; body: string; editedAt?: string | null }) => {
       qc.setQueryData<MatchMessage[]>(["matches", payload.matchConnectionId, "messages"], (prev) =>
-        prev?.map((item) => (item.id === payload.id ? { ...item, body: payload.body } : item)) ?? prev,
+        prev?.map((item) =>
+          item.id === payload.id ? { ...item, body: payload.body, editedAt: payload.editedAt ?? new Date().toISOString() } : item,
+        ) ?? prev,
       );
       qc.invalidateQueries({ queryKey: ["matches"] });
     };

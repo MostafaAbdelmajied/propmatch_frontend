@@ -10,7 +10,7 @@ export type ChatAttachment = {
 export type UploadedAttachment = { url: string; type: ChatAttachmentType; name: string; sizeBytes: number };
 
 export type MatchConversationSummary = { matchConnectionId: string; propertyId: string; propertyTitle: string; propertyCoverImage: string | null; otherParticipantName: string; connectionStatus: 'CONNECTED'; lastMessagePreview: string | null; lastMessageAt: string | null };
-export type MatchMessage = { id: string; senderId: string; body: string; createdAt: string; isMine: boolean } & Partial<ChatAttachment>;
+export type MatchMessage = { id: string; senderId: string; body: string; createdAt: string; editedAt?: string | null; isMine: boolean } & Partial<ChatAttachment>;
 export type SendMatchMessageInput = { body?: string } & Partial<Omit<ChatAttachment, 'attachmentUrl'>> & { attachmentUrl?: string };
 
 export type RealtimeMatchMessage = MatchMessage & { matchConnectionId: string };

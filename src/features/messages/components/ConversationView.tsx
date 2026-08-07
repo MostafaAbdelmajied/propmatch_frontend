@@ -271,13 +271,14 @@ export function ConversationView({ matchConnectionId }: { matchConnectionId: str
                   message.body && <p className="text-body leading-relaxed" dir="auto">{message.body}</p>
                 )}
 
-                {/* Message Timestamp */}
+                {/* Message Timestamp (+ edited marker) */}
                 <span
                   className={cn(
                     "text-[10px] font-medium self-end opacity-80 select-none mt-0.5",
                     message.isMine ? "text-white/80" : "text-muted",
                   )}
                 >
+                  {message.editedAt && <span title="تم التعديل">معدّل · </span>}
                   {formatMessageTimestamp(message.createdAt)}
                 </span>
               </div>
