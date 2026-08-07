@@ -1,7 +1,10 @@
 "use client";
 
 import { Button } from "@/src/components/ui/Button";
+import { InputField } from "@/src/components/ui/Field";
 import { Sheet } from "@/src/components/ui/Sheet";
+import { useToast } from "@/src/components/ui/Toast";
+import { useQuota } from "@/src/features/landlord/hooks/useLandlord";
 import { api } from "@/src/lib/api/browserClient";
 import {
   paymentTypeLabels,
@@ -10,9 +13,9 @@ import {
   type PaymentTransaction,
   type PaymentType,
 } from "@/src/lib/api/contracts/payment";
-import { useQuota } from "@/src/features/landlord/hooks/useLandlord";
-import { formatEGP } from "@/src/utils/format";
+import { subscribeToPaymentUpdates } from "@/src/lib/socket/useRealtime";
 import { cn } from "@/src/utils/cn";
+import { formatEGP } from "@/src/utils/format";
 import {
   AlertCircle,
   ArrowRight,
@@ -32,10 +35,12 @@ import {
   Sparkles,
   TrendingUp,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
+import { getCheckoutErrorMessage } from "./checkoutError";
 
 type Phase = "form" | "creating_checkout" | "checkout" | "checking" | "success" | "error";
 const PENDING_PAYMENT_STORAGE_KEY = "propmatch:pending-payment";
+export const PAYMENT_SUCCESS_MESSAGE = "تم الدفع بنجاح وإضافة الرصيد والمزايا إلى حسابك.";
 
 export interface PaymentSheetProps {
   open: boolean;
@@ -63,6 +68,7 @@ export function PaymentSheet({
   propertyId,
   onActivated,
 }: PaymentSheetProps) {
+  const toast = useToast();
   const quotaQuery = useQuota();
   const quota = quotaQuery.data;
   const isPaidPackage = quota?.planType && quota.planType !== "FREE";
@@ -156,33 +162,59 @@ export function PaymentSheet({
   const packages = isAiPaywall
     ? allPackages.filter((p) => p.type === "AI_ADDON")
     : isOfferPaywall
-    ? allPackages.filter((p) => p.type === "SINGLE_OFFER" || p.type === "PREMIUM_OWNER" || p.type === "OWNER_PLUS")
-    : allPackages.filter((p) => p.type !== "AI_ADDON" && p.type !== "SINGLE_OFFER");
+      ? allPackages.filter(
+          (p) => p.type === "SINGLE_OFFER" || p.type === "PREMIUM_OWNER" || p.type === "OWNER_PLUS",
+        )
+      : allPackages.filter((p) => p.type !== "AI_ADDON" && p.type !== "SINGLE_OFFER");
 
   const defaultSelectedType = isAiPaywall
     ? "AI_ADDON"
     : isOfferPaywall
-    ? (quota?.planType === "OWNER_PLUS" ? "OWNER_PLUS" : quota?.planType === "PREMIUM" ? "PREMIUM_OWNER" : "SINGLE_OFFER")
-    : quota?.planType === "OWNER_PLUS"
-    ? "OWNER_PLUS"
-    : "PREMIUM_OWNER";
+      ? quota?.planType === "OWNER_PLUS"
+        ? "OWNER_PLUS"
+        : quota?.planType === "PREMIUM"
+          ? "PREMIUM_OWNER"
+          : "SINGLE_OFFER"
+      : quota?.planType === "OWNER_PLUS"
+        ? "OWNER_PLUS"
+        : "PREMIUM_OWNER";
 
   const [step, setStep] = useState<1 | 2>(1);
   const [selectedPaymentType, setSelectedPaymentType] = useState<PaymentType>(defaultSelectedType);
   const [paymentMethod, setPaymentMethod] = useState<"CARD" | "WALLET">("CARD");
+  const [walletPhone, setWalletPhone] = useState("");
+  const [walletPhoneError, setWalletPhoneError] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase>("form");
   const [session, setSession] = useState<CheckoutSession | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isCheckoutWindowOpen, setIsCheckoutWindowOpen] = useState(false);
   const checkoutWindowRef = useRef<Window | null>(null);
   const closeWatcherRef = useRef<number | null>(null);
-  const popupStatusCheckInFlightRef = useRef(false);
+  const handledSuccessfulOrderRef = useRef<string | null>(null);
+
+  const completeSuccessfulPayment = useCallback(
+    (providerOrderId: string) => {
+      if (handledSuccessfulOrderRef.current === providerOrderId) return;
+      handledSuccessfulOrderRef.current = providerOrderId;
+      window.localStorage.removeItem(PENDING_PAYMENT_STORAGE_KEY);
+      setPhase("success");
+      toast("success", PAYMENT_SUCCESS_MESSAGE);
+      onActivated?.();
+    },
+    [onActivated, toast],
+  );
 
   useEffect(() => {
     if (isAiPaywall) {
       setSelectedPaymentType("AI_ADDON");
     } else if (isOfferPaywall) {
-      setSelectedPaymentType(quota?.planType === "OWNER_PLUS" ? "OWNER_PLUS" : quota?.planType === "PREMIUM" ? "PREMIUM_OWNER" : "SINGLE_OFFER");
+      setSelectedPaymentType(
+        quota?.planType === "OWNER_PLUS"
+          ? "OWNER_PLUS"
+          : quota?.planType === "PREMIUM"
+            ? "PREMIUM_OWNER"
+            : "SINGLE_OFFER",
+      );
     } else if (quota?.planType === "OWNER_PLUS") {
       setSelectedPaymentType("OWNER_PLUS");
     } else {
@@ -190,9 +222,43 @@ export function PaymentSheet({
     }
   }, [paymentType, isAiPaywall, isOfferPaywall, quota?.planType]);
 
+  useEffect(
+    () =>
+      subscribeToPaymentUpdates((payment) => {
+        if (payment.providerOrderId !== session?.providerOrderId) return;
+        stopWatchingCheckoutWindow();
+        if (checkoutWindowRef.current && !checkoutWindowRef.current.closed) {
+          checkoutWindowRef.current.close();
+        }
+        setIsCheckoutWindowOpen(false);
+
+        if (payment.status === "SUCCESS") {
+          completeSuccessfulPayment(payment.providerOrderId);
+          return;
+        }
+
+        setErrorMessage(
+          "تم رفض عملية الدفع أو إلغاؤها. لم يتم خصم أي رصيد من حسابك داخل PropMatch.",
+        );
+        setPhase("error");
+      }),
+    [completeSuccessfulPayment, session?.providerOrderId],
+  );
+
   async function startCheckout() {
+    const normalizedWalletPhone = walletPhone.replace(/[\s-]/g, "");
+    if (
+      paymentMethod === "WALLET" &&
+      !/^(?:\+20|0020|0)1[0125]\d{8}$/.test(normalizedWalletPhone)
+    ) {
+      setWalletPhoneError("أدخل رقم محفظة مصري صحيح، مثل 01012345678");
+      return;
+    }
+
     setPhase("creating_checkout");
     setErrorMessage(null);
+    setWalletPhoneError(null);
+    handledSuccessfulOrderRef.current = null;
 
     const checkoutWindow = window.open(
       "about:blank",
@@ -215,6 +281,7 @@ export function PaymentSheet({
         paymentType: selectedPaymentType,
         propertyId,
         method: paymentMethod,
+        ...(paymentMethod === "WALLET" ? { walletPhone: normalizedWalletPhone } : {}),
       });
       if (!checkout.checkoutUrl) {
         checkoutWindow.close();
@@ -227,15 +294,18 @@ export function PaymentSheet({
       setSession(checkout);
       window.localStorage.setItem(
         PENDING_PAYMENT_STORAGE_KEY,
-        JSON.stringify({ providerOrderId: checkout.providerOrderId, paymentType: checkout.paymentType }),
+        JSON.stringify({
+          providerOrderId: checkout.providerOrderId,
+          paymentType: checkout.paymentType,
+        }),
       );
       checkoutWindow.location.href = checkout.checkoutUrl;
       setPhase("checkout");
       watchCheckoutWindow(checkout.providerOrderId);
-    } catch {
+    } catch (error) {
       checkoutWindow.close();
       setIsCheckoutWindowOpen(false);
-      setErrorMessage("تعذر بدء عملية الدفع. حاول مرة أخرى.");
+      setErrorMessage(getCheckoutErrorMessage(error));
       setPhase("error");
     }
   }
@@ -256,13 +326,17 @@ export function PaymentSheet({
     watchCheckoutWindow(session.providerOrderId);
   }
 
+  const checkReturnedPayment = useEffectEvent((providerOrderId: string) => {
+    void checkPaymentStatus(providerOrderId);
+  });
+
   useEffect(() => {
     function handlePaymentReturn(event: MessageEvent) {
       if (event.origin !== window.location.origin) return;
       if (event.data?.type !== "propmatch-payment-return") return;
       if (!session?.providerOrderId) return;
 
-      void checkPaymentStatus(session.providerOrderId);
+      checkReturnedPayment(session.providerOrderId);
     }
 
     window.addEventListener("message", handlePaymentReturn);
@@ -284,44 +358,8 @@ export function PaymentSheet({
         stopWatchingCheckoutWindow();
         setIsCheckoutWindowOpen(false);
         void checkPaymentStatus(providerOrderId);
-        return;
       }
-
-      void refreshOpenCheckoutStatus(providerOrderId);
-    }, 2000);
-  }
-
-  async function refreshOpenCheckoutStatus(providerOrderId: string) {
-    if (popupStatusCheckInFlightRef.current) return;
-    popupStatusCheckInFlightRef.current = true;
-
-    try {
-      const transaction = await api.post<PaymentTransaction>(
-        `payments/${providerOrderId}/reconcile`,
-        {},
-      );
-      if (transaction.status !== "SUCCESS" && transaction.status !== "FAILED") return;
-
-      stopWatchingCheckoutWindow();
-      if (checkoutWindowRef.current && !checkoutWindowRef.current.closed) {
-        checkoutWindowRef.current.close();
-      }
-      setIsCheckoutWindowOpen(false);
-
-      if (transaction.status === "SUCCESS") {
-        window.localStorage.removeItem(PENDING_PAYMENT_STORAGE_KEY);
-        setPhase("success");
-        onActivated?.();
-        return;
-      }
-
-      setErrorMessage("تم رفض عملية الدفع أو إلغاؤها. لم يتم خصم أي رصيد من حسابك داخل PropMatch.");
-      setPhase("error");
-    } catch {
-      // transient network retry
-    } finally {
-      popupStatusCheckInFlightRef.current = false;
-    }
+    }, 500);
   }
 
   async function checkPaymentStatus(providerOrderId = session?.providerOrderId) {
@@ -331,17 +369,14 @@ export function PaymentSheet({
     setErrorMessage(null);
 
     try {
-      await api.post<PaymentTransaction>(`payments/${providerOrderId}/reconcile`, {});
-      const status = await pollTerminalStatus(providerOrderId);
+      const transaction = await api.get<PaymentTransaction>(`payments/${providerOrderId}`);
 
-      if (status === "SUCCESS") {
-        window.localStorage.removeItem(PENDING_PAYMENT_STORAGE_KEY);
-        setPhase("success");
-        onActivated?.();
+      if (transaction.status === "SUCCESS") {
+        completeSuccessfulPayment(providerOrderId);
         return;
       }
 
-      if (status === "FAILED") {
+      if (transaction.status === "FAILED") {
         setErrorMessage(
           "تم رفض عملية الدفع أو إلغاؤها. لم يتم خصم أي رصيد من حسابك داخل PropMatch.",
         );
@@ -357,18 +392,6 @@ export function PaymentSheet({
     }
   }
 
-  async function pollTerminalStatus(
-    providerOrderId: string,
-  ): Promise<PaymentTransaction["status"] | null> {
-    for (let i = 0; i < 12; i++) {
-      const tx = await api.get<PaymentTransaction>(`payments/${providerOrderId}`);
-      if (tx.status === "SUCCESS" || tx.status === "FAILED") return tx.status;
-      await new Promise((resolve) => setTimeout(resolve, 800));
-    }
-
-    return null;
-  }
-
   function reset() {
     stopWatchingCheckoutWindow();
     if (checkoutWindowRef.current && !checkoutWindowRef.current.closed) {
@@ -378,6 +401,9 @@ export function PaymentSheet({
     setPhase("form");
     setSession(null);
     setErrorMessage(null);
+    setWalletPhone("");
+    setWalletPhoneError(null);
+    handledSuccessfulOrderRef.current = null;
     setIsCheckoutWindowOpen(false);
     checkoutWindowRef.current = null;
     onClose();
@@ -398,8 +424,8 @@ export function PaymentSheet({
         isAiPaywall
           ? "شراء رصيد الذكاء الاصطناعي"
           : isOfferPaywall
-          ? "شراء رصيد العروض المباشرة"
-          : "الدفع وترقية كوتا العقارات"
+            ? "شراء رصيد العروض المباشرة"
+            : "الدفع وترقية كوتا العقارات"
       }
       dismissible={!busy}
       maxWidth="2xl"
@@ -417,7 +443,9 @@ export function PaymentSheet({
               >
                 1
               </span>
-              <span className={cn("text-small font-bold", step === 1 ? "text-primary" : "text-muted")}>
+              <span
+                className={cn("text-small font-bold", step === 1 ? "text-primary" : "text-muted")}
+              >
                 اختيار الباقة
               </span>
 
@@ -431,14 +459,14 @@ export function PaymentSheet({
               >
                 2
               </span>
-              <span className={cn("text-small font-bold", step === 2 ? "text-primary" : "text-muted")}>
+              <span
+                className={cn("text-small font-bold", step === 2 ? "text-primary" : "text-muted")}
+              >
                 وسيلة الدفع والتأكيد
               </span>
             </div>
 
-            <span className="text-caption font-bold text-muted">
-              الخطوة {step} من 2
-            </span>
+            <span className="text-caption font-bold text-muted">الخطوة {step} من 2</span>
           </div>
 
           {/* STEP 1: Select Package */}
@@ -452,7 +480,8 @@ export function PaymentSheet({
                     انتهت محاولات الذكاء الاصطناعي المجانية
                   </p>
                   <p className="mt-1 text-caption text-body-text">
-                    اشترِ <strong>حزمة الذكاء الاصطناعي الإضافية</strong> للحصول على <strong>10 استخدامات جديدة</strong> لمحسن الوصف الذكي.
+                    اشترِ <strong>حزمة الذكاء الاصطناعي الإضافية</strong> للحصول على{" "}
+                    <strong>10 استخدامات جديدة</strong> لمحسن الوصف الذكي.
                   </p>
                 </div>
               ) : isOfferPaywall ? (
@@ -462,17 +491,20 @@ export function PaymentSheet({
                     انتهى رصيد العروض المباشرة المجانية
                   </p>
                   <p className="mt-1 text-caption text-body-text">
-                    اختر <strong>إعادة تجديد باقتك الحالية</strong> للتواصل غير المحدود مع المستأجرين، أو <strong>شراء إرسال عرض منفرد لمرة واحدة</strong>.
+                    اختر <strong>إعادة تجديد باقتك الحالية</strong> للتواصل غير المحدود مع
+                    المستأجرين، أو <strong>شراء إرسال عرض منفرد لمرة واحدة</strong>.
                   </p>
                 </div>
               ) : isPaidPackage ? (
                 <div className="rounded-card border border-primary/30 bg-primary-tint/30 p-3.5 text-small text-ink">
                   <p className="font-bold text-primary flex items-center gap-2 text-body">
                     <Crown className="size-5 shrink-0 text-primary" />
-                    أنت مشترك بالفعل في {quota?.planType === "PREMIUM" ? "الخطة المميزة" : "خطة Plus"}
+                    أنت مشترك بالفعل في{" "}
+                    {quota?.planType === "PREMIUM" ? "الخطة المميزة" : "خطة Plus"}
                   </p>
                   <p className="mt-1 text-caption text-body-text">
-                    يمكنك <strong>إعادة تجديد باقتك الحالية</strong> لشحن رصيد الوحدات والعروض بالكامل، أو الترقية لشراء باقة أعلى/إضافة عقار منفرد.
+                    يمكنك <strong>إعادة تجديد باقتك الحالية</strong> لشحن رصيد الوحدات والعروض
+                    بالكامل، أو الترقية لشراء باقة أعلى/إضافة عقار منفرد.
                   </p>
                 </div>
               ) : (
@@ -516,7 +548,9 @@ export function PaymentSheet({
                             <span
                               className={cn(
                                 "flex size-10 shrink-0 items-center justify-center rounded-full transition-colors",
-                                isSelected ? "bg-primary text-white shadow-xs" : "bg-hairline/80 text-muted",
+                                isSelected
+                                  ? "bg-primary text-white shadow-xs"
+                                  : "bg-hairline/80 text-muted",
                               )}
                             >
                               <Icon className="size-5" />
@@ -555,7 +589,10 @@ export function PaymentSheet({
                             </p>
                             <ul className="grid gap-1.5 sm:grid-cols-2">
                               {pkg.additions.map((item, idx) => (
-                                <li key={idx} className="flex items-center gap-2 text-caption font-semibold text-ink">
+                                <li
+                                  key={idx}
+                                  className="flex items-center gap-2 text-caption font-semibold text-ink"
+                                >
                                   <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-success-tint text-success">
                                     <Check className="size-3 stroke-[3]" />
                                   </span>
@@ -621,7 +658,9 @@ export function PaymentSheet({
 
               {/* Payment Method Selector Grid */}
               <div className="flex flex-col gap-2.5">
-                <label className="text-small font-bold text-ink">اختر طريقة الدفع الفوري (عبر Paymob):</label>
+                <label className="text-small font-bold text-ink">
+                  اختر طريقة الدفع الفوري (عبر Paymob):
+                </label>
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
@@ -659,12 +698,36 @@ export function PaymentSheet({
                 </div>
               </div>
 
+              {paymentMethod === "WALLET" && (
+                <InputField
+                  label="رقم الهاتف المرتبط بالمحفظة"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  dir="ltr"
+                  placeholder="01012345678"
+                  value={walletPhone}
+                  onChange={(event) => {
+                    setWalletPhone(event.target.value);
+                    if (walletPhoneError) setWalletPhoneError(null);
+                  }}
+                  error={walletPhoneError ?? undefined}
+                  hint="استخدم رقم فودافون كاش أو أورنج كاش أو e& cash أو WE Pay."
+                  required
+                />
+              )}
+
               <p className="flex items-center gap-1.5 text-caption text-muted">
                 <ShieldCheck className="size-4 text-success shrink-0" aria-hidden />
                 سيتم فتح نافذة دفع آمنة من Paymob لتأكيد العملية بالجنيه المصري.
               </p>
 
-              <Button size="lg" block onClick={startCheckout} className="py-3.5 text-body font-bold">
+              <Button
+                size="lg"
+                block
+                onClick={startCheckout}
+                className="py-3.5 text-body font-bold"
+              >
                 {paymentMethod === "WALLET" ? (
                   <Smartphone className="size-5" aria-hidden />
                 ) : (
@@ -760,7 +823,9 @@ function PaymentSummary({
       <div className="flex items-center justify-between border-b border-hairline/60 pb-3">
         <div>
           <p className="text-body font-bold text-ink">
-            {isRepurchase ? `إعادة تجديد: ${paymentTypeLabels[paymentType]}` : paymentTypeLabels[paymentType]}
+            {isRepurchase
+              ? `إعادة تجديد: ${paymentTypeLabels[paymentType]}`
+              : paymentTypeLabels[paymentType]}
           </p>
           <p className="text-caption text-muted">تفعيل وإضافة فورية للرصيد بعد إتمام الدفع</p>
         </div>

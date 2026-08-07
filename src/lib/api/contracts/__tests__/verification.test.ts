@@ -81,6 +81,9 @@ describe("verification API contract", () => {
 
   it("forwards no body, JSON, and FormData through the server client with correct headers", async () => {
     const previousUrl = process.env.NESTJS_API_URL;
+    const previousProduction = process.env.PRODCUTION;
+    const previousProductionUrl = process.env.NESTJS_API_URL_PROUDCTION;
+    process.env.PRODCUTION = "false";
     process.env.NESTJS_API_URL = "https://backend.example.test";
     fetchMock.mockResolvedValue(new Response(JSON.stringify(response), { status: 200 }));
 
@@ -106,6 +109,11 @@ describe("verification API contract", () => {
     expect(options.body).toBe(formData);
     expect(options.headers).toEqual({ Authorization: "Bearer token" });
 
-    process.env.NESTJS_API_URL = previousUrl;
+    if (previousUrl === undefined) delete process.env.NESTJS_API_URL;
+    else process.env.NESTJS_API_URL = previousUrl;
+    if (previousProduction === undefined) delete process.env.PRODCUTION;
+    else process.env.PRODCUTION = previousProduction;
+    if (previousProductionUrl === undefined) delete process.env.NESTJS_API_URL_PROUDCTION;
+    else process.env.NESTJS_API_URL_PROUDCTION = previousProductionUrl;
   });
 });

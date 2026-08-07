@@ -56,6 +56,8 @@ export const SOCKET_EVENTS = {
   supportTicketCreated: "support:ticket:created",
   /** A new reply landed on a support ticket (customer or assigned agent). */
   supportMessageReceived: "support:message:received",
+  /** A persisted payment reached a terminal state for the authenticated user. */
+  paymentUpdated: "payment:updated",
 } as const;
 
 /** Payload for the `support:message:received` event (matches the NestJS gateway). */

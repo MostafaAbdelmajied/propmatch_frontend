@@ -3,17 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell, BellOff, BadgeCheck, Home, Sparkles, Star, CreditCard, FileText, Inbox, MessageCircle } from "lucide-react";
+import { Bell, BellOff, BadgeCheck, Home, Sparkles, Star, CreditCard, FileText, Inbox, MessageCircle, X } from "lucide-react";
 import { api } from "@/src/lib/api/browserClient";
 import { cn } from "@/src/utils/cn";
 import { formatNumber, formatRelativeTime } from "@/src/utils/format";
 import type { NotificationType, NotificationsResponse } from "@/src/lib/api/contracts/notification";
 
-/**
- * The bell switches on the ERD `NOTIFICATION.type` enum, never on free text
- * (requirements.md §6) — every member must be mapped here or the icon lookup
- * silently yields undefined and React fails to render.
- */
 const typeIcon: Record<NotificationType, typeof Bell> = {
   EKYC_APPROVED: BadgeCheck,
   PROPERTY_APPROVED: Home,
@@ -66,7 +61,7 @@ export function NotificationBell() {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="relative flex size-9 items-center justify-center rounded-full text-body-text hover:bg-background"
+        className="relative flex size-9 items-center justify-center rounded-full text-body-text hover:bg-background transition-colors"
         aria-label={unread > 0 ? `الإشعارات (${formatNumber(unread)} غير مقروء)` : "الإشعارات"}
         aria-expanded={open}
       >
@@ -79,18 +74,34 @@ export function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute end-0 z-40 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-card border border-hairline bg-surface shadow-card">
-          <div className="flex items-center justify-between border-b border-hairline px-4 py-2.5">
-            <span className="text-small font-bold text-ink">الإشعارات</span>
-            {unread > 0 && (
+        <div className="fixed inset-x-3 top-14 z-50 sm:absolute sm:inset-x-auto sm:end-0 sm:top-full sm:mt-2 sm:w-80 overflow-hidden rounded-card border border-hairline bg-surface shadow-2xl animate-in fade-in-50 duration-200">
+          <div className="flex items-center justify-between border-b border-hairline px-4 py-3 bg-surface">
+            <div className="flex items-center gap-2">
+              <span className="text-small font-bold text-ink">الإشعارات</span>
+              {unread > 0 && (
+                <span className="rounded-pill bg-error-tint px-2 py-0.5 text-caption font-extrabold text-error">
+                  {formatNumber(unread)} جديد
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {unread > 0 && (
+                <button
+                  onClick={() => markAllRead.mutate()}
+                  disabled={markAllRead.isPending}
+                  className="text-caption font-semibold text-primary hover:underline disabled:opacity-50"
+                >
+                  تعليم الكل كمقروء
+                </button>
+              )}
               <button
-                onClick={() => markAllRead.mutate()}
-                disabled={markAllRead.isPending}
-                className="text-caption font-semibold text-primary hover:underline disabled:opacity-50"
+                type="button"
+                onClick={() => setOpen(false)}
+                className="flex size-6 items-center justify-center rounded-full text-muted hover:bg-background sm:hidden"
               >
-                تعليم الكل كمقروء
+                <X className="size-4" />
               </button>
-            )}
+            </div>
           </div>
 
           {items.length === 0 ? (
@@ -99,7 +110,7 @@ export function NotificationBell() {
               <span className="text-small">لا توجد إشعارات جديدة</span>
             </div>
           ) : (
-            <ul className="max-h-80 overflow-y-auto">
+            <ul className="max-h-80 overflow-y-auto divide-y divide-hairline">
               {items.map((n) => {
                 const Icon = typeIcon[n.type] ?? Bell;
                 const body = (
@@ -117,14 +128,14 @@ export function NotificationBell() {
                         {n.title}
                       </span>
                       <span className="block truncate text-caption text-muted">{n.message}</span>
-                      <span className="block text-caption text-muted">{formatRelativeTime(n.createdAt)}</span>
+                      <span className="block text-caption text-muted mt-0.5">{formatRelativeTime(n.createdAt)}</span>
                     </span>
                     {!n.isRead && <span className="mt-2 size-2 shrink-0 rounded-full bg-primary" aria-hidden />}
                   </>
                 );
 
                 return (
-                  <li key={n.id} className="border-b border-hairline last:border-0">
+                  <li key={n.id}>
                     {n.link ? (
                       <Link
                         href={n.link}
@@ -132,7 +143,7 @@ export function NotificationBell() {
                           if (!n.isRead) markRead.mutate(n.id);
                           setOpen(false);
                         }}
-                        className="flex w-full items-start gap-3 px-4 py-3 text-start hover:bg-background"
+                        className="flex w-full items-start gap-3 px-4 py-3 text-start hover:bg-background transition-colors"
                       >
                         {body}
                       </Link>
@@ -140,7 +151,7 @@ export function NotificationBell() {
                       <button
                         type="button"
                         onClick={() => !n.isRead && markRead.mutate(n.id)}
-                        className="flex w-full items-start gap-3 px-4 py-3 text-start hover:bg-background"
+                        className="flex w-full items-start gap-3 px-4 py-3 text-start hover:bg-background transition-colors"
                       >
                         {body}
                       </button>
