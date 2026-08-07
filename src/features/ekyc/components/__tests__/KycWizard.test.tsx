@@ -9,7 +9,9 @@ jest.mock("@/src/lib/api/verification", () => ({
   getMyVerification: jest.fn(),
   submitVerification: jest.fn(),
 }));
-jest.mock("@/src/features/auth/hooks/useSession", () => ({ useSession: () => ({ data: { role: "tenant" } }) }));
+jest.mock("@/src/features/auth/hooks/useSession", () => ({
+  useSession: () => ({ data: { role: "tenant" } }),
+}));
 jest.mock("next/navigation", () => ({ useRouter: () => ({ push: jest.fn() }) }));
 
 const getVerification = getMyVerification as jest.MockedFunction<typeof getMyVerification>;
@@ -17,25 +19,42 @@ const submit = submitVerification as jest.MockedFunction<typeof submitVerificati
 
 const response = (status: VerificationResponse["status"]): VerificationResponse => ({
   status,
-  rejectionReason: status === "REJECTED" || status === "RESUBMISSION_REQUIRED" ? "صورة غير واضحة" : null,
+  rejectionReason:
+    status === "REJECTED" || status === "RESUBMISSION_REQUIRED" ? "صورة غير واضحة" : null,
   submittedAt: status === "NOT_SUBMITTED" ? null : "2026-07-20T12:00:00.000Z",
   reviewedAt: null,
   canSubmit: status === "NOT_SUBMITTED" || status === "RESUBMISSION_REQUIRED",
 });
 
 function renderWizard() {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  return render(<QueryClientProvider client={queryClient}><KycWizard /></QueryClientProvider>);
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <KycWizard />
+    </QueryClientProvider>,
+  );
 }
 
 describe("KycWizard", () => {
   beforeEach(() => {
     getVerification.mockReset();
     submit.mockReset();
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: jest.fn((file: File) => `blob:${file.name}`),
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: jest.fn(),
+    });
   });
 
   it("waits for GET before showing a wizard and retries a failed load", async () => {
-    getVerification.mockRejectedValueOnce(new Error("offline")).mockResolvedValueOnce(response("NOT_SUBMITTED"));
+    getVerification
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce(response("NOT_SUBMITTED"));
     renderWizard();
     expect(document.querySelectorAll('input[type="file"]')).toHaveLength(0);
     expect(await screen.findByText("تعذر تحميل حالة التحقق. حاول مرة أخرى.")).toBeInTheDocument();
@@ -64,28 +83,76 @@ describe("KycWizard", () => {
       target: { value: "29001011234567" },
     });
 
-    const [front, back, selfie] = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="file"]'));
-    fireEvent.change(front, { target: { files: [new File(["front"], "front.jpg", { type: "image/jpeg" })] } });
-    fireEvent.change(back, { target: { files: [new File(["back"], "back.png", { type: "image/png" })] } });
-    fireEvent.change(selfie, { target: { files: [new File(["selfie"], "selfie.webp", { type: "image/webp" })] } });
+    const [front, back, selfie] = Array.from(
+      container.querySelectorAll<HTMLInputElement>('input[type="file"]'),
+    );
+    fireEvent.change(front, {
+      target: { files: [new File(["front"], "front.jpg", { type: "image/jpeg" })] },
+    });
+    fireEvent.change(back, {
+      target: { files: [new File(["back"], "back.png", { type: "image/png" })] },
+    });
+    fireEvent.change(selfie, {
+      target: { files: [new File(["selfie"], "selfie.webp", { type: "image/webp" })] },
+    });
     fireEvent.click(screen.getByRole("button", { name: "إعادة تقديم المستندات" }));
 
-    await waitFor(() => expect(submit).toHaveBeenCalledWith(expect.objectContaining({
-      nationalId: "29001011234567",
-      nationalIdFront: expect.any(File),
-      nationalIdBack: expect.any(File),
-      selfie: expect.any(File),
-    })));
+    await waitFor(() =>
+      expect(submit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          nationalId: "29001011234567",
+          nationalIdFront: expect.any(File),
+          nationalIdBack: expect.any(File),
+          selfie: expect.any(File),
+        }),
+      ),
+    );
     expect(await screen.findByText("طلب التوثيق قيد المراجعة")).toBeInTheDocument();
   });
 
-  it("blocks invalid files and reconciles a 409 with the backend", async () => {
-    getVerification.mockResolvedValueOnce(response("NOT_SUBMITTED")).mockResolvedValueOnce(response("PENDING"));
-    submit.mockRejectedValue(Object.assign(new Error("طلب التحقق قيد المراجعة بالفعل."), { name: "ApiClientError", statusCode: 409 }));
+  it("previews selected images and lets the user replace them before submission", async () => {
+    getVerification.mockResolvedValue(response("NOT_SUBMITTED"));
     const { container } = renderWizard();
     await screen.findByText("إرسال للمراجعة");
-    const [front, back, selfie] = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="file"]'));
-    expect(validateVerificationFile({ type: "image/gif", size: 1 } as File)).toBe("الملف يجب أن يكون بصيغة JPEG أو PNG أو WebP.");
+    const [front] = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="file"]'));
+
+    fireEvent.change(front, {
+      target: { files: [new File(["front"], "front.jpg", { type: "image/jpeg" })] },
+    });
+    expect(await screen.findByRole("img", { name: "معاينة وجه البطاقة الأمامي" })).toHaveAttribute(
+      "src",
+      "blob:front.jpg",
+    );
+    expect(screen.getByText("اضغط لتغيير الصورة")).toBeInTheDocument();
+
+    fireEvent.change(front, {
+      target: { files: [new File(["replacement"], "front-new.png", { type: "image/png" })] },
+    });
+    expect(await screen.findByRole("img", { name: "معاينة وجه البطاقة الأمامي" })).toHaveAttribute(
+      "src",
+      "blob:front-new.png",
+    );
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:front.jpg");
+  });
+
+  it("blocks invalid files and reconciles a 409 with the backend", async () => {
+    getVerification
+      .mockResolvedValueOnce(response("NOT_SUBMITTED"))
+      .mockResolvedValueOnce(response("PENDING"));
+    submit.mockRejectedValue(
+      Object.assign(new Error("طلب التحقق قيد المراجعة بالفعل."), {
+        name: "ApiClientError",
+        statusCode: 409,
+      }),
+    );
+    const { container } = renderWizard();
+    await screen.findByText("إرسال للمراجعة");
+    const [front, back, selfie] = Array.from(
+      container.querySelectorAll<HTMLInputElement>('input[type="file"]'),
+    );
+    expect(validateVerificationFile({ type: "image/gif", size: 1 } as File)).toBe(
+      "الملف يجب أن يكون بصيغة JPEG أو PNG أو WebP.",
+    );
     fireEvent.click(screen.getByRole("button", { name: "إرسال للمراجعة" }));
     expect(submit).not.toHaveBeenCalled();
     expect(screen.getByText("الرقم القومي يجب أن يتكون من 14 رقمًا.")).toBeInTheDocument();
@@ -93,9 +160,15 @@ describe("KycWizard", () => {
     fireEvent.change(screen.getByLabelText(/الرقم القومي/), {
       target: { value: "29001011234567" },
     });
-    fireEvent.change(front, { target: { files: [new File(["front"], "front.jpg", { type: "image/jpeg" })] } });
-    fireEvent.change(back, { target: { files: [new File(["back"], "back.jpg", { type: "image/jpeg" })] } });
-    fireEvent.change(selfie, { target: { files: [new File(["selfie"], "selfie.jpg", { type: "image/jpeg" })] } });
+    fireEvent.change(front, {
+      target: { files: [new File(["front"], "front.jpg", { type: "image/jpeg" })] },
+    });
+    fireEvent.change(back, {
+      target: { files: [new File(["back"], "back.jpg", { type: "image/jpeg" })] },
+    });
+    fireEvent.change(selfie, {
+      target: { files: [new File(["selfie"], "selfie.jpg", { type: "image/jpeg" })] },
+    });
     fireEvent.click(screen.getByRole("button", { name: "إرسال للمراجعة" }));
     expect(await screen.findByText("طلب التوثيق قيد المراجعة")).toBeInTheDocument();
     expect(submit).toHaveBeenCalledTimes(1);
