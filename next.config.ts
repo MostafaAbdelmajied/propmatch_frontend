@@ -1,14 +1,18 @@
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
-import { getConfiguredBackendUrl } from "./src/lib/api/backendEnvironment";
+import {
+  getConfiguredBackendUrl,
+  getConfiguredRealtimeUrl,
+} from "./src/lib/api/backendEnvironment";
 
 const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
 
 const backendOrigin = getConfiguredBackendUrl().replace(/\/api$/, "");
+const realtimeOrigin = getConfiguredRealtimeUrl();
 
 // Browser-facing backend origin where chat media (/public/...) is served —
 // same value the client uses for mediaUrl() and the socket.
-const mediaOrigin = process.env.NEXT_PUBLIC_SOCKET_URL ?? "";
+const mediaOrigin = realtimeOrigin;
 
 /**
  * Scoped image CSP — defense-in-depth behind the JS allowlist in
@@ -28,6 +32,12 @@ const imgCsp = [
   .join(" ");
 
 const nextConfig: NextConfig = {
+  // Resolve the public socket origin from the same production switch used by
+  // server-side API forwarding. Next.js inlines this selected, non-secret URL
+  // into the browser bundle at build/start time.
+  env: {
+    NEXT_PUBLIC_SOCKET_URL: realtimeOrigin,
+  },
   // Self-contained server bundle (only traced runtime deps) — keeps the Docker
   // runtime image small and its export layer tiny.
   output: "standalone",
