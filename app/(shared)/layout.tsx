@@ -5,7 +5,7 @@ import { Logo } from "@/src/components/ui/Logo";
 import { landingAfterLogin } from "@/src/features/auth/roleRouting";
 import { requireSession } from "@/src/lib/api/serverSession";
 
-/** Shared authenticated surfaces (profile, contract generator, verify) available to any role. */
+/** Shared shell; each page applies its own role policy before rendering. */
 export default async function SharedLayout({ children }: { children: React.ReactNode }) {
   const user = await requireSession("/profile");
   const fallbackHref = landingAfterLogin(user.role);
