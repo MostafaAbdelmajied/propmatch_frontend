@@ -28,6 +28,7 @@ export class BackendApiError extends Error {
 
 function getBackendUrl(): string {
   const url = process.env.NESTJS_API_URL;
+
   if (!url) {
     throw new Error(
       "NESTJS_API_URL is not set. Copy .env.example to .env.local, or enable API_MOCKING for local dev.",
@@ -47,7 +48,10 @@ interface BackendFetchOptions extends Omit<RequestInit, "body"> {
  * which `backendFetch` does via `.json()` — would defeat the point: the client
  * would wait for the whole answer and then paint it at once.
  */
-export async function backendStream(path: string, options: BackendFetchOptions = {}): Promise<Response> {
+export async function backendStream(
+  path: string,
+  options: BackendFetchOptions = {},
+): Promise<Response> {
   const { body, accessToken, headers, ...rest } = options;
   return fetch(`${getBackendUrl()}${path}`, {
     ...rest,
@@ -63,7 +67,10 @@ export async function backendStream(path: string, options: BackendFetchOptions =
 }
 
 /** Raw backend response for protected binary downloads (never JSON-parse it). */
-export async function backendRaw(path: string, options: BackendFetchOptions = {}): Promise<Response> {
+export async function backendRaw(
+  path: string,
+  options: BackendFetchOptions = {},
+): Promise<Response> {
   const { body, accessToken, headers, ...rest } = options;
   return fetch(`${getBackendUrl()}${path}`, {
     ...rest,
@@ -79,7 +86,9 @@ export async function backendFetch<T>(path: string, options: BackendFetchOptions
   const response = await fetch(`${getBackendUrl()}${path}`, {
     ...rest,
     headers: {
-      ...(body !== undefined && !(body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
+      ...(body !== undefined && !(body instanceof FormData)
+        ? { "Content-Type": "application/json" }
+        : {}),
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       ...headers,
     },

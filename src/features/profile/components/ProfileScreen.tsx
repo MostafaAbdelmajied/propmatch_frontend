@@ -11,7 +11,7 @@ import { useLogout, useSession } from "@/src/features/auth/hooks/useSession";
 import { useQuota } from "@/src/features/landlord/hooks/useLandlord";
 import { PaymentSheet } from "@/src/features/payments/PaymentSheet";
 import { api } from "@/src/lib/api/browserClient";
-import type { PaymentTransaction, PaymentType } from "@/src/lib/api/contracts/payment";
+import type { PaymentType } from "@/src/lib/api/contracts/payment";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
@@ -29,7 +29,6 @@ import {
   ShieldAlert,
   Sparkles,
   Trash2,
-  UserCheck,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -77,13 +76,11 @@ export function ProfileScreen() {
   const { data: user, isLoading } = useSession();
   const quotaQuery = useQuota();
   const { data: quota, isLoading: isQuotaLoading } = quotaQuery;
-  const { refetch: refetchQuota } = quotaQuery;
   const logout = useLogout();
 
   const [activePaymentType, setActivePaymentType] = useState<PaymentType | null>(null);
-  const [isReconcilingPayments, setIsReconcilingPayments] = useState(false);
   const [showOfferInfo, setShowOfferInfo] = useState(false);
-  
+
   // Avatar uploading state
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [avatarProgress, setAvatarProgress] = useState(0);
@@ -107,28 +104,6 @@ export function ProfileScreen() {
       setEditPhone(user.phoneNumber);
     }
   }, [user]);
-
-  useEffect(() => {
-    if (user?.role !== "landlord") return;
-    let cancelled = false;
-
-    async function reconcilePendingPayments() {
-      setIsReconcilingPayments(true);
-      try {
-        const transactions = await api.post<PaymentTransaction[]>("payments/reconcile-pending", {});
-        if (!cancelled && transactions.some((transaction) => transaction.status === "SUCCESS")) {
-          await refetchQuota();
-        }
-      } finally {
-        if (!cancelled) setIsReconcilingPayments(false);
-      }
-    }
-
-    void reconcilePendingPayments();
-    return () => {
-      cancelled = true;
-    };
-  }, [refetchQuota, user?.role]);
 
   async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -190,7 +165,9 @@ export function ProfileScreen() {
       {/* Page Title Header */}
       <div>
         <h1 className="text-h1 font-bold text-ink">حسابي</h1>
-        <p className="mt-0.5 text-small text-muted">إدارة بيانات حسابك، الاشتراكات، ورصيد المزايا</p>
+        <p className="mt-0.5 text-small text-muted">
+          إدارة بيانات حسابك، الاشتراكات، ورصيد المزايا
+        </p>
       </div>
 
       {/* Main Profile Card */}
@@ -253,18 +230,25 @@ export function ProfileScreen() {
               <span
                 className={cn(
                   "inline-flex items-center gap-1.5 rounded-pill px-3.5 py-1.5 text-small font-bold whitespace-nowrap shrink-0 shadow-xs",
-                  quota?.planType === "PREMIUM" && "bg-amber-500/15 text-amber-600 border border-amber-500/30",
-                  quota?.planType === "OWNER_PLUS" && "bg-primary-tint text-primary border border-primary/30",
-                  (quota?.planType === "FREE" || !quota?.planType) && "bg-background text-muted border border-hairline",
+                  quota?.planType === "PREMIUM" &&
+                    "bg-amber-500/15 text-amber-600 border border-amber-500/30",
+                  quota?.planType === "OWNER_PLUS" &&
+                    "bg-primary-tint text-primary border border-primary/30",
+                  (quota?.planType === "FREE" || !quota?.planType) &&
+                    "bg-background text-muted border border-hairline",
                 )}
               >
-                {quota?.planType === "PREMIUM" && <Crown className="size-4 shrink-0 text-amber-500" />}
-                {quota?.planType === "OWNER_PLUS" && <Sparkles className="size-4 shrink-0 text-primary" />}
+                {quota?.planType === "PREMIUM" && (
+                  <Crown className="size-4 shrink-0 text-amber-500" />
+                )}
+                {quota?.planType === "OWNER_PLUS" && (
+                  <Sparkles className="size-4 shrink-0 text-primary" />
+                )}
                 {quota?.planType === "PREMIUM"
                   ? "الخطة المميزة Premium"
                   : quota?.planType === "OWNER_PLUS"
-                  ? "خطة المالك Plus"
-                  : "الخطة المجانية"}
+                    ? "خطة المالك Plus"
+                    : "الخطة المجانية"}
               </span>
               {quota?.planExpiresAt && (
                 <span className="text-caption text-muted font-semibold whitespace-nowrap">
@@ -344,7 +328,7 @@ export function ProfileScreen() {
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-1.5 text-caption font-semibold text-muted">
                   <Building2 className="size-4 text-primary" />
-                  الوحدات العقارية  
+                  الوحدات العقارية
                 </span>
                 <span className="text-caption font-bold text-ink">
                   {quota?.activeUnitCount ?? 0} / {quota?.maxActiveListings ?? 1}
@@ -354,13 +338,11 @@ export function ProfileScreen() {
                 <div
                   className="h-full bg-primary transition-all duration-500"
                   style={{
-                    width: `${Math.min(100, (((quota?.activeUnitCount ?? 0) / (quota?.maxActiveListings ?? 1)) * 100))}%`,
+                    width: `${Math.min(100, ((quota?.activeUnitCount ?? 0) / (quota?.maxActiveListings ?? 1)) * 100)}%`,
                   }}
                 />
               </div>
-              <span className="text-[11px] text-muted">
-                الحد الأقصى المسموح به في خطتك الحالية
-              </span>
+              <span className="text-[11px] text-muted">الحد الأقصى المسموح به في خطتك الحالية</span>
             </div>
 
             {/* Direct Tenant Offers Progress Bar */}
@@ -378,7 +360,7 @@ export function ProfileScreen() {
                 <div
                   className="h-full bg-trust-blue transition-all duration-500"
                   style={{
-                    width: `${Math.min(100, (((quota?.freeOffersLeft ?? 0) / (quota?.planType === "PREMIUM" ? 50 : quota?.planType === "OWNER_PLUS" ? 10 : 3)) * 100))}%`,
+                    width: `${Math.min(100, ((quota?.freeOffersLeft ?? 0) / (quota?.planType === "PREMIUM" ? 50 : quota?.planType === "OWNER_PLUS" ? 10 : 3)) * 100)}%`,
                   }}
                 />
               </div>
@@ -402,7 +384,7 @@ export function ProfileScreen() {
                 <div
                   className="h-full bg-accent transition-all duration-500"
                   style={{
-                    width: `${Math.min(100, (((quota?.optimizerUsesLeft ?? 0) / (quota?.planType === "PREMIUM" ? 20 : quota?.planType === "OWNER_PLUS" ? 10 : 3)) * 100))}%`,
+                    width: `${Math.min(100, ((quota?.optimizerUsesLeft ?? 0) / (quota?.planType === "PREMIUM" ? 20 : quota?.planType === "OWNER_PLUS" ? 10 : 3)) * 100)}%`,
                   }}
                 />
               </div>
@@ -415,13 +397,6 @@ export function ProfileScreen() {
           {/* Subscription Plans Section */}
           <div className="flex flex-col gap-3">
             <h3 className="text-title font-bold text-ink">خطط اشتراك المالك المتاحة</h3>
-
-            {isReconcilingPayments && (
-              <p className="flex items-center gap-2 text-small text-muted" role="status">
-                <Loader2 className="size-4 animate-spin" aria-hidden />
-                جارٍ التحقق من حالة المدفوعات السابقة…
-              </p>
-            )}
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               {/* Free Owner Plan */}
@@ -438,16 +413,20 @@ export function ProfileScreen() {
                   </p>
                   <ul className="flex flex-col gap-2 text-caption text-body-text mb-4">
                     <li className="flex items-center gap-1.5">
-                      <Check className="size-3.5 text-success shrink-0" /> وحدة عقارية نشطة واحدة (1)
+                      <Check className="size-3.5 text-success shrink-0" /> وحدة عقارية نشطة واحدة
+                      (1)
                     </li>
                     <li className="flex items-center gap-1.5">
-                      <Check className="size-3.5 text-success shrink-0" /> 3 عروض إيجار مباشرة شهرياً
+                      <Check className="size-3.5 text-success shrink-0" /> 3 عروض إيجار مباشرة
+                      شهرياً
                     </li>
                     <li className="flex items-center gap-1.5">
-                      <Check className="size-3.5 text-success shrink-0" /> 3 استخدامات محسن الذكاء الاصطناعي
+                      <Check className="size-3.5 text-success shrink-0" /> 3 استخدامات محسن الذكاء
+                      الاصطناعي
                     </li>
                     <li className="flex items-center gap-1.5">
-                      <Check className="size-3.5 text-success shrink-0" /> إنشاء وتصدير عقود PDF مجاناً
+                      <Check className="size-3.5 text-success shrink-0" /> إنشاء وتصدير عقود PDF
+                      مجاناً
                     </li>
                   </ul>
                 </div>
@@ -472,13 +451,16 @@ export function ProfileScreen() {
                       <Check className="size-3.5 text-success shrink-0" /> حتى 5 وحدات عقارية نشطة
                     </li>
                     <li className="flex items-center gap-1.5">
-                      <Check className="size-3.5 text-success shrink-0" /> عروض إيجار لا محدودة مع المستأجرين
+                      <Check className="size-3.5 text-success shrink-0" /> عروض إيجار لا محدودة مع
+                      المستأجرين
                     </li>
                     <li className="flex items-center gap-1.5">
-                      <Check className="size-3.5 text-success shrink-0" /> 5 استخدامات لمحسن الذكاء الاصطناعي
+                      <Check className="size-3.5 text-success shrink-0" /> 5 استخدامات لمحسن الذكاء
+                      الاصطناعي
                     </li>
                     <li className="flex items-center gap-1.5">
-                      <Check className="size-3.5 text-success shrink-0" /> تتجدد المزايا شهريًا أثناء الاشتراك
+                      <Check className="size-3.5 text-success shrink-0" /> تتجدد المزايا شهريًا
+                      أثناء الاشتراك
                     </li>
                   </ul>
                 </div>
@@ -490,7 +472,6 @@ export function ProfileScreen() {
                   <Button
                     variant="secondary"
                     size="sm"
-                    loading={isReconcilingPayments}
                     onClick={() => setActivePaymentType("PREMIUM_OWNER")}
                   >
                     اشترك مقابل 999 ج.م شهرياً
@@ -515,7 +496,6 @@ export function ProfileScreen() {
                 <Button
                   variant="secondary"
                   size="sm"
-                  loading={isReconcilingPayments}
                   onClick={() => setActivePaymentType("AI_ADDON")}
                 >
                   شراء باقة الذكاء الاصطناعي
@@ -529,12 +509,15 @@ export function ProfileScreen() {
       {/* Clean, Well-Arranged Account Settings Card */}
       <div className="flex flex-col gap-4 rounded-card border border-hairline bg-surface p-5 sm:p-6 shadow-card">
         <h3 className="text-title font-bold text-ink">إعدادات الحساب والأمان</h3>
-        
+
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <Button
             variant="secondary"
             size="md"
-            onClick={() => { setUpdateStep(1); setShowUpdateWizard(true); }}
+            onClick={() => {
+              setUpdateStep(1);
+              setShowUpdateWizard(true);
+            }}
             className="whitespace-nowrap shrink-0 justify-center font-bold"
           >
             <Edit className="size-4 shrink-0" />
@@ -555,7 +538,11 @@ export function ProfileScreen() {
           <Button
             variant="danger"
             size="md"
-            onClick={() => { setDeleteStep(1); setDeleteConfirmInput(""); setShowDeleteWizard(true); }}
+            onClick={() => {
+              setDeleteStep(1);
+              setDeleteConfirmInput("");
+              setShowDeleteWizard(true);
+            }}
             className="whitespace-nowrap shrink-0 justify-center font-bold"
           >
             <Trash2 className="size-4 shrink-0" />
@@ -566,7 +553,11 @@ export function ProfileScreen() {
 
       {/* Update Account Wizard Modal */}
       {showUpdateWizard && (
-        <Sheet open={showUpdateWizard} onClose={() => setShowUpdateWizard(false)} title="تعديل بيانات الحساب">
+        <Sheet
+          open={showUpdateWizard}
+          onClose={() => setShowUpdateWizard(false)}
+          title="تعديل بيانات الحساب"
+        >
           <div className="flex flex-col gap-4">
             {updateStep === 1 && (
               <div className="flex flex-col gap-3">
@@ -582,7 +573,11 @@ export function ProfileScreen() {
                   onChange={(e) => setEditPhone(e.target.value)}
                   placeholder="01xxxxxxxxx"
                 />
-                <Button block onClick={() => setUpdateStep(2)} disabled={!editName.trim() || !editPhone.trim()}>
+                <Button
+                  block
+                  onClick={() => setUpdateStep(2)}
+                  disabled={!editName.trim() || !editPhone.trim()}
+                >
                   المتابعة لمراجعة البيانات
                 </Button>
               </div>
@@ -592,8 +587,13 @@ export function ProfileScreen() {
               <div className="flex flex-col gap-4">
                 <div className="rounded-card border border-primary/30 bg-primary-tint/20 p-4 text-small">
                   <p className="font-bold text-primary mb-2">مراجعة التعديلات الجديدة:</p>
-                  <p className="text-ink font-semibold">الاسم الجديد: <span className="font-normal text-body-text">{editName}</span></p>
-                  <p className="text-ink font-semibold mt-1">رقم الهاتف الجديد: <span className="font-normal text-body-text">{editPhone}</span></p>
+                  <p className="text-ink font-semibold">
+                    الاسم الجديد: <span className="font-normal text-body-text">{editName}</span>
+                  </p>
+                  <p className="text-ink font-semibold mt-1">
+                    رقم الهاتف الجديد:{" "}
+                    <span className="font-normal text-body-text">{editPhone}</span>
+                  </p>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <Button variant="secondary" onClick={() => setUpdateStep(1)}>
@@ -611,15 +611,29 @@ export function ProfileScreen() {
 
       {/* Delete Account Confirmation Wizard Modal */}
       {showDeleteWizard && (
-        <Sheet open={showDeleteWizard} onClose={() => setShowDeleteWizard(false)} title="مُوجّه حذف الحساب النهائياً">
+        <Sheet
+          open={showDeleteWizard}
+          onClose={() => setShowDeleteWizard(false)}
+          title="مُوجّه حذف الحساب النهائياً"
+        >
           <div className="flex flex-col gap-4">
             {/* Step Indicator */}
             <div className="flex items-center justify-between border-b border-hairline pb-3">
-              <span className={cn("text-small font-bold", deleteStep === 1 ? "text-error" : "text-muted")}>
+              <span
+                className={cn(
+                  "text-small font-bold",
+                  deleteStep === 1 ? "text-error" : "text-muted",
+                )}
+              >
                 ١. تحذير التبعات
               </span>
               <span className="text-caption text-muted">←</span>
-              <span className={cn("text-small font-bold", deleteStep === 2 ? "text-error" : "text-muted")}>
+              <span
+                className={cn(
+                  "text-small font-bold",
+                  deleteStep === 2 ? "text-error" : "text-muted",
+                )}
+              >
                 ٢. التأكيد والحذف
               </span>
             </div>
@@ -631,7 +645,8 @@ export function ProfileScreen() {
                   <div>
                     <p className="font-bold">تحذير مهم قبل الاستمرار:</p>
                     <p className="mt-1 leading-relaxed">
-                      حذف الحساب هو إجراء نهائي لا يمكن التراجع عنه. سيتم حذف جميع عقاراتك المنشورة، ورصيد المزايا والاشتراكات، وجميع عروض الإيجار والرسائل بشكل دائم.
+                      حذف الحساب هو إجراء نهائي لا يمكن التراجع عنه. سيتم حذف جميع عقاراتك المنشورة،
+                      ورصيد المزايا والاشتراكات، وجميع عروض الإيجار والرسائل بشكل دائم.
                     </p>
                   </div>
                 </div>
@@ -644,7 +659,8 @@ export function ProfileScreen() {
             {deleteStep === 2 && (
               <div className="flex flex-col gap-4">
                 <p className="text-small font-semibold text-ink">
-                  لتأكيد عملية الحذف، اكتب كلمة <span className="font-bold text-error">"حذف"</span> أو <span className="font-bold text-error">"DELETE"</span> في الحقل أدناه:
+                  لتأكيد عملية الحذف، اكتب كلمة <span className="font-bold text-error">"حذف"</span>{" "}
+                  أو <span className="font-bold text-error">"DELETE"</span> في الحقل أدناه:
                 </p>
                 <InputField
                   placeholder='اكتب "حذف" هنا'
@@ -657,7 +673,9 @@ export function ProfileScreen() {
                   </Button>
                   <Button
                     variant="danger"
-                    disabled={deleteConfirmInput !== "حذف" && deleteConfirmInput.toUpperCase() !== "DELETE"}
+                    disabled={
+                      deleteConfirmInput !== "حذف" && deleteConfirmInput.toUpperCase() !== "DELETE"
+                    }
                     loading={isDeletingAccount}
                     onClick={handleDeleteAccountSubmit}
                   >
