@@ -90,6 +90,8 @@ describe("auth contracts", () => {
   it("documents the local NestJS API prefix and port", () => {
     const example = readFileSync(join(process.cwd(), ".env.example"), "utf8");
     expect(example).toContain("NESTJS_API_URL=http://localhost:3001/api");
+    expect(example).toContain("PRODCUTION=false");
+    expect(example).toContain("NESTJS_API_URL_PROUDCTION=https://api.example.com/api");
     expect(example).not.toMatch(/(?:PASSWORD|TOKEN|SECRET|DATABASE_URL)=/);
   });
 });
