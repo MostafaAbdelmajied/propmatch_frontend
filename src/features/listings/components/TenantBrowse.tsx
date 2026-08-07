@@ -6,7 +6,11 @@ import { BedDouble, Inbox, Lock, MapPin, Search, Sofa } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
-import { useApprovedProperties, usePublicTenantRequests, useSemanticPropertySearch } from "../hooks/useProperties";
+import {
+  useApprovedProperties,
+  usePublicTenantRequests,
+  useSemanticPropertySearch,
+} from "../hooks/useProperties";
 
 import { Button } from "@/src/components/ui/Button";
 import { EmptyState, ErrorState } from "@/src/components/ui/States";
@@ -47,7 +51,9 @@ export function AuthPromptModal({ isOpen, onClose, title, description }: AuthPro
             <Button className="w-full justify-center">تسجيل الدخول</Button>
           </Link>
           <Link href="/signup" className="w-full">
-            <Button variant="secondary" className="w-full justify-center">إنشاء حساب جديد</Button>
+            <Button variant="secondary" className="w-full justify-center">
+              إنشاء حساب جديد
+            </Button>
           </Link>
           <Button variant="ghost" onClick={onClose} className="w-full justify-center mt-1">
             إغلاق
@@ -57,7 +63,6 @@ export function AuthPromptModal({ isOpen, onClose, title, description }: AuthPro
     </div>
   );
 }
-
 
 const semanticSearchLimit = 10;
 const noRelevantSemanticMatchReason = "NO_RELEVANT_SEMANTIC_MATCH";
@@ -93,7 +98,7 @@ function SemanticPropertyCard({
   );
 }
 
-export function TenantBrowse() {
+export function TenantBrowse({ canBrowseTenantRequests }: { canBrowseTenantRequests: boolean }) {
   const router = useRouter();
   const { data: user } = useSession();
   const [activeTab, setActiveTab] = useState<"properties" | "requests">("properties");
@@ -126,7 +131,7 @@ export function TenantBrowse() {
     semanticSearch.data?.items.length === 0 &&
     semanticSearch.data.reason === noRelevantSemanticMatchReason;
 
-  const publicRequests = usePublicTenantRequests();
+  const publicRequests = usePublicTenantRequests(canBrowseTenantRequests);
 
   function semanticValidationMessage(value: string) {
     if (value.length < 2) return "اكتب حرفين على الأقل للبحث.";
@@ -160,7 +165,8 @@ export function TenantBrowse() {
     if (!user) {
       setAuthPromptData({
         title: "رؤية تفاصيل العقار",
-        description: "يرجى تسجيل الدخول أو إنشاء حساب لمشاهدة الصور الكاملة والمميزات والتواصل المباشر مع مالك العقار.",
+        description:
+          "يرجى تسجيل الدخول أو إنشاء حساب لمشاهدة الصور الكاملة والمميزات والتواصل المباشر مع مالك العقار.",
       });
       setAuthPromptOpen(true);
     } else {
@@ -168,13 +174,12 @@ export function TenantBrowse() {
     }
   }
 
-
-
   function handleRequestCardClick() {
     if (!user) {
       setAuthPromptData({
         title: "رؤية تفاصيل طلب السكن",
-        description: "يرجى تسجيل الدخول أو إنشاء حساب للتواصل مع المستأجر وإرسال عروض العقارات المناسبة له.",
+        description:
+          "يرجى تسجيل الدخول أو إنشاء حساب للتواصل مع المستأجر وإرسال عروض العقارات المناسبة له.",
       });
       setAuthPromptOpen(true);
     } else {
@@ -183,7 +188,8 @@ export function TenantBrowse() {
       } else {
         setAuthPromptData({
           title: "التواصل مع مستأجر آخر",
-          description: "طلبات السكن مخصصة لتلقي عروض الملاك. لا يمكنك إرسال عروض لمستأجرين آخرين بصفتك مستأجرًا.",
+          description:
+            "طلبات السكن مخصصة لتلقي عروض الملاك. لا يمكنك إرسال عروض لمستأجرين آخرين بصفتك مستأجرًا.",
         });
         setAuthPromptOpen(true);
       }
@@ -195,39 +201,41 @@ export function TenantBrowse() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div>
           <h1 className="text-h1 font-bold text-ink">تصفّح المنصة</h1>
-          <p className="mt-1 text-small text-muted">إعلانات عقارات وطلبات مستأجرين مباشرة في المنصورة.</p>
+          <p className="mt-1 text-small text-muted">
+            {canBrowseTenantRequests
+              ? "إعلانات عقارات وطلبات مستأجرين مباشرة في المنصورة."
+              : "تصفّح العقارات المعروضة مباشرة في المنصورة."}
+          </p>
         </div>
 
         {/* Tab Switcher */}
-        <div className="flex rounded-control border border-hairline bg-surface p-1 self-start">
-          <button
-            type="button"
-            onClick={() => setActiveTab("properties")}
-            className={cn(
-              "rounded-control px-4 py-1.5 text-small font-bold transition-all",
-              activeTab === "properties"
-                ? "bg-primary text-white"
-                : "text-muted hover:text-ink"
-            )}
-          >
-            العقارات المعروضة
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab("requests")}
-            className={cn(
-              "rounded-control px-4 py-1.5 text-small font-bold transition-all",
-              activeTab === "requests"
-                ? "bg-primary text-white"
-                : "text-muted hover:text-ink"
-            )}
-          >
-            طلبات المستأجرين
-          </button>
-        </div>
+        {canBrowseTenantRequests && (
+          <div className="flex rounded-control border border-hairline bg-surface p-1 self-start">
+            <button
+              type="button"
+              onClick={() => setActiveTab("properties")}
+              className={cn(
+                "rounded-control px-4 py-1.5 text-small font-bold transition-all",
+                activeTab === "properties" ? "bg-primary text-white" : "text-muted hover:text-ink",
+              )}
+            >
+              العقارات المعروضة
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("requests")}
+              className={cn(
+                "rounded-control px-4 py-1.5 text-small font-bold transition-all",
+                activeTab === "requests" ? "bg-primary text-white" : "text-muted hover:text-ink",
+              )}
+            >
+              طلبات المستأجرين
+            </button>
+          </div>
+        )}
       </div>
 
-      {activeTab === "properties" ? (
+      {activeTab === "properties" || !canBrowseTenantRequests ? (
         <>
           <form
             onSubmit={submitSemanticSearch}
@@ -250,7 +258,9 @@ export function TenantBrowse() {
                     setSemanticInput(e.target.value);
                     if (semanticValidation) setSemanticValidation(null);
                   }}
-                  onBlur={() => setSemanticValidation(semanticValidationMessage(trimmedSemanticInput))}
+                  onBlur={() =>
+                    setSemanticValidation(semanticValidationMessage(trimmedSemanticInput))
+                  }
                   placeholder="مثال: شقة هادئة غرفتين قريبة من الجامعة وبميزانية متوسطة"
                   aria-label="ابحث بوصف العقار الذي تحتاجه"
                   aria-describedby={semanticValidation ? "semantic-search-validation" : undefined}
@@ -271,7 +281,11 @@ export function TenantBrowse() {
               )}
             </div>
             {semanticValidation && (
-              <p id="semantic-search-validation" className="mt-2 text-small text-error" role="alert">
+              <p
+                id="semantic-search-validation"
+                className="mt-2 text-small text-error"
+                role="alert"
+              >
                 {semanticValidation}
               </p>
             )}
@@ -356,7 +370,9 @@ export function TenantBrowse() {
             )
           ) : (
             <>
-              <p className="text-caption text-muted">{formatNumber(activeSearch.data.total)} عقار</p>
+              <p className="text-caption text-muted">
+                {formatNumber(activeSearch.data.total)} عقار
+              </p>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {isSemanticMode
                   ? semanticSearch.data!.items.map((property) => (
@@ -375,7 +391,6 @@ export function TenantBrowse() {
                         actionSlot={!user ? undefined : <FavoriteButton propertyId={property.id} />}
                       />
                     ))}
-
               </div>
             </>
           )}
@@ -398,7 +413,9 @@ export function TenantBrowse() {
             />
           ) : (
             <>
-              <p className="text-caption text-muted">{formatNumber(publicRequests.data.items.length)} طلب سكن نشط</p>
+              <p className="text-caption text-muted">
+                {formatNumber(publicRequests.data.items.length)} طلب سكن نشط
+              </p>
               <ul className="flex flex-col gap-4">
                 {publicRequests.data.items.map((request) => (
                   <li key={request.id}>
@@ -409,9 +426,10 @@ export function TenantBrowse() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <h2 className="text-body font-bold text-ink">
-                            {propertyTypeLabels[request.propertyType as keyof typeof propertyTypeLabels] || request.propertyType} · {formatEGP(request.minBudget)} –{" "}
-                            {formatEGP(request.maxBudget)}
-
+                            {propertyTypeLabels[
+                              request.propertyType as keyof typeof propertyTypeLabels
+                            ] || request.propertyType}{" "}
+                            · {formatEGP(request.minBudget)} – {formatEGP(request.maxBudget)}
                           </h2>
                           <p className="mt-0.5 flex items-center gap-1 text-small text-muted">
                             <MapPin className="size-3.5 shrink-0" aria-hidden />
@@ -420,7 +438,9 @@ export function TenantBrowse() {
                         </div>
                       </div>
 
-                      <p className="line-clamp-3 text-small leading-relaxed text-body-text">{request.lifestyleRequirements}</p>
+                      <p className="line-clamp-3 text-small leading-relaxed text-body-text">
+                        {request.lifestyleRequirements}
+                      </p>
 
                       <div className="flex flex-wrap items-center gap-3 border-t border-hairline pt-3 text-caption text-muted">
                         <span className="flex items-center gap-1">
@@ -433,7 +453,9 @@ export function TenantBrowse() {
                             يريد مفروش
                           </span>
                         )}
-                        <span>مرونة {formatNumber(request.flexibilityScore)}/{formatNumber(10)}</span>
+                        <span>
+                          مرونة {formatNumber(request.flexibilityScore)}/{formatNumber(10)}
+                        </span>
                         <span>{formatRelativeTime(new Date(request.createdAt))}</span>
                       </div>
                     </article>

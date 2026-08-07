@@ -72,10 +72,10 @@ export function useMyProperties() {
   });
 }
 
-export function usePublicTenantRequests() {
+export function usePublicTenantRequests(enabled: boolean) {
   return useQuery<{ items: any[] }>({
     queryKey: ["tenant-requests", "public"],
     queryFn: () => api.get<{ items: any[] }>("tenant-requests"),
+    enabled,
   });
 }
-
