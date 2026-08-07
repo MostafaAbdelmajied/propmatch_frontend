@@ -54,12 +54,15 @@ describe("KycWizard", () => {
     expect(document.querySelectorAll('input[type="file"]')).toHaveLength(0);
   });
 
-  it("allows a fresh RESUBMISSION_REQUIRED submission with exact file mapping and optional ID", async () => {
+  it("allows a fresh RESUBMISSION_REQUIRED submission with exact file mapping and required ID", async () => {
     getVerification.mockResolvedValue(response("RESUBMISSION_REQUIRED"));
     submit.mockResolvedValue(response("PENDING"));
     const { container } = renderWizard();
     expect(await screen.findByText("مطلوب إعادة تقديم المستندات")).toBeInTheDocument();
     expect(screen.getByText(/سبب طلب إعادة التقديم/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/الرقم القومي/), {
+      target: { value: "29001011234567" },
+    });
 
     const [front, back, selfie] = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="file"]'));
     fireEvent.change(front, { target: { files: [new File(["front"], "front.jpg", { type: "image/jpeg" })] } });
@@ -68,7 +71,7 @@ describe("KycWizard", () => {
     fireEvent.click(screen.getByRole("button", { name: "إعادة تقديم المستندات" }));
 
     await waitFor(() => expect(submit).toHaveBeenCalledWith(expect.objectContaining({
-      nationalId: undefined,
+      nationalId: "29001011234567",
       nationalIdFront: expect.any(File),
       nationalIdBack: expect.any(File),
       selfie: expect.any(File),
@@ -85,7 +88,11 @@ describe("KycWizard", () => {
     expect(validateVerificationFile({ type: "image/gif", size: 1 } as File)).toBe("الملف يجب أن يكون بصيغة JPEG أو PNG أو WebP.");
     fireEvent.click(screen.getByRole("button", { name: "إرسال للمراجعة" }));
     expect(submit).not.toHaveBeenCalled();
+    expect(screen.getByText("الرقم القومي يجب أن يتكون من 14 رقمًا.")).toBeInTheDocument();
 
+    fireEvent.change(screen.getByLabelText(/الرقم القومي/), {
+      target: { value: "29001011234567" },
+    });
     fireEvent.change(front, { target: { files: [new File(["front"], "front.jpg", { type: "image/jpeg" })] } });
     fireEvent.change(back, { target: { files: [new File(["back"], "back.jpg", { type: "image/jpeg" })] } });
     fireEvent.change(selfie, { target: { files: [new File(["selfie"], "selfie.jpg", { type: "image/jpeg" })] } });

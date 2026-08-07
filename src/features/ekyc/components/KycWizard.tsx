@@ -26,6 +26,11 @@ type Files = Record<FileField, File | null>;
 type FileErrors = Partial<Record<FileField, string>>;
 
 const emptyFiles = (): Files => ({ nationalIdFront: null, nationalIdBack: null, selfie: null });
+const nationalIdErrorMessage = "الرقم القومي يجب أن يتكون من 14 رقمًا.";
+
+function validateNationalId(value: string): string | null {
+  return /^\d{14}$/.test(value.trim()) ? null : nationalIdErrorMessage;
+}
 
 function formatSubmittedAt(value: string | null) {
   return value ? new Intl.DateTimeFormat("ar-EG", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : null;
@@ -40,6 +45,7 @@ export function KycWizard() {
   const [files, setFiles] = useState<Files>(emptyFiles);
   const [fileErrors, setFileErrors] = useState<FileErrors>({});
   const [nationalId, setNationalId] = useState("");
+  const [nationalIdError, setNationalIdError] = useState<string | null>(null);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
 
   if (verification.isLoading) return <Skeleton className="h-96 w-full" />;
@@ -62,13 +68,15 @@ export function KycWizard() {
     const errors = Object.fromEntries(
       (Object.keys(files) as FileField[]).map((field) => [field, validateVerificationFile(files[field]) ?? undefined]),
     ) as FileErrors;
+    const nextNationalIdError = validateNationalId(nationalId);
     setFileErrors(errors);
-    if (Object.values(errors).some(Boolean) || submit.isPending) return;
+    setNationalIdError(nextNationalIdError);
+    if (Object.values(errors).some(Boolean) || nextNationalIdError || submit.isPending) return;
 
     setSubmissionError(null);
     submit.mutate(
       {
-        nationalId: nationalId.trim() || undefined,
+        nationalId: nationalId.trim(),
         nationalIdFront: files.nationalIdFront!,
         nationalIdBack: files.nationalIdBack!,
         selfie: files.selfie!,
@@ -78,6 +86,7 @@ export function KycWizard() {
           setFiles(emptyFiles());
           setFileErrors({});
           setNationalId("");
+          setNationalIdError(null);
         },
         onError: async (error) => {
           const message = isApiClientError(error)
@@ -129,13 +138,21 @@ export function KycWizard() {
       </div>
 
       <InputField
-        label="الرقم القومي (اختياري)"
+        label="الرقم القومي"
         inputMode="numeric"
         dir="ltr"
+        required
+        maxLength={14}
+        pattern="[0-9]{14}"
         value={nationalId}
         disabled={submit.isPending}
-        onChange={(event) => setNationalId(event.target.value)}
-        hint="يمكن تركه فارغًا عند إعادة الإرسال."
+        onChange={(event) => {
+          setNationalId(event.target.value.replace(/\D/g, "").slice(0, 14));
+          setNationalIdError(null);
+        }}
+        onBlur={() => setNationalIdError(validateNationalId(nationalId))}
+        error={nationalIdError ?? undefined}
+        hint="أدخل الرقم القومي المكوّن من 14 رقمًا كما هو مدوّن على البطاقة."
       />
 
       {submissionError && <p className="text-small text-error" role="alert" aria-live="polite">{submissionError}</p>}

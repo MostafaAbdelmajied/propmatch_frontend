@@ -483,6 +483,13 @@ export function dispatch(
     const nationalIdFront = body.get("nationalIdFront");
     const nationalIdBack = body.get("nationalIdBack");
     const selfie = body.get("selfie");
+    if (typeof nationalId !== "string" || !/^\d{14}$/.test(nationalId)) {
+      return codedErr(
+        400,
+        "INVALID_NATIONAL_ID",
+        "الرقم القومي يجب أن يتكون من 14 رقمًا.",
+      );
+    }
     const isFileEntry = (value: FormDataEntryValue | null): value is File =>
       value !== null && typeof value !== "string";
     if (!isFileEntry(nationalIdFront) || !isFileEntry(nationalIdBack) || !isFileEntry(selfie)) {
@@ -492,11 +499,10 @@ export function dispatch(
         "Required verification documents are missing.",
       );
     }
-    const providedNationalId = typeof nationalId === "string" ? nationalId : undefined;
     const existing = db.verifications.find((x) => x.userId === user.id);
     if (existing) {
       // Resubmission after rejection: reuse the row, back to PENDING.
-      existing.nationalId = providedNationalId ?? existing.nationalId;
+      existing.nationalId = nationalId;
       existing.status = "PENDING";
       existing.rejectionReason = null;
       existing.reviewedBy = null;
@@ -507,7 +513,7 @@ export function dispatch(
       const created: MockVerification = {
         id: nextId("ekyc"),
         userId: user.id,
-        nationalId: providedNationalId ?? "",
+        nationalId,
         nationalIdFrontUrl: "https://cdn.example.com/id-front.jpg",
         nationalIdBackUrl: "https://cdn.example.com/id-back.jpg",
         selfieUrl: "https://cdn.example.com/selfie.jpg",
