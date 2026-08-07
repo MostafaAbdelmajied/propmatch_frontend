@@ -412,8 +412,8 @@ export function dispatch(
         planExpiresAt: null,
         maxActiveListings: 1,
         freeListingsLeft: 0,
-        optimizerUsesLeft: 0,
-        freeOffersLeft: 3,
+        optimizerUsesLeft: 5,
+        freeOffersLeft: 5,
         lastResetDate: null,
       });
     }
@@ -484,11 +484,7 @@ export function dispatch(
     const nationalIdBack = body.get("nationalIdBack");
     const selfie = body.get("selfie");
     if (typeof nationalId !== "string" || !/^\d{14}$/.test(nationalId)) {
-      return codedErr(
-        400,
-        "INVALID_NATIONAL_ID",
-        "الرقم القومي يجب أن يتكون من 14 رقمًا.",
-      );
+      return codedErr(400, "INVALID_NATIONAL_ID", "الرقم القومي يجب أن يتكون من 14 رقمًا.");
     }
     const isFileEntry = (value: FormDataEntryValue | null): value is File =>
       value !== null && typeof value !== "string";
@@ -641,10 +637,12 @@ export function dispatch(
       conn = {
         id: nextId("mc"),
         tenantId: user.id,
+        tenantRequestId: null,
         propertyId: p.id,
         ownerId: p.ownerId,
         matchScore: 70,
         status: "INTERESTED",
+        agreementReachedAt: null,
         createdAt: new Date().toISOString(),
       };
       db.matchConnections.push(conn);
@@ -792,17 +790,10 @@ export function dispatch(
     announceQueueItem(propertyQueueItem(property));
     return ok({ property: toDetail(property, user) });
   }
-  if (
-    seg[0] === "landlord" &&
-    seg[1] === "properties" &&
-    seg.length === 3 &&
-    method === "DELETE"
-  ) {
+  if (seg[0] === "landlord" && seg[1] === "properties" && seg.length === 3 && method === "DELETE") {
     if (!user) return unauth();
     if (user.role !== "landlord") return forbidden();
-    const property = db.properties.find(
-      (item) => item.id === seg[2] && item.ownerId === user.id,
-    );
+    const property = db.properties.find((item) => item.id === seg[2] && item.ownerId === user.id);
     if (!property) return err(404, "العقار غير موجود");
     property.status = "ARCHIVED";
     property.isBoosted = false;
@@ -810,12 +801,7 @@ export function dispatch(
     property.updatedAt = new Date().toISOString();
     return ok({ ok: true, status: "ARCHIVED" });
   }
-  if (
-    seg[0] === "landlord" &&
-    seg[1] === "properties" &&
-    seg.length === 3 &&
-    method === "PATCH"
-  ) {
+  if (seg[0] === "landlord" && seg[1] === "properties" && seg.length === 3 && method === "PATCH") {
     if (!user) return unauth();
     if (user.role !== "landlord") return forbidden();
     if (!isVerified(user.id)) return needsVerification();
@@ -839,7 +825,8 @@ export function dispatch(
     }
     const newImageParts = body.getAll("images");
     if (retainedIds.length + newImageParts.length < 1) return err(400, "أضف صورة واحدة على الأقل");
-    if (retainedIds.length + newImageParts.length > 10) return err(400, "يمكنك إضافة 10 صور كحد أقصى");
+    if (retainedIds.length + newImageParts.length > 10)
+      return err(400, "يمكنك إضافة 10 صور كحد أقصى");
 
     property.title = String(body.get("title") ?? "");
     property.description = String(body.get("description") ?? "");
@@ -925,6 +912,7 @@ export function dispatch(
 
   /* ------------- reverse marketplace: tenant requests (PRO-05) ----------- */
   if (path === "/tenant-requests" && method === "GET") {
+    if (user?.role === "tenant") return forbidden();
     const items = db.tenantRequests
       .filter((r) => r.status === "APPROVED")
       .map((r) => ({
@@ -934,7 +922,6 @@ export function dispatch(
     return ok({ items });
   }
   if (path === "/tenant/requests" && method === "GET") {
-
     if (!user) return unauth();
     const items = db.tenantRequests
       .filter((r) => r.tenantId === user.id)
@@ -1105,17 +1092,17 @@ export function dispatch(
     if (!property || property.status !== "APPROVED") return forbidden("العقار لم يعد متاحًا");
 
     o.status = "ACCEPTED";
-    // Accepting fulfils the request; siblings stay SENT but non-acceptable.
-    request.status = "FULFILLED";
     property.contactRevealed = true;
 
     const connection = {
       id: nextId("mc"),
       tenantId: user.id,
+      tenantRequestId: request.id,
       propertyId: property.id,
       ownerId: o.ownerId,
       matchScore: scoreRequestAgainstProperty(request, property),
       status: "CONNECTED" as const,
+      agreementReachedAt: null,
       createdAt: new Date().toISOString(),
     };
     db.matchConnections.push(connection);
@@ -1143,6 +1130,87 @@ export function dispatch(
     if (!o) return err(404, "غير موجود");
     o.status = "REJECTED";
     return ok();
+  }
+
+  if (path === "/matches" && method === "GET") {
+    if (!user) return unauth();
+    const items = db.matchConnections
+      .filter(
+        (match) =>
+          match.status === "CONNECTED" && (match.tenantId === user.id || match.ownerId === user.id),
+      )
+      .map((match) => {
+        const property = db.properties.find((item) => item.id === match.propertyId)!;
+        const other = db.users.find((item) =>
+          match.tenantId === user.id ? item.id === match.ownerId : item.id === match.tenantId,
+        )!;
+        return {
+          matchConnectionId: match.id,
+          propertyId: match.propertyId,
+          propertyTitle: property.title,
+          propertyCoverImage: null,
+          otherParticipantName: other.fullName,
+          connectionStatus: "CONNECTED" as const,
+          agreementReachedAt: match.agreementReachedAt,
+          canConfirmAgreement:
+            !match.agreementReachedAt &&
+            (match.tenantRequestId ? match.tenantId === user.id : match.ownerId === user.id),
+          lastMessagePreview: null,
+          lastMessageAt: null,
+        };
+      });
+    return ok(items);
+  }
+
+  if (seg[0] === "matches" && seg[2] === "agreement" && method === "POST") {
+    if (!user) return unauth();
+    const match = db.matchConnections.find(
+      (item) =>
+        item.id === seg[1] &&
+        item.status === "CONNECTED" &&
+        (item.tenantId === user.id || item.ownerId === user.id),
+    );
+    if (!match) return err(404, "غير موجود");
+    const confirmerId = match.tenantRequestId ? match.tenantId : match.ownerId;
+    if (user.id !== confirmerId) return forbidden();
+    if (!match.agreementReachedAt) {
+      const request = match.tenantRequestId
+        ? db.tenantRequests.find((item) => item.id === match.tenantRequestId)
+        : null;
+      if (request && request.status !== "APPROVED") {
+        return err(409, "تم إغلاق الطلب من محادثة أخرى");
+      }
+      match.agreementReachedAt = new Date().toISOString();
+      if (request) {
+        request.status = "FULFILLED";
+        db.offers.forEach((offer) => {
+          if (
+            offer.tenantRequestId === request.id &&
+            (offer.status === "SENT" || offer.status === "VIEWED")
+          ) {
+            offer.status = "REJECTED";
+          }
+        });
+      }
+      const property = db.properties.find((item) => item.id === match.propertyId);
+      if (property) property.status = "ARCHIVED";
+      db.offers.forEach((offer) => {
+        if (
+          offer.propertyId === match.propertyId &&
+          (offer.status === "SENT" || offer.status === "VIEWED")
+        ) {
+          offer.status = "REJECTED";
+        }
+      });
+      notify(
+        match.ownerId,
+        "NEW_MATCH",
+        "تم تأكيد الاتفاق",
+        "أكد المستأجر الوصول إلى اتفاق. يمكن الآن إعداد عقد الإيجار.",
+        `/landlord/messages/${match.id}`,
+      );
+    }
+    return ok({ matchConnectionId: match.id, agreementReachedAt: match.agreementReachedAt });
   }
 
   /* ---------------------------- favorites -------------------------------- */

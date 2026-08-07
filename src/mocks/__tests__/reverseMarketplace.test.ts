@@ -23,6 +23,12 @@ const landlord = () => auth("landlord@example.com"); // verified, owns prop_1/2/
 const admin = () => auth("admin@example.com");
 
 describe("PII gate", () => {
+  it("allows guests to browse requests but denies authenticated tenants", () => {
+    expect(call("GET", "/tenant-requests", null).status).toBe(200);
+    expect(call("GET", "/tenant-requests", tenant2()).status).toBe(403);
+    expect(call("GET", "/tenant-requests", landlord()).status).toBe(200);
+  });
+
   it("omits the owner's phone and address from a property a tenant has no connection to", () => {
     const res = call("GET", "/properties/prop_1", tenant2());
 
@@ -143,19 +149,32 @@ describe("full flow: request → approval → offer → accept → reveal", () =
     };
     expect(connection.status).toBe("CONNECTED");
 
-    // ...and accepting fulfils the request so it stops drawing offers.
+    // Accepting starts a discussion, so the request remains active and visible.
     const mine = call("GET", "/tenant/requests", tenant2()).body as {
       items: { id: string; status: string }[];
     };
-    expect(mine.items.find((r) => r.id === created.id)!.status).toBe("FULFILLED");
+    expect(mine.items.find((r) => r.id === created.id)!.status).toBe("APPROVED");
+    const stillBrowsable = call("GET", "/landlord/requests", landlord()).body as {
+      items: { id: string }[];
+    };
+    expect(stillBrowsable.items.map((request) => request.id)).toContain(created.id);
+
+    const matchConnectionId = (accept.body as { matchConnectionId: string }).matchConnectionId;
+    expect(call("GET", `/matches/${matchConnectionId}/contract/prefill`, tenant2()).status).toBe(
+      200,
+    );
+
+    // Explicit agreement closes the request and archives the property.
+    expect(call("POST", `/matches/${matchConnectionId}/agreement`, tenant2()).status).toBe(200);
+    const afterAgreement = call("GET", "/tenant/requests", tenant2()).body as {
+      items: { id: string; status: string }[];
+    };
+    expect(afterAgreement.items.find((r) => r.id === created.id)!.status).toBe("FULFILLED");
+    expect(db.properties.find((property) => property.id === "prop_1")!.status).toBe("ARCHIVED");
 
     // 6. Crucially, the reveal is per-connection — an unrelated tenant sees nothing.
-    const other = call("GET", "/properties/prop_1", auth("tenant@example.com")).body as Record<
-      string,
-      unknown
-    >;
-    expect(other.contactRevealed).toBe(false);
-    expect(other.ownerPhoneNumber).toBeNull();
+    const other = call("GET", "/properties/prop_1", auth("tenant@example.com"));
+    expect(other.status).toBe(404);
   });
 
   it("spends a free offer per send and paywalls once the quota is gone", () => {
@@ -214,7 +233,7 @@ function makeApprovedRequest(): string {
 function offerFor(tenantRequestId: string) {
   return {
     tenantRequestId,
-    propertyId: "prop_1",
+    propertyId: "prop_2",
     pitchMessage: "عقاري يناسب طلبك تمامًا ويقع في موقع متميز",
     proposedPrice: 4500,
   };
