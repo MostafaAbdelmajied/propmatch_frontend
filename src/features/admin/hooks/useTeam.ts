@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/src/lib/api/browserClient";
 import type {
+  AdminReactivationRequestsResponse,
   AdminSession,
   AdminTeamMember,
   AdminUsersResponse,
@@ -82,5 +83,31 @@ export function useDeleteUser() {
   return useMutation({
     mutationFn: (id: string) => api.delete<{ success: boolean; id: string }>(`admin/users/${id}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "users"] }),
+  });
+}
+
+/** Pending self-service account-reactivation requests. */
+export function useReactivationRequests() {
+  return useQuery({
+    queryKey: ["admin", "reactivations"],
+    queryFn: () => api.get<AdminReactivationRequestsResponse>("admin/reactivations"),
+  });
+}
+
+export function useApproveReactivation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api.post<{ success: boolean; id: string }>(`admin/reactivations/${id}/approve`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "reactivations"] }),
+  });
+}
+
+export function useRejectReactivation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api.post<{ success: boolean; id: string }>(`admin/reactivations/${id}/reject`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "reactivations"] }),
   });
 }

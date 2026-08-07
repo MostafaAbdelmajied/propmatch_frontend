@@ -61,6 +61,7 @@ export const ROLE_CAPABILITIES: Record<AdminRole, Capability[]> = {
     "admin:create",
     "admin:manage",
     "user:delete",
+    "user:reactivate",
   ],
   "listings-manager": ["property:approve", "property:reject"],
   "kyc-reviewer": ["kyc:review"],
@@ -288,3 +289,26 @@ export const AdminUsersResponseSchema = z.object({
   items: z.array(AdminUserListItemSchema),
 });
 export type AdminUsersResponse = z.infer<typeof AdminUsersResponseSchema>;
+
+/**
+ * GET /admin/reactivations item — a soft-deleted user's self-service
+ * request to have an admin restore their account. Always PENDING here
+ * (the endpoint only lists pending ones); approving/rejecting removes it
+ * from this list rather than changing its rendered status.
+ */
+export const AdminReactivationRequestSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  userFullName: z.string(),
+  userEmail: z.string(),
+  deletedAt: z.string().nullable(),
+  createdAt: z.string(),
+});
+export type AdminReactivationRequest = z.infer<typeof AdminReactivationRequestSchema>;
+
+export const AdminReactivationRequestsResponseSchema = z.object({
+  items: z.array(AdminReactivationRequestSchema),
+});
+export type AdminReactivationRequestsResponse = z.infer<
+  typeof AdminReactivationRequestsResponseSchema
+>;

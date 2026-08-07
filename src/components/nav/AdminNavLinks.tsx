@@ -3,7 +3,7 @@
 import { useAdminSession } from "@/src/features/admin/hooks/useTeam";
 import type { Capability } from "@/src/lib/api/contracts/common";
 import { cn } from "@/src/utils/cn";
-import { BarChart3, ClipboardCheck, Globe, Headset, ScrollText, Users, UserX } from "lucide-react";
+import { BarChart3, ClipboardCheck, Globe, Headset, ScrollText, Users, UserX, UserCheck } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -22,6 +22,7 @@ const links: AdminLink[] = [
   { href: "/admin/reports", label: "السجلات", Icon: BarChart3, exact: false, cap: "payment:view" },
   { href: "/admin/team", label: "الفريق", Icon: Users, exact: false, cap: "admin:manage" },
   { href: "/admin/users", label: "المستخدمون", Icon: UserX, exact: false, cap: "user:delete" },
+  { href: "/admin/reactivations", label: "إعادة التفعيل", Icon: UserCheck, exact: false, cap: "user:reactivate" },
   { href: "/admin/activity", label: "السجل", Icon: ScrollText, exact: false, cap: "audit:view" },
   { href: "/admin/settings/regions", label: "المناطق", Icon: Globe, exact: false, cap: "admin:manage" },
 ];

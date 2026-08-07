@@ -97,3 +97,19 @@ export const BackendAuthTokensSchema = z.object({
   user: tokens.user,
 }));
 export type BackendAuthTokens = z.infer<typeof BackendAuthTokensSchema>;
+
+/** POST /auth/login's 403 body for a soft-deleted account (see JwtStrategy /
+ * AuthService.signIn — ERD-adjacent, not a formal ERD field). */
+export const AccountSuspendedErrorSchema = z.object({
+  statusCode: z.literal(403),
+  code: z.literal("ACCOUNT_SUSPENDED"),
+  message: z.string(),
+});
+export type AccountSuspendedError = z.infer<typeof AccountSuspendedErrorSchema>;
+
+/** POST /auth/request-reactivation response. */
+export const RequestReactivationResponseSchema = z.object({
+  id: z.string(),
+  status: z.enum(["PENDING", "APPROVED", "REJECTED"]),
+});
+export type RequestReactivationResponse = z.infer<typeof RequestReactivationResponseSchema>;
