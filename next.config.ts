@@ -1,11 +1,10 @@
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
+import { getConfiguredBackendUrl } from "./src/lib/api/backendEnvironment";
 
 const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
 
-const backendOrigin = process.env.NESTJS_API_URL
-  ? process.env.NESTJS_API_URL.replace(/\/api\/?$/, "")
-  : "http://localhost:3001";
+const backendOrigin = getConfiguredBackendUrl().replace(/\/api$/, "");
 
 // Browser-facing backend origin where chat media (/public/...) is served —
 // same value the client uses for mediaUrl() and the socket.
