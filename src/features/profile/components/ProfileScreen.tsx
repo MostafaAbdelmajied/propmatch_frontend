@@ -360,7 +360,7 @@ export function ProfileScreen() {
                 <div
                   className="h-full bg-trust-blue transition-all duration-500"
                   style={{
-                    width: `${Math.min(100, ((quota?.freeOffersLeft ?? 0) / (quota?.planType === "PREMIUM" ? 50 : quota?.planType === "OWNER_PLUS" ? 10 : 3)) * 100)}%`,
+                    width: `${Math.min(100, ((quota?.freeOffersLeft ?? 0) / (quota?.planType === "PREMIUM" ? 50 : quota?.planType === "OWNER_PLUS" ? 10 : 5)) * 100)}%`,
                   }}
                 />
               </div>
@@ -384,7 +384,7 @@ export function ProfileScreen() {
                 <div
                   className="h-full bg-accent transition-all duration-500"
                   style={{
-                    width: `${Math.min(100, ((quota?.optimizerUsesLeft ?? 0) / (quota?.planType === "PREMIUM" ? 20 : quota?.planType === "OWNER_PLUS" ? 10 : 3)) * 100)}%`,
+                    width: `${Math.min(100, ((quota?.optimizerUsesLeft ?? 0) / (quota?.planType === "PREMIUM" ? 20 : quota?.planType === "OWNER_PLUS" ? 10 : 5)) * 100)}%`,
                   }}
                 />
               </div>
