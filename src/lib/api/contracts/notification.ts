@@ -52,7 +52,20 @@ export const SOCKET_EVENTS = {
   supportTicketCreated: "support:ticket:created",
   /** A new reply landed on a support ticket (customer or assigned agent). */
   supportMessageReceived: "support:message:received",
+  /** This socket's account was just suspended — drop the session instantly. */
+  forceLogout: "force_logout",
+  /** A soft-deleted user requested account reactivation (admins). */
+  newReactivationRequest: "new_reactivation_request",
 } as const;
+
+/** Payload for the `new_reactivation_request` event (matches the NestJS gateway). */
+export interface RealtimeReactivationRequest {
+  requestId: string;
+  userId: string;
+  userFullName: string;
+  userEmail: string;
+  createdAt: string;
+}
 
 /** Payload for the `support:message:received` event (matches the NestJS gateway). */
 export interface RealtimeSupportMessage {

@@ -1,11 +1,18 @@
 "use client";
 
 import { useEffect, useSyncExternalStore } from "react";
+import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { io, type Socket } from "socket.io-client";
 import { SOCKET_EVENTS } from "@/src/lib/api/contracts/notification";
-import type { Notification, NotificationsResponse, RealtimeSupportMessage } from "@/src/lib/api/contracts/notification";
+import type {
+  Notification,
+  NotificationsResponse,
+  RealtimeSupportMessage,
+  RealtimeReactivationRequest,
+} from "@/src/lib/api/contracts/notification";
 import { useToast } from "@/src/components/ui/Toast";
+import { authApi } from "@/src/lib/api/browserClient";
 import type { AdminQueuesResponse, QueueItem } from "@/src/lib/api/contracts/admin";
 import type { MatchMessage, RealtimeMatchMessage } from "@/src/lib/api/contracts/message";
 
@@ -124,6 +131,7 @@ export interface RealtimeState {
 export function useRealtime(): RealtimeState {
   const qc = useQueryClient();
   const toast = useToast();
+  const router = useRouter();
   const connected = useSyncExternalStore(subscribeToStatus, getStatus, getServerStatus);
 
   // Attach global user interaction listeners to unlock Web Audio API on first click/keypress
@@ -201,17 +209,51 @@ export function useRealtime(): RealtimeState {
       playNotificationChime();
     };
 
+    // Active invalidation: an admin just soft-deleted this exact session's
+    // account. Passive invalidation (401 on next request) would leave an
+    // already-open tab working until it happens to hit the network again —
+    // this drops it immediately instead. authApi.logout() clears the httpOnly
+    // cookie server-side (the socket payload can't do that itself); the qc
+    // reset + redirect mirror useLogout()'s onSuccess.
+    const onForceLogout = () => {
+      toast("error", "تم تعليق حسابك من قبل أحد المشرفين");
+      void authApi.logout().finally(() => {
+        qc.setQueryData(["session"], null);
+        qc.clear();
+        reconnectSocket();
+        router.push("/login");
+      });
+    };
+
+    // Dedicated alert for a new reactivation request — separate from the
+    // generic admin:queue:item stream because no queue widget renders
+    // type:'reactivation' yet; this toasts immediately and refetches both
+    // the admin reactivations table AND the notification bell (the backend
+    // also persists a REACTIVATION_REQUEST row per admin, so the bell's own
+    // GET /notifications has it — this just makes the badge update live
+    // instead of waiting for the bell's own poll/next open).
+    const onReactivationRequested = (payload: RealtimeReactivationRequest) => {
+      toast("info", `طلب إعادة تفعيل حساب جديد من ${payload.userEmail}`);
+      qc.invalidateQueries({ queryKey: ["admin", "reactivations"] });
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+      playNotificationChime();
+    };
+
     s.on(SOCKET_EVENTS.notification, onNotification);
     s.on(SOCKET_EVENTS.adminQueueItem, onQueueItem);
     s.on(SOCKET_EVENTS.message, onMessage);
     s.on(SOCKET_EVENTS.supportMessageReceived, onSupportMessage);
+    s.on(SOCKET_EVENTS.forceLogout, onForceLogout);
+    s.on(SOCKET_EVENTS.newReactivationRequest, onReactivationRequested);
     return () => {
       s.off(SOCKET_EVENTS.notification, onNotification);
       s.off(SOCKET_EVENTS.adminQueueItem, onQueueItem);
       s.off(SOCKET_EVENTS.message, onMessage);
       s.off(SOCKET_EVENTS.supportMessageReceived, onSupportMessage);
+      s.off(SOCKET_EVENTS.forceLogout, onForceLogout);
+      s.off(SOCKET_EVENTS.newReactivationRequest, onReactivationRequested);
     };
-  }, [qc, toast]);
+  }, [qc, toast, router]);
 
   return { connected };
 }
