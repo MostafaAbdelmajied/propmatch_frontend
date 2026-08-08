@@ -1,9 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ScanLine, CreditCard, ScanFace, Loader2, BadgeCheck, XCircle, ArrowLeft } from "lucide-react";
-import { useSubmitVerification, useVerificationState, validateVerificationFile } from "../hooks/useKyc";
+import {
+  ScanLine,
+  CreditCard,
+  ScanFace,
+  Loader2,
+  BadgeCheck,
+  XCircle,
+  ArrowLeft,
+} from "lucide-react";
+import {
+  useSubmitVerification,
+  useVerificationState,
+  validateVerificationFile,
+} from "../hooks/useKyc";
 import { useSession } from "@/src/features/auth/hooks/useSession";
 import { isApiClientError } from "@/src/lib/api/browserClient";
 import type { VerificationResponse } from "@/src/lib/api/contracts/verification";
@@ -15,20 +27,50 @@ import { InputField } from "@/src/components/ui/Field";
 import { Skeleton } from "@/src/components/ui/Skeleton";
 import { ErrorState } from "@/src/components/ui/States";
 
-const stepConfig: { document: KycDocument; field: "nationalIdFront" | "nationalIdBack" | "selfie"; hint: string; Icon: typeof ScanLine }[] = [
-  { document: "national_id_front", field: "nationalIdFront", hint: "صوّر وجه البطاقة الأمامي بوضوح", Icon: ScanLine },
-  { document: "national_id_back", field: "nationalIdBack", hint: "صوّر وجه البطاقة الخلفي", Icon: CreditCard },
+const stepConfig: {
+  document: KycDocument;
+  field: "nationalIdFront" | "nationalIdBack" | "selfie";
+  hint: string;
+  Icon: typeof ScanLine;
+}[] = [
+  {
+    document: "national_id_front",
+    field: "nationalIdFront",
+    hint: "صوّر وجه البطاقة الأمامي بوضوح",
+    Icon: ScanLine,
+  },
+  {
+    document: "national_id_back",
+    field: "nationalIdBack",
+    hint: "صوّر وجه البطاقة الخلفي",
+    Icon: CreditCard,
+  },
   { document: "selfie", field: "selfie", hint: "التقط صورة شخصية للتحقق", Icon: ScanFace },
 ];
 
 type FileField = (typeof stepConfig)[number]["field"];
 type Files = Record<FileField, File | null>;
 type FileErrors = Partial<Record<FileField, string>>;
+type PreviewUrls = Record<FileField, string | null>;
 
 const emptyFiles = (): Files => ({ nationalIdFront: null, nationalIdBack: null, selfie: null });
+const emptyPreviewUrls = (): PreviewUrls => ({
+  nationalIdFront: null,
+  nationalIdBack: null,
+  selfie: null,
+});
+const nationalIdErrorMessage = "الرقم القومي يجب أن يتكون من 14 رقمًا.";
+
+function validateNationalId(value: string): string | null {
+  return /^\d{14}$/.test(value.trim()) ? null : nationalIdErrorMessage;
+}
 
 function formatSubmittedAt(value: string | null) {
-  return value ? new Intl.DateTimeFormat("ar-EG", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : null;
+  return value
+    ? new Intl.DateTimeFormat("ar-EG", { dateStyle: "medium", timeStyle: "short" }).format(
+        new Date(value),
+      )
+    : null;
 }
 
 export function KycWizard() {
@@ -36,15 +78,33 @@ export function KycWizard() {
   const verification = useVerificationState();
   const submit = useSubmitVerification();
   const { data: session } = useSession();
-  const targetDashboard = session?.role === "tenant" ? "/tenant" : session?.role === "admin" ? "/admin" : "/landlord";
+  const targetDashboard =
+    session?.role === "tenant" ? "/tenant" : session?.role === "admin" ? "/admin" : "/landlord";
   const [files, setFiles] = useState<Files>(emptyFiles);
+  const [previewUrls, setPreviewUrls] = useState<PreviewUrls>(emptyPreviewUrls);
+  const previewUrlsRef = useRef<PreviewUrls>(emptyPreviewUrls());
   const [fileErrors, setFileErrors] = useState<FileErrors>({});
   const [nationalId, setNationalId] = useState("");
+  const [nationalIdError, setNationalIdError] = useState<string | null>(null);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
+
+  useEffect(
+    () => () => {
+      Object.values(previewUrlsRef.current).forEach((url) => {
+        if (url) URL.revokeObjectURL(url);
+      });
+    },
+    [],
+  );
 
   if (verification.isLoading) return <Skeleton className="h-96 w-full" />;
   if (verification.isError || !verification.data) {
-    return <ErrorState message="تعذر تحميل حالة التحقق. حاول مرة أخرى." onRetry={() => verification.refetch()} />;
+    return (
+      <ErrorState
+        message="تعذر تحميل حالة التحقق. حاول مرة أخرى."
+        onRetry={() => verification.refetch()}
+      />
+    );
   }
 
   const state = verification.data;
@@ -54,30 +114,52 @@ export function KycWizard() {
 
   const updateFile = (field: FileField, file: File | null) => {
     const error = validateVerificationFile(file);
+    const previousUrl = previewUrlsRef.current[field];
+    if (previousUrl) URL.revokeObjectURL(previousUrl);
+    const nextUrl = file && !error ? URL.createObjectURL(file) : null;
+    const nextPreviewUrls = { ...previewUrlsRef.current, [field]: nextUrl };
+    previewUrlsRef.current = nextPreviewUrls;
+    setPreviewUrls(nextPreviewUrls);
     setFiles((current) => ({ ...current, [field]: file }));
     setFileErrors((current) => ({ ...current, [field]: error ?? undefined }));
   };
 
+  const clearPreviews = () => {
+    Object.values(previewUrlsRef.current).forEach((url) => {
+      if (url) URL.revokeObjectURL(url);
+    });
+    const nextPreviewUrls = emptyPreviewUrls();
+    previewUrlsRef.current = nextPreviewUrls;
+    setPreviewUrls(nextPreviewUrls);
+  };
+
   const submitRequest = () => {
     const errors = Object.fromEntries(
-      (Object.keys(files) as FileField[]).map((field) => [field, validateVerificationFile(files[field]) ?? undefined]),
+      (Object.keys(files) as FileField[]).map((field) => [
+        field,
+        validateVerificationFile(files[field]) ?? undefined,
+      ]),
     ) as FileErrors;
+    const nextNationalIdError = validateNationalId(nationalId);
     setFileErrors(errors);
-    if (Object.values(errors).some(Boolean) || submit.isPending) return;
+    setNationalIdError(nextNationalIdError);
+    if (Object.values(errors).some(Boolean) || nextNationalIdError || submit.isPending) return;
 
     setSubmissionError(null);
     submit.mutate(
       {
-        nationalId: nationalId.trim() || undefined,
+        nationalId: nationalId.trim(),
         nationalIdFront: files.nationalIdFront!,
         nationalIdBack: files.nationalIdBack!,
         selfie: files.selfie!,
       },
       {
         onSuccess: () => {
+          clearPreviews();
           setFiles(emptyFiles());
           setFileErrors({});
           setNationalId("");
+          setNationalIdError(null);
         },
         onError: async (error) => {
           const message = isApiClientError(error)
@@ -96,17 +178,24 @@ export function KycWizard() {
     <div className="mx-auto flex max-w-xl flex-col gap-5" aria-busy={submit.isPending}>
       <div>
         <h1 className="text-h1 font-bold text-ink">توثيق الهوية</h1>
-        <p className="mt-1 text-small text-muted">التوثيق مطلوب مرة واحدة قبل نشر إعلان أو طلب، وقبل قبول العروض.</p>
+        <p className="mt-1 text-small text-muted">
+          التوثيق مطلوب مرة واحدة قبل نشر إعلان أو طلب، وقبل قبول العروض.
+        </p>
       </div>
 
       <OwnershipDisclaimer />
 
       {state.status === "RESUBMISSION_REQUIRED" && state.rejectionReason && (
-        <div className="flex items-start gap-3 rounded-card border border-error/30 bg-error-tint px-4 py-3" role="alert">
+        <div
+          className="flex items-start gap-3 rounded-card border border-error/30 bg-error-tint px-4 py-3"
+          role="alert"
+        >
           <XCircle className="mt-0.5 size-5 shrink-0 text-error" aria-hidden />
           <div>
             <p className="text-small font-bold text-error">مطلوب إعادة تقديم المستندات</p>
-            <p className="text-caption text-body-text">سبب طلب إعادة التقديم: {state.rejectionReason}</p>
+            <p className="text-caption text-body-text">
+              سبب طلب إعادة التقديم: {state.rejectionReason}
+            </p>
           </div>
         </div>
       )}
@@ -121,7 +210,16 @@ export function KycWizard() {
               hint={hint}
               Icon={Icon}
               reason={error}
-              state={submit.isPending ? "locked" : files[field] ? "captured" : error ? "bad-quality" : "empty"}
+              previewUrl={previewUrls[field]}
+              state={
+                submit.isPending
+                  ? "locked"
+                  : files[field]
+                    ? "captured"
+                    : error
+                      ? "bad-quality"
+                      : "empty"
+              }
               onFileChange={(file) => updateFile(field, file)}
             />
           );
@@ -129,18 +227,36 @@ export function KycWizard() {
       </div>
 
       <InputField
-        label="الرقم القومي (اختياري)"
+        label="الرقم القومي"
         inputMode="numeric"
         dir="ltr"
+        required
+        maxLength={14}
+        pattern="[0-9]{14}"
         value={nationalId}
         disabled={submit.isPending}
-        onChange={(event) => setNationalId(event.target.value)}
-        hint="يمكن تركه فارغًا عند إعادة الإرسال."
+        onChange={(event) => {
+          setNationalId(event.target.value.replace(/\D/g, "").slice(0, 14));
+          setNationalIdError(null);
+        }}
+        onBlur={() => setNationalIdError(validateNationalId(nationalId))}
+        error={nationalIdError ?? undefined}
+        hint="أدخل الرقم القومي المكوّن من 14 رقمًا كما هو مدوّن على البطاقة."
       />
 
-      {submissionError && <p className="text-small text-error" role="alert" aria-live="polite">{submissionError}</p>}
+      {submissionError && (
+        <p className="text-small text-error" role="alert" aria-live="polite">
+          {submissionError}
+        </p>
+      )}
 
-      <Button size="lg" block loading={submit.isPending} disabled={!state.canSubmit || submit.isPending} onClick={submitRequest}>
+      <Button
+        size="lg"
+        block
+        loading={submit.isPending}
+        disabled={!state.canSubmit || submit.isPending}
+        onClick={submitRequest}
+      >
         {submit.isPending
           ? "جارٍ إرسال طلب التحقق..."
           : state.status === "RESUBMISSION_REQUIRED"
@@ -151,18 +267,106 @@ export function KycWizard() {
   );
 }
 
-function VerificationResult({ state, onContinue }: { state: VerificationResponse; onContinue: () => void }) {
+function VerificationResult({
+  state,
+  onContinue,
+}: {
+  state: VerificationResponse;
+  onContinue: () => void;
+}) {
   const submittedAt = formatSubmittedAt(state.submittedAt);
   if (state.status === "PENDING") {
-    return <ResultCard tone="pending" Icon={Loader2} spin title="طلب التوثيق قيد المراجعة" body={<><p>تم إرسال طلب التحقق بنجاح وهو قيد المراجعة.</p>{submittedAt && <p className="text-caption">تاريخ الإرسال: {submittedAt}</p>}</>} action={<Button variant="secondary" onClick={onContinue}>العودة</Button>} />;
+    return (
+      <ResultCard
+        tone="pending"
+        Icon={Loader2}
+        spin
+        title="طلب التوثيق قيد المراجعة"
+        body={
+          <>
+            <p>تم إرسال طلب التحقق بنجاح وهو قيد المراجعة.</p>
+            {submittedAt && <p className="text-caption">تاريخ الإرسال: {submittedAt}</p>}
+          </>
+        }
+        action={
+          <Button variant="secondary" onClick={onContinue}>
+            العودة
+          </Button>
+        }
+      />
+    );
   }
   if (state.status === "APPROVED") {
-    return <ResultCard tone="success" Icon={BadgeCheck} title="تم توثيق هويتك بنجاح" body={<div className="flex flex-col gap-2"><p>يمكنك الآن استخدام الميزات المتاحة للحساب الموثّق.</p><OwnershipDisclaimer /></div>} action={<Button onClick={onContinue}>المتابعة <ArrowLeft className="size-4" aria-hidden /></Button>} />;
+    return (
+      <ResultCard
+        tone="success"
+        Icon={BadgeCheck}
+        title="تم توثيق هويتك بنجاح"
+        body={
+          <div className="flex flex-col gap-2">
+            <p>يمكنك الآن استخدام الميزات المتاحة للحساب الموثّق.</p>
+            <OwnershipDisclaimer />
+          </div>
+        }
+        action={
+          <Button onClick={onContinue}>
+            المتابعة <ArrowLeft className="size-4" aria-hidden />
+          </Button>
+        }
+      />
+    );
   }
-  return <ResultCard tone="error" Icon={XCircle} title="تم رفض طلب التوثيق" body={<div className="flex flex-col gap-2"><p>{state.rejectionReason ?? "لا يمكن إرسال طلب جديد في الحالة الحالية."}</p><p className="text-caption">لا يمكن إعادة الإرسال في الحالة الحالية.</p></div>} action={<Button variant="secondary" onClick={onContinue}>العودة</Button>} />;
+  return (
+    <ResultCard
+      tone="error"
+      Icon={XCircle}
+      title="تم رفض طلب التوثيق"
+      body={
+        <div className="flex flex-col gap-2">
+          <p>{state.rejectionReason ?? "لا يمكن إرسال طلب جديد في الحالة الحالية."}</p>
+          <p className="text-caption">لا يمكن إعادة الإرسال في الحالة الحالية.</p>
+        </div>
+      }
+      action={
+        <Button variant="secondary" onClick={onContinue}>
+          العودة
+        </Button>
+      }
+    />
+  );
 }
 
-function ResultCard({ tone, Icon, title, body, action, spin }: { tone: "success" | "error" | "pending"; Icon: typeof BadgeCheck; title: string; body: React.ReactNode; action?: React.ReactNode; spin?: boolean }) {
-  const toneClass = { success: "bg-success-tint text-success", error: "bg-error-tint text-error", pending: "bg-pending-tint text-pending" }[tone];
-  return <div className="mx-auto flex max-w-md flex-col items-center gap-4 rounded-card border border-hairline bg-surface p-8 text-center shadow-card" aria-live="polite"><span className={`flex size-16 items-center justify-center rounded-full ${toneClass}`}><Icon className={`size-8 ${spin ? "animate-spin" : ""}`} aria-hidden /></span><h1 className="text-h2 font-bold text-ink">{title}</h1><div className="text-body text-body-text">{body}</div>{action}</div>;
+function ResultCard({
+  tone,
+  Icon,
+  title,
+  body,
+  action,
+  spin,
+}: {
+  tone: "success" | "error" | "pending";
+  Icon: typeof BadgeCheck;
+  title: string;
+  body: React.ReactNode;
+  action?: React.ReactNode;
+  spin?: boolean;
+}) {
+  const toneClass = {
+    success: "bg-success-tint text-success",
+    error: "bg-error-tint text-error",
+    pending: "bg-pending-tint text-pending",
+  }[tone];
+  return (
+    <div
+      className="mx-auto flex max-w-md flex-col items-center gap-4 rounded-card border border-hairline bg-surface p-8 text-center shadow-card"
+      aria-live="polite"
+    >
+      <span className={`flex size-16 items-center justify-center rounded-full ${toneClass}`}>
+        <Icon className={`size-8 ${spin ? "animate-spin" : ""}`} aria-hidden />
+      </span>
+      <h1 className="text-h2 font-bold text-ink">{title}</h1>
+      <div className="text-body text-body-text">{body}</div>
+      {action}
+    </div>
+  );
 }

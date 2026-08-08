@@ -22,7 +22,7 @@ export function Logo({
     sm: "h-7 w-auto",
     md: "h-9 w-auto",
     lg: "h-12 w-auto",
-    xl: "h-16 w-auto",
+    xl: "h-14 w-auto",
   }[size];
 
   const content = (
@@ -31,7 +31,7 @@ export function Logo({
         className={cn(
           "relative overflow-hidden shrink-0 flex items-center justify-center transition-all",
           withCard
-            ? "rounded-2xl border border-hairline/80 bg-surface shadow-md p-1"
+            ? "rounded-[22px] bg-white shadow-md border border-white/60 p-3.5 sm:p-4 hover:shadow-lg"
             : "bg-transparent border-0 shadow-none p-0",
           dimensions,
         )}
@@ -39,7 +39,7 @@ export function Logo({
         <img
           src="/logo.png"
           alt="PropMatch Logo"
-          className={cn("h-full w-auto object-contain", withCard && "rounded-xl")}
+          className="h-full w-auto object-contain"
         />
       </div>
       {showText && (

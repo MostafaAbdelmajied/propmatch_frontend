@@ -58,6 +58,8 @@ export const SOCKET_EVENTS = {
   supportMessageReceived: "support:message:received",
   /** Admin suspended this account → show a blocking notice + log out. */
   accountSuspended: "account:suspended",
+  /** A persisted payment reached a terminal state for the authenticated user. */
+  paymentUpdated: "payment:updated",
 } as const;
 
 export interface AccountSuspendedPayload {

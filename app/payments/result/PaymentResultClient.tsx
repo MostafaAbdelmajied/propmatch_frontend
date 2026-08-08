@@ -1,11 +1,12 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { CheckCircle2, Clock3, XCircle } from "lucide-react";
 import { api } from "@/src/lib/api/browserClient";
 import type { PaymentTransaction } from "@/src/lib/api/contracts/payment";
+import { subscribeToPaymentUpdates } from "@/src/lib/socket/useRealtime";
+import { CheckCircle2, Clock3, XCircle } from "lucide-react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 
 const PENDING_PAYMENT_STORAGE_KEY = "propmatch:pending-payment";
 
@@ -25,35 +26,32 @@ export function PaymentResultClient() {
 
   useEffect(() => {
     let cancelled = false;
+    let providerOrderId: string | undefined;
 
-    async function verifyReturnedPayment() {
+    const unsubscribe = subscribeToPaymentUpdates((payment) => {
+      if (payment.providerOrderId !== providerOrderId || cancelled) return;
+      if (payment.status === "SUCCESS") {
+        window.localStorage.removeItem(PENDING_PAYMENT_STORAGE_KEY);
+        setState("success");
+      } else {
+        setState("declined");
+      }
+    });
+
+    async function readReturnedPayment() {
       try {
         const raw = window.localStorage.getItem(PENDING_PAYMENT_STORAGE_KEY);
         const pending = raw
           ? (JSON.parse(raw) as { paymobOrderId?: string; providerOrderId?: string })
           : null;
-        const providerOrderId = pending?.providerOrderId ?? pending?.paymobOrderId;
+        providerOrderId = pending?.providerOrderId ?? pending?.paymobOrderId;
         if (!providerOrderId) {
-          const transactions = await api.post<PaymentTransaction[]>(
-            "payments/reconcile-pending",
-            {},
-          );
-          if (!cancelled) {
-            setState(
-              transactions.some((transaction) => transaction.status === "SUCCESS")
-                ? "success"
-                : searchParams.get("success") === "true"
-                  ? "pending"
-                  : "declined",
-            );
-          }
+          if (!cancelled)
+            setState(searchParams.get("success") === "false" ? "declined" : "pending");
           return;
         }
 
-        const transaction = await api.post<PaymentTransaction>(
-          `payments/${providerOrderId}/reconcile`,
-          {},
-        );
+        const transaction = await api.get<PaymentTransaction>(`payments/${providerOrderId}`);
         if (transaction.status === "SUCCESS") {
           window.localStorage.removeItem(PENDING_PAYMENT_STORAGE_KEY);
           if (!cancelled) setState("success");
@@ -66,9 +64,10 @@ export function PaymentResultClient() {
       }
     }
 
-    void verifyReturnedPayment();
+    void readReturnedPayment();
     return () => {
       cancelled = true;
+      unsubscribe();
     };
   }, [searchParams]);
 

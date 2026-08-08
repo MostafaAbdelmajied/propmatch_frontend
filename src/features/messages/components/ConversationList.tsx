@@ -29,8 +29,21 @@ export function ConversationList({ role }: { role: "tenant" | "landlord" }) {
               </span>
             )}
           </div>
-          <p className="text-small text-muted">{c.otherParticipantName}</p>
-          <p className="text-small text-body-text mt-1 truncate">{c.lastMessagePreview ?? "ابدأ المحادثة"}</p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-small text-muted">{c.otherParticipantName}</p>
+            <span
+              className={`rounded-pill px-2 py-1 text-caption font-semibold ${
+                c.agreementReachedAt
+                  ? "bg-success-tint text-success"
+                  : "bg-pending-tint text-pending"
+              }`}
+            >
+              {c.agreementReachedAt ? "تم الاتفاق" : "قيد التفاوض"}
+            </span>
+          </div>
+          <p className="text-small text-body-text mt-1 truncate">
+            {c.lastMessagePreview ?? "ابدأ المحادثة"}
+          </p>
         </Link>
       ))}
     </div>

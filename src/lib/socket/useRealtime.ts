@@ -9,6 +9,16 @@ import { useSuspensionStore } from "@/src/lib/store/useSuspensionStore";
 import { useToast } from "@/src/components/ui/Toast";
 import type { AdminQueuesResponse, QueueItem } from "@/src/lib/api/contracts/admin";
 import type { MatchMessage, RealtimeMatchMessage } from "@/src/lib/api/contracts/message";
+import type {
+  Notification,
+  NotificationsResponse,
+  RealtimeSupportMessage,
+} from "@/src/lib/api/contracts/notification";
+import { SOCKET_EVENTS } from "@/src/lib/api/contracts/notification";
+import type { PaymentStatus } from "@/src/lib/api/contracts/payment";
+import { useQueryClient } from "@tanstack/react-query";
+import { useEffect, useSyncExternalStore } from "react";
+import { io, type Socket } from "socket.io-client";
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL;
 
@@ -20,7 +30,8 @@ function initAndUnlockAudio(): void {
   if (typeof window === "undefined") return;
   try {
     const AudioCtx =
-      window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     if (!AudioCtx) return;
     sharedAudioCtx ??= new AudioCtx();
     if (sharedAudioCtx.state === "suspended") {
@@ -102,6 +113,24 @@ export function reconnectSocket(): void {
   s.connect();
 }
 
+export interface PaymentUpdatedPayload {
+  providerOrderId: string;
+  status: Extract<PaymentStatus, "SUCCESS" | "FAILED">;
+  providerTransactionId: string | null;
+  paidAt: string | null;
+}
+
+export function subscribeToPaymentUpdates(
+  listener: (payment: PaymentUpdatedPayload) => void,
+): () => void {
+  const currentSocket = getSocket();
+  if (!currentSocket) return () => {};
+  currentSocket.on(SOCKET_EVENTS.paymentUpdated, listener);
+  return () => {
+    currentSocket.off(SOCKET_EVENTS.paymentUpdated, listener);
+  };
+}
+
 function subscribeToStatus(onChange: () => void): () => void {
   const s = getSocket();
   if (!s) return () => {};
@@ -173,19 +202,22 @@ export function useRealtime(): RealtimeState {
     };
 
     const onMessage = (message: RealtimeMatchMessage) => {
-      qc.setQueryData<MatchMessage[]>(["matches", message.matchConnectionId, "messages"], (prev) => {
-        if (!prev || prev.some((item) => item.id === message.id)) return prev;
-        return [
-          ...prev,
-          {
-            id: message.id,
-            senderId: message.senderId,
-            body: message.body,
-            createdAt: message.createdAt,
-            isMine: false,
-          },
-        ];
-      });
+      qc.setQueryData<MatchMessage[]>(
+        ["matches", message.matchConnectionId, "messages"],
+        (prev) => {
+          if (!prev || prev.some((item) => item.id === message.id)) return prev;
+          return [
+            ...prev,
+            {
+              id: message.id,
+              senderId: message.senderId,
+              body: message.body,
+              createdAt: message.createdAt,
+              isMine: false,
+            },
+          ];
+        },
+      );
       qc.invalidateQueries({ queryKey: ["matches"] });
       playNotificationChime();
     };
@@ -225,6 +257,12 @@ export function useRealtime(): RealtimeState {
       playNotificationChime();
     };
 
+    const onPaymentUpdated = (payment: PaymentUpdatedPayload) => {
+      if (payment.status === "SUCCESS") {
+        void qc.invalidateQueries({ queryKey: ["quota"] });
+      }
+    };
+
     s.on(SOCKET_EVENTS.notification, onNotification);
     s.on(SOCKET_EVENTS.adminQueueItem, onQueueItem);
     s.on(SOCKET_EVENTS.message, onMessage);
@@ -232,6 +270,7 @@ export function useRealtime(): RealtimeState {
     s.on(SOCKET_EVENTS.messageDeleted, onMessageDeleted);
     s.on(SOCKET_EVENTS.supportMessageReceived, onSupportMessage);
     s.on(SOCKET_EVENTS.accountSuspended, onAccountSuspended);
+    s.on(SOCKET_EVENTS.paymentUpdated, onPaymentUpdated);
     return () => {
       s.off(SOCKET_EVENTS.notification, onNotification);
       s.off(SOCKET_EVENTS.adminQueueItem, onQueueItem);
@@ -240,6 +279,7 @@ export function useRealtime(): RealtimeState {
       s.off(SOCKET_EVENTS.messageDeleted, onMessageDeleted);
       s.off(SOCKET_EVENTS.supportMessageReceived, onSupportMessage);
       s.off(SOCKET_EVENTS.accountSuspended, onAccountSuspended);
+      s.off(SOCKET_EVENTS.paymentUpdated, onPaymentUpdated);
     };
   }, [qc, toast]);
 

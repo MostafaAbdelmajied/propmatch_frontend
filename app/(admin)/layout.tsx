@@ -2,8 +2,7 @@ import { AdminLogoutButton } from "@/src/components/nav/AdminLogoutButton";
 import { AdminNavLinks } from "@/src/components/nav/AdminNavLinks";
 import { NotificationBell } from "@/src/components/nav/RoleNav";
 import { Logo } from "@/src/components/ui/Logo";
-import { requireSession } from "@/src/lib/api/serverSession";
-import { redirect } from "next/navigation";
+import { requireRole } from "@/src/lib/api/serverSession";
 
 /**
  * Admin surface is desktop-first (data-dense). Only role === "admin" may
@@ -11,8 +10,7 @@ import { redirect } from "next/navigation";
  * the backend on every admin call (see docs/analysis/rbac.md).
  */
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const user = await requireSession("/admin");
-  if (user.role !== "admin") redirect("/");
+  const user = await requireRole("admin", "/admin");
 
   return (
     <div className="flex min-h-dvh flex-col">
