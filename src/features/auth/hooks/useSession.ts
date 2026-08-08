@@ -2,9 +2,15 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { authApi, isApiClientError } from "@/src/lib/api/browserClient";
+import { api, authApi, isApiClientError } from "@/src/lib/api/browserClient";
 import { reconnectSocket } from "@/src/lib/socket/useRealtime";
-import type { AuthResponse, LoginRequest, RegisterRequest, User } from "@/src/lib/api/contracts/auth";
+import type {
+  AuthResponse,
+  LoginRequest,
+  RegisterRequest,
+  RequestReactivationResponse,
+  User,
+} from "@/src/lib/api/contracts/auth";
 
 const SESSION_KEY = ["session"] as const;
 
@@ -34,6 +40,14 @@ export function useLogin() {
       // Re-auth the realtime socket with the freshly-set cookie.
       reconnectSocket();
     },
+  });
+}
+
+/** POST /auth/request-reactivation — public, no session involved. */
+export function useRequestReactivation() {
+  return useMutation({
+    mutationFn: (body: LoginRequest) =>
+      api.post<RequestReactivationResponse>("auth/request-reactivation", body),
   });
 }
 

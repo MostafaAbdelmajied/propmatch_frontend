@@ -58,8 +58,11 @@ export const ROLE_CAPABILITIES: Record<AdminRole, Capability[]> = {
     "report:export",
     "ticket:reply",
     "audit:view",
+    "user:suspend",
     "admin:create",
     "admin:manage",
+    "user:delete",
+    "user:reactivate",
   ],
   "listings-manager": ["property:approve", "property:reject"],
   "kyc-reviewer": ["kyc:review"],
@@ -267,3 +270,68 @@ export const LoginHistoryEntrySchema = z.object({
   success: z.boolean(),
 });
 export type LoginHistoryEntry = z.infer<typeof LoginHistoryEntrySchema>;
+
+/**
+ * GET /admin/users item — platform accounts (tenants, landlords, admins).
+ * Deliberately minimal (no ERD entity of its own; this mirrors what
+ * AdminService.listUsers()/toUserRow() actually returns).
+ *
+ * Carries BOTH lifecycle states an admin can put an account into — they're
+ * orthogonal (see the backend User.deletedAt schema comment): `deletedAt`
+ * is a soft-delete "ghost" account with its own reactivation flow;
+ * `suspended`/`suspendedUntil`/etc. is a live account an admin has
+ * temporarily or permanently blocked.
+ */
+export const AdminUserListItemSchema = z.object({
+  id: z.string(),
+  fullName: z.string(),
+  email: z.string(),
+  phoneNumber: z.string().optional(),
+  role: z.enum(["TENANT", "LANDLORD", "ADMIN"]),
+  isActive: z.boolean(),
+  createdAt: z.string(),
+  /** Set once soft-deleted (self-delete or admin delete); null otherwise. */
+  deletedAt: z.string().nullable(),
+  suspended: z.boolean().optional(),
+  /** ISO date, or null for a permanent suspension. */
+  suspendedUntil: z.string().nullable().optional(),
+  suspendedAt: z.string().nullable().optional(),
+  suspensionReason: z.string().nullable().optional(),
+  suspensionReasonLabel: z.string().nullable().optional(),
+  suspensionNote: z.string().nullable().optional(),
+});
+export type AdminUserListItem = z.infer<typeof AdminUserListItemSchema>;
+
+export const AdminUsersResponseSchema = z.object({
+  items: z.array(AdminUserListItemSchema),
+  total: z.number().int().optional(),
+  page: z.number().int().optional(),
+  pageSize: z.number().int().optional(),
+});
+export type AdminUsersResponse = z.infer<typeof AdminUsersResponseSchema>;
+
+/** GET /admin/users?status= — mirrors AdminService.listUsers's default. */
+export type AdminUserStatusFilter = "active" | "deleted" | "all";
+
+/**
+ * GET /admin/reactivations item — a soft-deleted user's self-service
+ * request to have an admin restore their account. Always PENDING here
+ * (the endpoint only lists pending ones); approving/rejecting removes it
+ * from this list rather than changing its rendered status.
+ */
+export const AdminReactivationRequestSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  userFullName: z.string(),
+  userEmail: z.string(),
+  deletedAt: z.string().nullable(),
+  createdAt: z.string(),
+});
+export type AdminReactivationRequest = z.infer<typeof AdminReactivationRequestSchema>;
+
+export const AdminReactivationRequestsResponseSchema = z.object({
+  items: z.array(AdminReactivationRequestSchema),
+});
+export type AdminReactivationRequestsResponse = z.infer<
+  typeof AdminReactivationRequestsResponseSchema
+>;
