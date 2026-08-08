@@ -3,19 +3,24 @@
 import { Button } from "@/src/components/ui/Button";
 import { Logo } from "@/src/components/ui/Logo";
 import { useLogout, useSession } from "@/src/features/auth/hooks/useSession";
-import { useHideOnScroll } from "@/src/hooks/useHideOnScroll";
-import { useSessionUiStore } from "@/src/lib/store/useSessionUiStore";
 import { cn } from "@/src/utils/cn";
 import { BadgeCheck, Bell, LogOut } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NotificationBell } from "./NotificationBell";
 
-
 export interface NavItem {
   href: string;
   label: string;
   Icon: typeof Bell;
+}
+
+export function getActiveNavHref(items: Pick<NavItem, "href">[], pathname: string): string | null {
+  return items.reduce<string | null>((activeHref, item) => {
+    const matches = pathname === item.href || pathname.startsWith(`${item.href}/`);
+    if (!matches || (activeHref && activeHref.length >= item.href.length)) return activeHref;
+    return item.href;
+  }, null);
 }
 
 export function UserProfileHeaderNav() {
@@ -27,7 +32,7 @@ export function UserProfileHeaderNav() {
       {user ? (
         <>
           <NotificationBell />
-          {/* Profile Link Badge */}
+          {/* Profile Capsule Badge */}
           <Link
             href="/profile"
             className="flex items-center gap-2 rounded-pill border border-hairline bg-surface/80 px-2.5 py-1 hover:border-primary/40 hover:bg-surface transition-all shadow-xs"
@@ -83,10 +88,8 @@ export function UserProfileHeaderNav() {
   );
 }
 
-
 /**
- * Mobile: sticky bottom tab bar. Desktop: fixed top nav. Shared between
- * tenant/landlord/admin surfaces — pass role-specific items.
+ * Mobile: permanent sticky bottom tab bar. Desktop: fixed top nav.
  */
 export function RoleNav({
   items,
@@ -97,17 +100,16 @@ export function RoleNav({
   rightSlot?: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
-  const bottomNavVisible = useSessionUiStore((s) => s.bottomNavVisible);
-  useHideOnScroll();
+  const activeHref = getActiveNavHref(items, pathname);
+  const isActive = (href: string) => href === activeHref;
 
   return (
     <>
-      {/* Desktop top nav */}
-      <header className="sticky top-0 z-30 hidden border-b border-hairline bg-surface/90 backdrop-blur md:block">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+      {/* Top Header for Mobile & Desktop */}
+      <header className="sticky top-0 z-30 border-b border-hairline bg-surface/90 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-2.5">
           <Logo href="/" />
-          <nav className="flex items-center gap-1">
+          <nav className="hidden md:flex items-center gap-1">
             {items.map(({ href, label, Icon }) => (
               <Link
                 key={href}
@@ -126,24 +128,19 @@ export function RoleNav({
         </div>
       </header>
 
-      {/* Mobile bottom tab bar — hides on scroll-down, reveals on scroll-up (§4.5) */}
-      <nav
-        className={cn(
-          "fixed inset-x-0 bottom-0 z-30 flex items-stretch border-t border-hairline bg-surface transition-transform duration-300 md:hidden",
-          bottomNavVisible ? "translate-y-0" : "translate-y-full",
-        )}
-      >
+      {/* Mobile permanent bottom tab bar — always sticky to the bottom */}
+      <nav className="fixed inset-x-0 bottom-0 z-30 flex items-stretch border-t border-hairline bg-surface overflow-x-auto no-scrollbar md:hidden">
         {items.map(({ href, label, Icon }) => (
           <Link
             key={href}
             href={href}
             className={cn(
-              "flex flex-1 flex-col items-center gap-0.5 py-2 text-caption font-medium transition-colors",
-              isActive(href) ? "text-primary" : "text-muted",
+              "flex flex-1 min-w-[60px] flex-col items-center gap-0.5 py-2 text-caption font-medium transition-colors text-center",
+              isActive(href) ? "text-primary font-bold" : "text-muted",
             )}
           >
-            <Icon className="size-5" aria-hidden />
-            {label}
+            <Icon className="size-5 shrink-0" aria-hidden />
+            <span className="truncate max-w-[68px]">{label}</span>
           </Link>
         ))}
       </nav>

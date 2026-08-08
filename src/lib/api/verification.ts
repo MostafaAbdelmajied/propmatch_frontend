@@ -8,10 +8,7 @@ export function getMyVerification(): Promise<VerificationResponse> {
 export function submitVerification(input: SubmitVerificationInput): Promise<VerificationResponse> {
   const formData = new FormData();
 
-  if (input.nationalId !== undefined) {
-    formData.append("nationalId", input.nationalId);
-  }
-
+  formData.append("nationalId", input.nationalId);
   formData.append("nationalIdFront", input.nationalIdFront);
   formData.append("nationalIdBack", input.nationalIdBack);
   formData.append("selfie", input.selfie);

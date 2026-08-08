@@ -5,9 +5,15 @@
  * NESTJS_API_URL at the real backend) once one exists — see .env.example.
  */
 export async function register() {
-  if (process.env.NEXT_RUNTIME === "nodejs" && process.env.API_MOCKING === "enabled") {
+  const { getConfiguredBackendUrl, isProductionBackendEnabled } =
+    await import("./src/lib/api/backendEnvironment");
+  if (
+    process.env.NEXT_RUNTIME === "nodejs" &&
+    process.env.API_MOCKING === "enabled" &&
+    !isProductionBackendEnabled()
+  ) {
     const { startMockServer } = await import("./src/mocks/standalone");
-    const port = Number(new URL(process.env.NESTJS_API_URL ?? "http://localhost:3001").port || 3001);
+    const port = Number(new URL(getConfiguredBackendUrl()).port || 3001);
     startMockServer(port);
   }
 }

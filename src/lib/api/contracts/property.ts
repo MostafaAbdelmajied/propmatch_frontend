@@ -31,20 +31,20 @@ export type PropertyImage = z.infer<typeof PropertyImageSchema>;
 
 /** Landlord-authored fields (PRO-04). */
 export const CreatePropertyRequestSchema = z.object({
-  title: z.string().min(4),
-  description: z.string().min(20),
-  governorate: z.string().min(1),
-  city: z.string().min(1),
-  district: z.string().min(1),
+  title: z.string().min(4, "عنوان الإعلان يجب أن يكون 4 حروف على الأقل"),
+  description: z.string().min(20, "الوصف يجب أن يكون 20 حرفاً على الأقل"),
+  governorate: z.string().min(1, "المحافظة مطلوبة"),
+  city: z.string().min(1, "المدينة مطلوبة"),
+  district: z.string().min(1, "الحي / المنطقة مطلوب"),
   /** Exact address — masked from tenants until connection. */
-  manualAddress: z.string().min(5),
+  manualAddress: z.string().min(5, "العنوان التفصيلي يجب أن يكون 5 حروف على الأقل"),
   propertyType: PropertyTypeSchema,
   /** Free text fed to the AI matcher (ERD: "Used by AI for matching"). */
-  propertyAroundServices: z.string().optional(),
-  rentAmount: z.number().positive(),
-  areaM2: z.number().positive(),
-  bedrooms: z.number().int().min(0),
-  bathrooms: z.number().int().min(0),
+  propertyAroundServices: z.string().min(1, "الخدمات القريبة مطلوبة"),
+  rentAmount: z.number({ required_error: "مبلغ الإيجار مطلوب", invalid_type_error: "أدخل مبلغاً صحيحاً" }).positive("مبلغ الإيجار يجب أن يكون أكبر من 0"),
+  areaM2: z.number({ required_error: "المساحة مطلوبة", invalid_type_error: "أدخل مساحة صحيحة" }).positive("المساحة يجب أن تكون أكبر من 0"),
+  bedrooms: z.number({ required_error: "عدد غرف النوم مطلوب", invalid_type_error: "أدخل عدداً صحيحاً" }).int("عدد الغرف يجب أن يكون رقماً صحيحاً").min(0, "عدد الغرف يجب أن يكون 0 أو أكثر"),
+  bathrooms: z.number({ required_error: "عدد الحمامات مطلوب", invalid_type_error: "أدخل عدداً صحيحاً" }).int("عدد الحمامات يجب أن يكون رقماً صحيحاً").min(0, "عدد الحمامات يجب أن يكون 0 أو أكثر"),
   isFurnished: z.boolean(),
   hasElevator: z.boolean(),
   hasParking: z.boolean(),

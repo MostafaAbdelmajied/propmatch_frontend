@@ -58,6 +58,7 @@ export const ROLE_CAPABILITIES: Record<AdminRole, Capability[]> = {
     "report:export",
     "ticket:reply",
     "audit:view",
+    "user:suspend",
     "admin:create",
     "admin:manage",
     "user:delete",
@@ -271,24 +272,41 @@ export const LoginHistoryEntrySchema = z.object({
 export type LoginHistoryEntry = z.infer<typeof LoginHistoryEntrySchema>;
 
 /**
- * GET /admin/users item — every non-deleted platform account (tenants,
- * landlords, admins). Deliberately minimal (no ERD entity of its own; this
- * mirrors what AdminService.listUsers() actually returns).
+ * GET /admin/users item — platform accounts (tenants, landlords, admins).
+ * Deliberately minimal (no ERD entity of its own; this mirrors what
+ * AdminService.listUsers()/toUserRow() actually returns).
+ *
+ * Carries BOTH lifecycle states an admin can put an account into — they're
+ * orthogonal (see the backend User.deletedAt schema comment): `deletedAt`
+ * is a soft-delete "ghost" account with its own reactivation flow;
+ * `suspended`/`suspendedUntil`/etc. is a live account an admin has
+ * temporarily or permanently blocked.
  */
 export const AdminUserListItemSchema = z.object({
   id: z.string(),
   fullName: z.string(),
   email: z.string(),
+  phoneNumber: z.string().optional(),
   role: z.enum(["TENANT", "LANDLORD", "ADMIN"]),
   isActive: z.boolean(),
   createdAt: z.string(),
-  /** Set once soft-deleted/suspended (self-delete or admin delete); null otherwise. */
+  /** Set once soft-deleted (self-delete or admin delete); null otherwise. */
   deletedAt: z.string().nullable(),
+  suspended: z.boolean().optional(),
+  /** ISO date, or null for a permanent suspension. */
+  suspendedUntil: z.string().nullable().optional(),
+  suspendedAt: z.string().nullable().optional(),
+  suspensionReason: z.string().nullable().optional(),
+  suspensionReasonLabel: z.string().nullable().optional(),
+  suspensionNote: z.string().nullable().optional(),
 });
 export type AdminUserListItem = z.infer<typeof AdminUserListItemSchema>;
 
 export const AdminUsersResponseSchema = z.object({
   items: z.array(AdminUserListItemSchema),
+  total: z.number().int().optional(),
+  page: z.number().int().optional(),
+  pageSize: z.number().int().optional(),
 });
 export type AdminUsersResponse = z.infer<typeof AdminUsersResponseSchema>;
 

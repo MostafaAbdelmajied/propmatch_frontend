@@ -30,13 +30,12 @@ import { Controller, useForm, type UseFormReturn } from "react-hook-form";
 import { useCreateProperty, useQuota, useStreamOptimizeDescription } from "../hooks/useLandlord";
 import { addPropertyFormSchema, stepFields, type AddPropertyForm } from "../validation/schemas";
 
-const steps = ["تفاصيل العقار", "الصور والوصف"] as const;
+const steps = ["تفاصيل العقار", "الصور والخدمات", "تحسين الوصف والإنهاء"] as const;
 type StepKey = keyof typeof stepFields;
-const stepKeys: StepKey[] = ["propertyDetails", "mediaAndDescription"];
+const stepKeys: StepKey[] = ["propertyDetails", "mediaAndServices", "aiOptimization"];
 const PROPERTY_DRAFT_STORAGE_KEY = "propmatch:add-property-draft";
 const MAX_PROPERTY_IMAGES = 10;
 const MAX_PROPERTY_IMAGE_SIZE = 5 * 1024 * 1024;
-const PREMIUM_INCLUDED_AI_USES = 5;
 const PROPERTY_IMAGE_ACCEPT = ".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp";
 
 type PropertyDraft = {
@@ -137,7 +136,37 @@ function AddPropertyWizardContent() {
 
   async function next() {
     const fields = stepFields[stepKeys[step]] as unknown as (keyof AddPropertyForm)[];
-    if (await form.trigger(fields)) setStep((s) => Math.min(s + 1, steps.length - 1));
+    if (await form.trigger(fields)) {
+      setStep((s) => Math.min(s + 1, steps.length - 1));
+    } else {
+      // Never leave the button feeling dead — tell the user why it didn't advance.
+      const firstError = Object.keys(form.formState.errors)[0];
+      toast(
+        "error",
+        firstError === "images"
+          ? "أضف صورة واحدة على الأقل للعقار قبل المتابعة"
+          : "يرجى إكمال الحقول المطلوبة قبل المتابعة",
+      );
+    }
+  }
+
+  /** Submit blocked by validation must never fail silently. Jump to the step
+   * that owns the first offending field — e.g. images (step 2) are dropped from
+   * the persisted draft, so after a reload the submit on step 3 would otherwise
+   * do nothing — and tell the user. */
+  function onInvalid(errors: typeof form.formState.errors) {
+    const firstErrorField = Object.keys(errors)[0] ?? "";
+    const targetStep = stepKeys.findIndex((key) =>
+      (stepFields[key] as readonly string[]).includes(firstErrorField),
+    );
+    if (targetStep >= 0 && targetStep !== step) setStep(targetStep);
+    const isImages = firstErrorField === "images";
+    toast(
+      "error",
+      isImages
+        ? "أضف صورة واحدة على الأقل للعقار قبل الإرسال"
+        : "يرجى مراجعة الحقول المطلوبة قبل الإرسال",
+    );
   }
 
   function submit(values: AddPropertyForm) {
@@ -166,7 +195,7 @@ function AddPropertyWizardContent() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-h1 font-bold text-ink">إضافة عقار</h1>
-            <p className="mt-1 text-small text-muted">أكمل بيانات عقارك ثم أضف الوصف والصور</p>
+            <p className="mt-1 text-small text-muted">أكمل بيانات عقارك، اختر الخدمات والصور، ثم حسّن الوصف وأرسله</p>
           </div>
           {quota.data && (
             <QuotaChip
@@ -178,10 +207,11 @@ function AddPropertyWizardContent() {
         <Stepper current={step} />
       </div>
 
-      <form onSubmit={form.handleSubmit(submit)} className="flex flex-col gap-5">
+      <form onSubmit={form.handleSubmit(submit, onInvalid)} className="flex flex-col gap-5">
         {step === 0 && <PropertyDetailsStep form={form} />}
-        {step === 1 && (
-          <MediaAndDescriptionStep
+        {step === 1 && <MediaAndServicesStep form={form} />}
+        {step === 2 && (
+          <OptimizationAndReviewStep
             form={form}
             optimizerUsesLeft={optimizerUsesLeft}
             onOptimizerUse={() => setOptimizerUsesLeft((uses) => Math.max(0, uses - 1))}
@@ -235,11 +265,11 @@ function AddPropertyWizardContent() {
 
 function Stepper({ current }: { current: number }) {
   return (
-    <ol className="relative mt-6 grid grid-cols-2">
+    <ol className="relative mt-6 grid grid-cols-3">
       <li
         aria-hidden
         className={cn(
-          "absolute left-1/4 right-1/4 top-5 h-0.5 -translate-y-1/2 transition-colors",
+          "absolute left-1/6 right-1/6 top-5 h-0.5 -translate-y-1/2 transition-colors",
           current > 0 ? "bg-primary" : "bg-hairline",
         )}
       />
@@ -293,24 +323,19 @@ function PropertyDetailsStep({
   const selectedGovName = watch("governorate");
   const selectedCityName = watch("city");
 
-  // Filter active governorates across active countries
   const activeGovernorates =
     activeCountries?.flatMap((c) => c.governorates.filter((g) => g.status)) ?? [];
 
-  // Find currently selected governorate
   const currentGov = activeGovernorates.find(
     (g) => g.nameAr === selectedGovName || g.nameEn === selectedGovName,
   );
 
-  // Active cities under selected governorate
   const activeCities = currentGov?.cities.filter((city) => city.status) ?? [];
 
-  // Find currently selected city
   const currentCity = activeCities.find(
     (c) => c.nameAr === selectedCityName || c.nameEn === selectedCityName,
   );
 
-  // Active districts under selected city
   const activeDistricts = currentCity?.districts?.filter((d) => d.status) ?? [];
 
   const govOptions = activeGovernorates.map((g) => ({
@@ -461,31 +486,14 @@ function PropertyDetailsStep({
   );
 }
 
-type MediaAndDescriptionStepProps = StepProps & {
-  optimizerUsesLeft: number;
-  onOptimizerUse: () => void;
-  onAiPaywall: () => void;
-};
-
-function MediaAndDescriptionStep({
-  form,
-  optimizerUsesLeft,
-  onOptimizerUse,
-  onAiPaywall,
-}: MediaAndDescriptionStepProps) {
+function MediaAndServicesStep({ form }: StepProps) {
   const toast = useToast();
-  const optimize = useStreamOptimizeDescription();
-  const description = form.watch("description");
   const images = form.watch("images");
   const previews = useMemo(
     () => images.map((file) => ({ file, url: URL.createObjectURL(file) })),
     [images],
   );
   const [draggedImageIndex, setDraggedImageIndex] = useState<number | null>(null);
-  // PRO-10 says the landlord reviews the rewrite — so keep what they wrote and
-  // let them put it back. Streaming overwrites the field in place, which would
-  // otherwise destroy their draft with no way back.
-  const [previous, setPrevious] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
 
   const PREDEFINED_SERVICES = [
@@ -594,7 +602,6 @@ function MediaAndDescriptionStep({
 
   useEffect(() => () => previews.forEach(({ url }) => URL.revokeObjectURL(url)), [previews]);
 
-
   function selectImages(event: React.ChangeEvent<HTMLInputElement>) {
     const selected = Array.from(event.target.files ?? []);
     const supported = selected.filter((file) =>
@@ -656,134 +663,16 @@ function MediaAndDescriptionStep({
     setDraggedImageIndex(null);
   }
 
-  async function runOptimize() {
-    if (optimize.isStreaming) return;
-    if (optimizerUsesLeft <= 0) {
-      onAiPaywall();
-      return;
-    }
-    const original = description || "عقار للإيجار";
-    setPrevious(original);
-    const { description: _desc, images: _images, ...context } = form.getValues();
-    try {
-      await optimize.run(original, context, (soFar) =>
-        form.setValue("description", soFar, { shouldValidate: false }),
-      );
-      form.trigger("description");
-      onOptimizerUse();
-      const remainingAfterUse = Math.max(0, optimizerUsesLeft - 1);
-      toast(
-        "success",
-        remainingAfterUse > 0
-          ? `تم تحسين الوصف — متبقي ${remainingAfterUse}`
-          : "تم تحسين الوصف — انتهى رصيد الذكاء الاصطناعي",
-      );
-    } catch (e) {
-      const err = e as ActionError;
-      // Put their text back: a failed rewrite must not cost them their draft.
-      form.setValue("description", original, { shouldValidate: true });
-      setPrevious(null);
-      if (err.code === "QUOTA_EXHAUSTED") {
-        onAiPaywall();
-        return;
-      }
-      toast("error", err.message);
-    }
-  }
-
-  function undo() {
-    if (previous === null) return;
-    form.setValue("description", previous, { shouldValidate: true });
-    setPrevious(null);
-  }
-
   return (
     <Card>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <span className="text-small font-semibold text-ink">الوصف</span>
-        <div className="flex flex-wrap items-center gap-1">
-          {previous !== null && !optimize.isStreaming && (
-            <Button type="button" variant="ghost" size="sm" onClick={undo}>
-              <Undo2 className="size-4" aria-hidden />
-              تراجع
-            </Button>
-          )}
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={runOptimize}
-            loading={optimize.isStreaming}
-          >
-            <Sparkles className="size-4" aria-hidden />
-            {optimizerUsesLeft > 0 ? "تحسين الوصف بالذكاء الاصطناعي" : "شراء حزمة الذكاء الاصطناعي (10 استخدامات)"}
-          </Button>
-        </div>
-      </div>
-      <div
-        className={cn(
-          "flex flex-col gap-3 rounded-control border px-4 py-3 sm:flex-row sm:items-center sm:justify-between",
-          optimizerUsesLeft > 0
-            ? "border-primary/20 bg-primary-tint/50"
-            : "border-hairline bg-background",
-        )}
-        role="status"
-      >
-        <div className="flex items-start gap-2.5">
-          <span
-            className={cn(
-              "mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full",
-              optimizerUsesLeft > 0 ? "bg-surface text-primary" : "bg-hairline text-muted",
-            )}
-          >
-            <Sparkles className="size-4" aria-hidden />
-          </span>
-          <div>
-            <p className="text-small font-bold text-ink">
-              {optimizerUsesLeft > 0
-                ? `متبقي ${optimizerUsesLeft} استخدام`
-                : "انتهى رصيد الذكاء الاصطناعي الحالي"}
-            </p>
-            <p className="mt-0.5 text-caption text-muted">
-              يمكنك استخدام الرصيد الحالي أو شراء حزمة إضافية (10 استخدامات بـ 199 ج.م).
-            </p>
-          </div>
-        </div>
-        <div className="flex gap-1.5" aria-label={`${optimizerUsesLeft} محاولات تحسين متبقية`}>
-          {Array.from(
-            { length: Math.max(1, optimizerUsesLeft) },
-            (_, index) => (
-              <span
-                key={index}
-                className={cn(
-                  "h-2.5 w-8 rounded-pill transition-colors",
-                  index < optimizerUsesLeft ? "bg-primary" : "bg-hairline",
-                )}
-                aria-hidden
-              />
-            ),
-          )}
-        </div>
-      </div>
-      <TextAreaField
-        placeholder="اكتب وصفًا للعقار…"
-        className="min-h-40"
-        error={form.formState.errors.description?.message}
-        {...form.register("description")}
-      />
-      {optimize.isStreaming && (
-        <p className="flex items-center gap-1.5 text-caption text-muted" role="status">
-          <Sparkles className="size-3.5 animate-pulse" aria-hidden />
-          جارٍ كتابة الوصف…
-        </p>
-      )}
       <div className="flex flex-col gap-2">
-        <label className="text-small font-bold text-ink">الخدمات المحيطة</label>
+        <label className="text-small font-bold text-ink">
+          الخدمات المحيطة <span className="text-error">*</span>
+        </label>
         <p className="text-caption text-muted">
-          تُستخدم في المطابقة الذكية — اختر من الخيارات الشائعة أو أضف خدمات مخصصة.
+          تُستخدم في المطابقة الذكية — اختر خدمة واحدة على الأقل أو أضف خدمات مخصصة.
         </p>
 
-        {/* Selected tags */}
         {tags.length > 0 && (
           <div className="flex flex-wrap gap-1.5 rounded-card border border-hairline bg-background/50 p-2.5">
             {tags.map((tag) => (
@@ -805,7 +694,6 @@ function MediaAndDescriptionStep({
           </div>
         )}
 
-        {/* Predefined choices list */}
         <div className="flex flex-wrap gap-1.5">
           {PREDEFINED_SERVICES.map((service) => {
             const isSelected = tags.includes(service);
@@ -827,7 +715,6 @@ function MediaAndDescriptionStep({
           })}
         </div>
 
-        {/* Add custom tag input */}
         <div className="flex items-stretch gap-2 mt-1">
           <input
             type="text"
@@ -847,6 +734,9 @@ function MediaAndDescriptionStep({
             إضافة
           </Button>
         </div>
+        {form.formState.errors.propertyAroundServices && (
+          <p className="text-caption text-error">{form.formState.errors.propertyAroundServices.message}</p>
+        )}
       </div>
 
       <div className="flex flex-col gap-4 border-t border-hairline pt-5">
@@ -891,7 +781,6 @@ function MediaAndDescriptionStep({
           />
         </label>
 
-
         {previews.length > 0 && (
           <div className="flex flex-col gap-4">
             <div>
@@ -910,9 +799,6 @@ function MediaAndDescriptionStep({
                 onDrop={dropImage}
                 onRemove={removeImage}
               />
-              <p className="mt-2 text-caption text-muted">
-                هذه أول صورة ستظهر للمستخدمين. اسحب صورة أخرى إلى مكانها لتغييرها.
-              </p>
             </div>
 
             {previews.length > 1 && (
@@ -942,6 +828,207 @@ function MediaAndDescriptionStep({
         )}
         {form.formState.errors.images && (
           <p className="text-caption text-error">{form.formState.errors.images.message}</p>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-2 border-t border-hairline pt-5">
+        <label className="text-small font-bold text-ink">الوصف المبسّط للعقار</label>
+        <p className="text-caption text-muted">
+          اكتب مسوّدة أو وصفاً أولياً لعقارك. في الخطوة القادمة، يمكنك استخدام الذكاء الاصطناعي لتحسين صيغة الوصف بعد تجميع كامل بيانات العقار.
+        </p>
+        <TextAreaField
+          placeholder="اكتب وصفًا أولياً للعقار…"
+          className="min-h-32"
+          error={form.formState.errors.description?.message}
+          {...form.register("description")}
+        />
+      </div>
+    </Card>
+  );
+}
+
+type OptimizationAndReviewStepProps = StepProps & {
+  optimizerUsesLeft: number;
+  onOptimizerUse: () => void;
+  onAiPaywall: () => void;
+};
+
+function OptimizationAndReviewStep({
+  form,
+  optimizerUsesLeft,
+  onOptimizerUse,
+  onAiPaywall,
+}: OptimizationAndReviewStepProps) {
+  const toast = useToast();
+  const optimize = useStreamOptimizeDescription();
+  const values = form.getValues();
+  const description = form.watch("description");
+  const [previous, setPrevious] = useState<string | null>(null);
+
+  async function runOptimize() {
+    if (optimize.isStreaming) return;
+    if (optimizerUsesLeft <= 0) {
+      onAiPaywall();
+      return;
+    }
+    const original = description || "عقار للإيجار";
+    setPrevious(original);
+    const { description: _desc, images: _images, ...context } = form.getValues();
+    try {
+      await optimize.run(original, context, (soFar) =>
+        form.setValue("description", soFar, { shouldValidate: false }),
+      );
+      form.trigger("description");
+      onOptimizerUse();
+      const remainingAfterUse = Math.max(0, optimizerUsesLeft - 1);
+      toast(
+        "success",
+        remainingAfterUse > 0
+          ? `تم تحسين الوصف بنجاح بناءً على كافة بيانات العقار — متبقي ${remainingAfterUse}`
+          : "تم تحسين الوصف — انتهى رصيد الذكاء الاصطناعي",
+      );
+    } catch (e) {
+      const err = e as ActionError;
+      form.setValue("description", original, { shouldValidate: true });
+      setPrevious(null);
+      if (err.code === "QUOTA_EXHAUSTED") {
+        onAiPaywall();
+        return;
+      }
+      toast("error", err.message);
+    }
+  }
+
+  function undo() {
+    if (previous === null) return;
+    form.setValue("description", previous, { shouldValidate: true });
+    setPrevious(null);
+  }
+
+  return (
+    <Card>
+      <div className="flex flex-col gap-3 rounded-card border border-primary/20 bg-primary-tint/30 p-4">
+        <h2 className="text-small font-bold text-ink">ملخص بيانات العقار المجمّعة</h2>
+        <div className="grid grid-cols-2 gap-2 text-caption text-body-text sm:grid-cols-3">
+          <div><span className="font-semibold">العنوان:</span> {values.title || "غير محدد"}</div>
+          <div><span className="font-semibold">النوع:</span> {propertyTypeLabels[values.propertyType]}</div>
+          <div><span className="font-semibold">الإيجار:</span> {values.rentAmount} ج.م/شهر</div>
+          <div><span className="font-semibold">الموقع:</span> {values.governorate}، {values.city} {values.district && `(${values.district})`}</div>
+          <div><span className="font-semibold">المساحة:</span> {values.areaM2} م²</div>
+          <div><span className="font-semibold">الغرف:</span> {values.bedrooms} نوم / {values.bathrooms} حمام</div>
+          <div className="col-span-2 sm:col-span-3">
+            <span className="font-semibold">الخدمات المحيطة:</span> {values.propertyAroundServices || "لا يوجد"}
+          </div>
+          <div className="col-span-2 sm:col-span-3">
+            <span className="font-semibold">عدد الصور:</span> {values.images?.length ?? 0} صور مرفقة
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-4 border-t border-hairline pt-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-small font-bold text-ink flex items-center gap-1.5">
+              <Sparkles className="size-4 text-primary shrink-0" aria-hidden />
+              تحسين صيغة الوصف بالذكاء الاصطناعي (الخطوة الأخيرة)
+            </h2>
+            <p className="mt-1 text-caption text-muted">
+              يقوم الذكاء الاصطناعي بصياغة وصف جذاب ومكتمل اعتماداً على كافة البيانات المحيطة والتفاصيل التي أدخلتها.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {previous !== null && !optimize.isStreaming && (
+              <Button type="button" variant="ghost" size="sm" onClick={undo} className="whitespace-nowrap">
+                <Undo2 className="size-4" aria-hidden />
+                تراجع
+              </Button>
+            )}
+            <button
+              type="button"
+              onClick={runOptimize}
+              disabled={optimize.isStreaming}
+              className={cn(
+                "inline-flex items-center justify-center gap-2 rounded-control px-4 py-2.5 text-small font-bold text-white shadow-md transition-all whitespace-nowrap cursor-pointer shrink-0",
+                optimizerUsesLeft > 0
+                  ? "bg-gradient-to-l from-primary via-primary-dark to-primary hover:brightness-110 active:scale-98"
+                  : "bg-surface border border-hairline text-ink hover:bg-background",
+                optimize.isStreaming && "opacity-75 pointer-events-none",
+              )}
+            >
+              <Sparkles className={cn("size-4 shrink-0", optimize.isStreaming && "animate-spin")} aria-hidden />
+              <span>
+                {optimize.isStreaming
+                  ? "جارٍ تحسين الوصف..."
+                  : optimizerUsesLeft > 0
+                  ? "تحسين الوصف بالذكاء الاصطناعي"
+                  : "شراء حزمة الذكاء الاصطناعي (10 استخدامات)"}
+              </span>
+            </button>
+          </div>
+        </div>
+
+        <div
+          className={cn(
+            "flex flex-col gap-3 rounded-card border p-4 transition-all sm:flex-row sm:items-center sm:justify-between",
+            optimizerUsesLeft > 0
+              ? "border-primary/25 bg-primary-tint/40 shadow-xs"
+              : "border-hairline bg-background",
+          )}
+          role="status"
+        >
+          <div className="flex items-center gap-3">
+            <span
+              className={cn(
+                "flex size-10 shrink-0 items-center justify-center rounded-full shadow-xs",
+                optimizerUsesLeft > 0 ? "bg-surface text-primary border border-primary/20" : "bg-hairline text-muted",
+              )}
+            >
+              <Sparkles className="size-5" aria-hidden />
+            </span>
+            <div>
+              <p className="text-small font-bold text-ink">
+                {optimizerUsesLeft > 0
+                  ? `متبقي ${optimizerUsesLeft} استخدامات في رصيدك`
+                  : "انتهى رصيد الذكاء الاصطناعي الحالي"}
+              </p>
+              <p className="mt-0.5 text-caption text-muted">
+                يمكنك استخدام الرصيد الحالي أو شراء حزمة إضافية (10 استخدامات بـ 199 ج.م).
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 pt-2 sm:pt-0" aria-label={`${optimizerUsesLeft} محاولات تحسين متبقية`}>
+            <span className="text-caption font-bold text-primary ml-1">
+              {optimizerUsesLeft} / 5
+            </span>
+            <div className="flex items-center gap-1.5">
+              {Array.from({ length: 5 }, (_, index) => (
+                <span
+                  key={index}
+                  className={cn(
+                    "h-3 w-6 rounded-pill transition-all duration-300 border",
+                    index < optimizerUsesLeft
+                      ? "bg-primary border-primary shadow-xs"
+                      : "bg-surface border-hairline opacity-50",
+                  )}
+                  aria-hidden
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <TextAreaField
+          label="صيغة الوصف النهائية"
+          placeholder="الوصف النهائي للعقار…"
+          className="min-h-40"
+          error={form.formState.errors.description?.message}
+          {...form.register("description")}
+        />
+        {optimize.isStreaming && (
+          <p className="flex items-center gap-1.5 text-caption text-muted" role="status">
+            <Sparkles className="size-3.5 animate-pulse" aria-hidden />
+            جارٍ كتابة الوصف وتنسيقه بالذكاء الاصطناعي…
+          </p>
         )}
       </div>
     </Card>
@@ -988,8 +1075,6 @@ function PropertyImagePreview({
       )}
       aria-label={`${file.name}، الصورة رقم ${index + 1}`}
     >
-      {/* A local object URL is intentionally rendered with img; Next Image does not optimize browser blobs. */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={url}
         alt={`معاينة صورة العقار ${index + 1}`}

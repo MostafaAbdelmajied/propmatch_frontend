@@ -48,14 +48,22 @@ export const SOCKET_EVENTS = {
   /** A new item entered an admin moderation queue. */
   adminQueueItem: "admin:queue:item",
   message: "message",
+  /** A match message was edited by its sender. */
+  messageEdited: "message:edited",
+  /** A match message was deleted by its sender. */
+  messageDeleted: "message:deleted",
   /** A new support ticket was created (admins). */
   supportTicketCreated: "support:ticket:created",
   /** A new reply landed on a support ticket (customer or assigned agent). */
   supportMessageReceived: "support:message:received",
-  /** This socket's account was just suspended — drop the session instantly. */
+  /** This socket's account was just deleted (soft-delete) — drop the session instantly. */
   forceLogout: "force_logout",
   /** A soft-deleted user requested account reactivation (admins). */
   newReactivationRequest: "new_reactivation_request",
+  /** Admin suspended this account → show a blocking notice + log out. */
+  accountSuspended: "account:suspended",
+  /** A persisted payment reached a terminal state for the authenticated user. */
+  paymentUpdated: "payment:updated",
 } as const;
 
 /** Payload for the `new_reactivation_request` event (matches the NestJS gateway). */
@@ -65,6 +73,13 @@ export interface RealtimeReactivationRequest {
   userFullName: string;
   userEmail: string;
   createdAt: string;
+}
+
+/** Payload for the `account:suspended` event (matches the NestJS gateway). */
+export interface AccountSuspendedPayload {
+  message: string;
+  reason: string | null;
+  suspendedUntil: string | null;
 }
 
 /** Payload for the `support:message:received` event (matches the NestJS gateway). */

@@ -12,6 +12,7 @@ import { PaymentSheet } from "@/src/features/payments/PaymentSheet";
 import { useToast } from "@/src/components/ui/Toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { useDeleteProperty } from "../hooks/useLandlord";
+import { ArchivePropertyAction } from "./ArchivePropertyAction";
 
 /** Landlord view of their own listing: status, rejection reason, boost CTA. */
 export function LandlordPropertyView({ id }: { id: string }) {
@@ -69,6 +70,7 @@ export function LandlordPropertyView({ id }: { id: string }) {
           {p.isBoosted && (
             <span className="rounded-pill bg-pending-tint px-3 py-1 text-caption font-bold text-pending">إعلان مميّز</span>
           )}
+          <ArchivePropertyAction propertyId={p.id} status={p.status} />
         </div>
       )}
 

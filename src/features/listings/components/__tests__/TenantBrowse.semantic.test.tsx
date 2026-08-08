@@ -1,6 +1,10 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { TenantBrowse } from "../TenantBrowse";
-import { useApprovedProperties, useSemanticPropertySearch, usePublicTenantRequests } from "../../hooks/useProperties";
+import {
+  useApprovedProperties,
+  useSemanticPropertySearch,
+  usePublicTenantRequests,
+} from "../../hooks/useProperties";
 
 jest.mock("next/navigation", () => ({ useRouter: () => ({ push: jest.fn() }) }));
 jest.mock("../../hooks/useProperties", () => ({
@@ -9,7 +13,10 @@ jest.mock("../../hooks/useProperties", () => ({
   usePublicTenantRequests: jest.fn(),
 }));
 jest.mock("@/src/features/auth/hooks/useSession", () => ({
-  useSession: () => ({ data: { role: "tenant", fullName: "Test User", verificationStatus: "APPROVED" }, isLoading: false }),
+  useSession: () => ({
+    data: { role: "tenant", fullName: "Test User", verificationStatus: "APPROVED" },
+    isLoading: false,
+  }),
 }));
 
 jest.mock("@/src/lib/api/browserClient", () => ({
@@ -28,7 +35,6 @@ const semanticPropertySearch = useSemanticPropertySearch as jest.MockedFunction<
 const publicRequests = usePublicTenantRequests as jest.MockedFunction<
   typeof usePublicTenantRequests
 >;
-
 
 const noRelevantMatchResponse = {
   items: [],
@@ -65,7 +71,6 @@ function setupSemanticSearch(result = successfulSemanticSearch()) {
   } as any);
 }
 
-
 function submitQuery(query = "شقة مفروشة في المنصورة") {
   fireEvent.change(screen.getByRole("textbox", { name: "ابحث بوصف العقار الذي تحتاجه" }), {
     target: { value: query },
@@ -78,7 +83,7 @@ describe("TenantBrowse semantic no-match feedback", () => {
 
   it("shows actionable no-relevant-match guidance without exposing the backend reason", () => {
     setupSemanticSearch();
-    render(<TenantBrowse />);
+    render(<TenantBrowse canBrowseTenantRequests={false} />);
     submitQuery();
 
     expect(screen.getByText("ملقيناش عقار مناسب كفاية لطلبك")).toBeInTheDocument();
@@ -91,7 +96,7 @@ describe("TenantBrowse semantic no-match feedback", () => {
   it("preserves and focuses the entered query without automatically retrying", () => {
     const result = successfulSemanticSearch();
     setupSemanticSearch(result);
-    render(<TenantBrowse />);
+    render(<TenantBrowse canBrowseTenantRequests={false} />);
     submitQuery();
 
     const input = screen.getByRole("textbox", { name: "ابحث بوصف العقار الذي تحتاجه" });
@@ -126,7 +131,7 @@ describe("TenantBrowse semantic no-match feedback", () => {
       error: providerError,
       refetch: jest.fn(),
     } as ReturnType<typeof useSemanticPropertySearch>);
-    render(<TenantBrowse />);
+    render(<TenantBrowse canBrowseTenantRequests={false} />);
     submitQuery();
 
     expect(
@@ -145,10 +150,28 @@ describe("TenantBrowse semantic no-match feedback", () => {
         pageSize: 10,
       }),
     );
-    render(<TenantBrowse />);
+    render(<TenantBrowse canBrowseTenantRequests={false} />);
     submitQuery();
 
     expect(screen.getByText("لم نجد عقارات مطابقة لوصفك حاليًا.")).toBeInTheDocument();
     expect(screen.queryByText("ملقيناش عقار مناسب كفاية لطلبك")).not.toBeInTheDocument();
+  });
+
+  it("hides tenant requests and disables their query for a tenant", () => {
+    setupSemanticSearch();
+    render(<TenantBrowse canBrowseTenantRequests={false} />);
+
+    expect(screen.queryByRole("button", { name: "طلبات المستأجرين" })).not.toBeInTheDocument();
+    expect(screen.getByText("تصفّح العقارات المعروضة مباشرة في المنصورة.")).toBeInTheDocument();
+    expect(publicRequests).toHaveBeenCalledWith(false);
+  });
+
+  it("keeps both browse tabs available to a guest", () => {
+    setupSemanticSearch();
+    render(<TenantBrowse canBrowseTenantRequests />);
+
+    expect(screen.getByRole("button", { name: "العقارات المعروضة" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "طلبات المستأجرين" })).toBeInTheDocument();
+    expect(publicRequests).toHaveBeenCalledWith(true);
   });
 });

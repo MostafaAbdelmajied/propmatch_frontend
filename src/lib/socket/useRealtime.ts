@@ -6,15 +6,18 @@ import { useQueryClient } from "@tanstack/react-query";
 import { io, type Socket } from "socket.io-client";
 import { SOCKET_EVENTS } from "@/src/lib/api/contracts/notification";
 import type {
+  AccountSuspendedPayload,
   Notification,
   NotificationsResponse,
   RealtimeSupportMessage,
   RealtimeReactivationRequest,
 } from "@/src/lib/api/contracts/notification";
+import { useSuspensionStore } from "@/src/lib/store/useSuspensionStore";
 import { useToast } from "@/src/components/ui/Toast";
 import { authApi } from "@/src/lib/api/browserClient";
 import type { AdminQueuesResponse, QueueItem } from "@/src/lib/api/contracts/admin";
 import type { MatchMessage, RealtimeMatchMessage } from "@/src/lib/api/contracts/message";
+import type { PaymentStatus } from "@/src/lib/api/contracts/payment";
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL;
 
@@ -26,7 +29,8 @@ function initAndUnlockAudio(): void {
   if (typeof window === "undefined") return;
   try {
     const AudioCtx =
-      window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     if (!AudioCtx) return;
     sharedAudioCtx ??= new AudioCtx();
     if (sharedAudioCtx.state === "suspended") {
@@ -108,6 +112,24 @@ export function reconnectSocket(): void {
   s.connect();
 }
 
+export interface PaymentUpdatedPayload {
+  providerOrderId: string;
+  status: Extract<PaymentStatus, "SUCCESS" | "FAILED">;
+  providerTransactionId: string | null;
+  paidAt: string | null;
+}
+
+export function subscribeToPaymentUpdates(
+  listener: (payment: PaymentUpdatedPayload) => void,
+): () => void {
+  const currentSocket = getSocket();
+  if (!currentSocket) return () => {};
+  currentSocket.on(SOCKET_EVENTS.paymentUpdated, listener);
+  return () => {
+    currentSocket.off(SOCKET_EVENTS.paymentUpdated, listener);
+  };
+}
+
 function subscribeToStatus(onChange: () => void): () => void {
   const s = getSocket();
   if (!s) return () => {};
@@ -180,21 +202,40 @@ export function useRealtime(): RealtimeState {
     };
 
     const onMessage = (message: RealtimeMatchMessage) => {
-      qc.setQueryData<MatchMessage[]>(["matches", message.matchConnectionId, "messages"], (prev) => {
-        if (!prev || prev.some((item) => item.id === message.id)) return prev;
-        return [
-          ...prev,
-          {
-            id: message.id,
-            senderId: message.senderId,
-            body: message.body,
-            createdAt: message.createdAt,
-            isMine: false,
-          },
-        ];
-      });
+      qc.setQueryData<MatchMessage[]>(
+        ["matches", message.matchConnectionId, "messages"],
+        (prev) => {
+          if (!prev || prev.some((item) => item.id === message.id)) return prev;
+          return [
+            ...prev,
+            {
+              id: message.id,
+              senderId: message.senderId,
+              body: message.body,
+              createdAt: message.createdAt,
+              isMine: false,
+            },
+          ];
+        },
+      );
       qc.invalidateQueries({ queryKey: ["matches"] });
       playNotificationChime();
+    };
+
+    const onMessageEdited = (payload: { id: string; matchConnectionId: string; body: string; editedAt?: string | null }) => {
+      qc.setQueryData<MatchMessage[]>(["matches", payload.matchConnectionId, "messages"], (prev) =>
+        prev?.map((item) =>
+          item.id === payload.id ? { ...item, body: payload.body, editedAt: payload.editedAt ?? new Date().toISOString() } : item,
+        ) ?? prev,
+      );
+      qc.invalidateQueries({ queryKey: ["matches"] });
+    };
+
+    const onMessageDeleted = (payload: { id: string; matchConnectionId: string }) => {
+      qc.setQueryData<MatchMessage[]>(["matches", payload.matchConnectionId, "messages"], (prev) =>
+        prev?.filter((item) => item.id !== payload.id) ?? prev,
+      );
+      qc.invalidateQueries({ queryKey: ["matches"] });
     };
 
     // Live support-ticket chat. The payload lacks the full message shape, so we
@@ -214,9 +255,12 @@ export function useRealtime(): RealtimeState {
     // already-open tab working until it happens to hit the network again —
     // this drops it immediately instead. authApi.logout() clears the httpOnly
     // cookie server-side (the socket payload can't do that itself); the qc
-    // reset + redirect mirror useLogout()'s onSuccess.
+    // reset + redirect mirror useLogout()'s onSuccess. Distinct from
+    // onAccountSuspended below — a delete is a "ghost" account with its own
+    // reactivation flow, a suspension is a temporary/permanent block with its
+    // own end date/reason, surfaced via the blocking SuspensionModal instead.
     const onForceLogout = () => {
-      toast("error", "تم تعليق حسابك من قبل أحد المشرفين");
+      toast("error", "تم حذف حسابك من قبل أحد المشرفين");
       void authApi.logout().finally(() => {
         qc.setQueryData(["session"], null);
         qc.clear();
@@ -239,19 +283,40 @@ export function useRealtime(): RealtimeState {
       playNotificationChime();
     };
 
+    // Admin suspended this account → surface a blocking modal (RealtimeProvider)
+    // and log the user out. This is what makes suspension feel real-time.
+    const onAccountSuspended = (payload: AccountSuspendedPayload) => {
+      useSuspensionStore.getState().setSuspension(payload);
+      playNotificationChime();
+    };
+
+    const onPaymentUpdated = (payment: PaymentUpdatedPayload) => {
+      if (payment.status === "SUCCESS") {
+        void qc.invalidateQueries({ queryKey: ["quota"] });
+      }
+    };
+
     s.on(SOCKET_EVENTS.notification, onNotification);
     s.on(SOCKET_EVENTS.adminQueueItem, onQueueItem);
     s.on(SOCKET_EVENTS.message, onMessage);
+    s.on(SOCKET_EVENTS.messageEdited, onMessageEdited);
+    s.on(SOCKET_EVENTS.messageDeleted, onMessageDeleted);
     s.on(SOCKET_EVENTS.supportMessageReceived, onSupportMessage);
     s.on(SOCKET_EVENTS.forceLogout, onForceLogout);
     s.on(SOCKET_EVENTS.newReactivationRequest, onReactivationRequested);
+    s.on(SOCKET_EVENTS.accountSuspended, onAccountSuspended);
+    s.on(SOCKET_EVENTS.paymentUpdated, onPaymentUpdated);
     return () => {
       s.off(SOCKET_EVENTS.notification, onNotification);
       s.off(SOCKET_EVENTS.adminQueueItem, onQueueItem);
       s.off(SOCKET_EVENTS.message, onMessage);
+      s.off(SOCKET_EVENTS.messageEdited, onMessageEdited);
+      s.off(SOCKET_EVENTS.messageDeleted, onMessageDeleted);
       s.off(SOCKET_EVENTS.supportMessageReceived, onSupportMessage);
       s.off(SOCKET_EVENTS.forceLogout, onForceLogout);
       s.off(SOCKET_EVENTS.newReactivationRequest, onReactivationRequested);
+      s.off(SOCKET_EVENTS.accountSuspended, onAccountSuspended);
+      s.off(SOCKET_EVENTS.paymentUpdated, onPaymentUpdated);
     };
   }, [qc, toast, router]);
 

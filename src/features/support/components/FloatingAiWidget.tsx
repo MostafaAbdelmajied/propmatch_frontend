@@ -24,13 +24,13 @@ export function FloatingAiWidget() {
 
   return (
     <>
-      {/* Floating Action Button (FAB) */}
-      <div className="fixed bottom-6 inset-s-6 z-40">
+      {/* Floating Action Button (FAB) — positioned above mobile bottom nav bar */}
+      <div className="fixed bottom-20 inset-s-4 sm:inset-s-6 md:bottom-6 z-40">
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
           className={cn(
-            "flex items-center gap-2.5 rounded-pill bg-primary px-5 py-3 text-small font-bold text-white shadow-xl hover:bg-primary-dark active:scale-95 transition-transform",
+            "flex items-center gap-2.5 rounded-pill bg-primary px-4 py-2.5 sm:px-5 sm:py-3 text-small font-bold text-white shadow-xl hover:bg-primary-dark active:scale-95 transition-transform",
             open && "bg-ink hover:bg-ink",
           )}
           aria-label={open ? "إغلاق المساعد الذكي" : "فتح المساعد الذكي"}

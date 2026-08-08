@@ -2,7 +2,12 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/src/lib/api/browserClient";
-import type { MatchConversationSummary, MatchMessage, SendMatchMessageInput } from "@/src/lib/api/contracts/message";
+import type {
+  ConfirmAgreementResponse,
+  MatchConversationSummary,
+  MatchMessage,
+  SendMatchMessageInput,
+} from "@/src/lib/api/contracts/message";
 
 export const useMatchConversations = () =>
   useQuery({
@@ -16,6 +21,20 @@ export const useMatchMessages = (id: string) =>
     queryFn: () => api.get<MatchMessage[]>(`matches/${id}/messages`),
     enabled: Boolean(id),
   });
+
+export function useConfirmMatchAgreement(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post<ConfirmAgreementResponse>(`matches/${id}/agreement`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["matches"] });
+      qc.invalidateQueries({ queryKey: ["tenant", "requests"] });
+      qc.invalidateQueries({ queryKey: ["tenant", "offers"] });
+      qc.invalidateQueries({ queryKey: ["landlord", "requests"] });
+      qc.invalidateQueries({ queryKey: ["landlord", "offers"] });
+    },
+  });
+}
 
 export function useSendMatchMessage(id: string) {
   const qc = useQueryClient();

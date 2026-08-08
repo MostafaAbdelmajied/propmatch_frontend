@@ -1,4 +1,4 @@
-export type ChatAttachmentType = 'IMAGE' | 'VIDEO' | 'AUDIO';
+export type ChatAttachmentType = "IMAGE" | "VIDEO" | "AUDIO";
 
 export type ChatAttachment = {
   attachmentUrl: string | null;
@@ -7,10 +7,39 @@ export type ChatAttachment = {
   attachmentDurationMs: number | null;
 };
 
-export type UploadedAttachment = { url: string; type: ChatAttachmentType; name: string; sizeBytes: number };
+export type UploadedAttachment = {
+  url: string;
+  type: ChatAttachmentType;
+  name: string;
+  sizeBytes: number;
+};
 
-export type MatchConversationSummary = { matchConnectionId: string; propertyId: string; propertyTitle: string; propertyCoverImage: string | null; otherParticipantName: string; connectionStatus: 'CONNECTED'; lastMessagePreview: string | null; lastMessageAt: string | null };
-export type MatchMessage = { id: string; senderId: string; body: string; createdAt: string; isMine: boolean } & Partial<ChatAttachment>;
-export type SendMatchMessageInput = { body?: string } & Partial<Omit<ChatAttachment, 'attachmentUrl'>> & { attachmentUrl?: string };
+export type MatchConversationSummary = {
+  matchConnectionId: string;
+  propertyId: string;
+  propertyTitle: string;
+  propertyCoverImage: string | null;
+  otherParticipantName: string;
+  connectionStatus: "CONNECTED";
+  agreementReachedAt: string | null;
+  canConfirmAgreement: boolean;
+  lastMessagePreview: string | null;
+  lastMessageAt: string | null;
+};
+export type ConfirmAgreementResponse = {
+  matchConnectionId: string;
+  agreementReachedAt: string;
+};
+export type MatchMessage = {
+  id: string;
+  senderId: string;
+  body: string;
+  createdAt: string;
+  editedAt?: string | null;
+  isMine: boolean;
+} & Partial<ChatAttachment>;
+export type SendMatchMessageInput = { body?: string } & Partial<
+  Omit<ChatAttachment, "attachmentUrl">
+> & { attachmentUrl?: string };
 
 export type RealtimeMatchMessage = MatchMessage & { matchConnectionId: string };

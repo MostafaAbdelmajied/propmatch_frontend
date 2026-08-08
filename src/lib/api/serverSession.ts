@@ -2,6 +2,7 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { UserSchema, type AccountRole, type User } from "./contracts/auth";
 import { landingAfterLogin } from "@/src/features/auth/roleRouting";
+import { canRoleAccess } from "@/src/features/auth/routePolicy";
 
 /**
  * Server-side session read for Server Components / layouts. Goes through our
@@ -54,5 +55,15 @@ export async function requireSession(redirectTo: string): Promise<User> {
 export async function requireRole(role: AccountRole, redirectTo: string): Promise<User> {
   const user = await requireSession(redirectTo);
   if (user.role !== role) redirect(landingAfterLogin(user.role));
+  return user;
+}
+
+/** Requires one of several roles for authenticated shared surfaces. */
+export async function requireAnyRole(
+  roles: readonly AccountRole[],
+  redirectTo: string,
+): Promise<User> {
+  const user = await requireSession(redirectTo);
+  if (!canRoleAccess(user.role, roles)) redirect(landingAfterLogin(user.role));
   return user;
 }

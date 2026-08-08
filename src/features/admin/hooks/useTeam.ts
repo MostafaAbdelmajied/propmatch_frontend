@@ -6,6 +6,7 @@ import type {
   AdminReactivationRequestsResponse,
   AdminSession,
   AdminTeamMember,
+  AdminUserListItem,
   AdminUsersResponse,
   AdminUserStatusFilter,
   AuditLogEntry,
@@ -66,16 +67,27 @@ export function useLoginHistory() {
   });
 }
 
-/**
- * Platform accounts (tenants, landlords, admins). `status` mirrors
- * AdminService.listUsers's query param — defaults to 'active' so the main
- * tab stays clean; pass 'deleted' for the Suspended/Deleted tab or 'all' to
- * see everything.
- */
-export function useAdminUsers(status: AdminUserStatusFilter = "active") {
+export interface AdminUsersQuery {
+  /** Mirrors AdminService.listUsers's default — 'active' keeps the main tab
+   * clean; 'deleted' is the Deleted tab; 'all' also backs the Suspended tab
+   * (suspended users aren't deletedAt, so they're filtered client-side out
+   * of the 'active' bucket — see AdminUsersTable). */
+  status?: AdminUserStatusFilter;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+/** Platform accounts (tenants, landlords, admins), searchable + paginated. */
+export function useAdminUsers(query: AdminUsersQuery = {}) {
+  const { status = "active", search, page, pageSize } = query;
+  const params = new URLSearchParams({ status });
+  if (search) params.set("search", search);
+  if (page) params.set("page", String(page));
+  if (pageSize) params.set("pageSize", String(pageSize));
   return useQuery({
-    queryKey: ["admin", "users", status],
-    queryFn: () => api.get<AdminUsersResponse>(`admin/users?status=${status}`),
+    queryKey: ["admin", "users", status, search ?? "", page ?? 1, pageSize ?? 20],
+    queryFn: () => api.get<AdminUsersResponse>(`admin/users?${params.toString()}`),
   });
 }
 
@@ -88,9 +100,35 @@ export function useDeleteUser() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.delete<{ success: boolean; id: string }>(`admin/users/${id}`),
-    // Matches every ["admin", "users", status] entry regardless of which
-    // tab's status filter it was fetched under — the row needs to disappear
-    // from "active" and (once refetched) appear under "deleted".
+    // Matches every ["admin", "users", ...] entry regardless of which tab's
+    // filters it was fetched under — the row needs to disappear from
+    // "active"/"all" and (once refetched) appear under "deleted".
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "users"] }),
+  });
+}
+
+/** Suspend a non-admin account (POST /admin/users/:id/suspend). `durationDays` null ⇒ permanent. */
+export function useSuspendUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      ...body
+    }: {
+      id: string;
+      reason: string;
+      durationDays: number | null;
+      note?: string;
+    }) => api.post<AdminUserListItem>(`admin/users/${id}/suspend`, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "users"] }),
+  });
+}
+
+/** Lift a suspension immediately (POST /admin/users/:id/unsuspend). */
+export function useUnsuspendUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.post<AdminUserListItem>(`admin/users/${id}/unsuspend`, {}),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "users"] }),
   });
 }

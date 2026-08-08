@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext } from "react";
+import { SuspensionModal } from "./SuspensionModal";
 import { useRealtime } from "./useRealtime";
 
 /**
@@ -12,7 +13,12 @@ const RealtimeContext = createContext<{ connected: boolean }>({ connected: false
 
 export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const state = useRealtime();
-  return <RealtimeContext.Provider value={state}>{children}</RealtimeContext.Provider>;
+  return (
+    <RealtimeContext.Provider value={state}>
+      {children}
+      <SuspensionModal />
+    </RealtimeContext.Provider>
+  );
 }
 
 /** True when live updates are arriving — i.e. polling is unnecessary. */
