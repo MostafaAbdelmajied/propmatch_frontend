@@ -28,6 +28,12 @@ const AUTH_MUTATION_PATHS = new Set([
   "/api/auth/register",
   "/api/auth/logout",
   REFRESH_PATH,
+  // Public, credential-based (email+password in the body) — called by a user
+  // with no valid session (their token was revoked the moment the account
+  // was soft-deleted). A 401 here is never fixable by refreshing; doing so
+  // anyway would spend a request retrying with the same dead/absent
+  // session before failing the exact same way.
+  "/api/backend/auth/request-reactivation",
 ]);
 
 let refreshPromise: Promise<boolean> | null = null;
