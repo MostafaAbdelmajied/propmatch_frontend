@@ -190,6 +190,13 @@ export function TenantBrowse() {
     }
   }
 
+  // The "tenant requests" tab is a guest-only discovery surface: a signed-in
+  // tenant can't act on another tenant's request (see handleRequestCardClick),
+  // and landlords have their own /landlord/requests. So it's shown only to
+  // guests; any signed-in user browsing here sees just the properties view.
+  const isGuest = !user;
+  const effectiveTab = isGuest ? activeTab : "properties";
+
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
@@ -198,36 +205,38 @@ export function TenantBrowse() {
           <p className="mt-1 text-small text-muted">إعلانات عقارات وطلبات مستأجرين مباشرة في المنصورة.</p>
         </div>
 
-        {/* Tab Switcher */}
-        <div className="flex rounded-control border border-hairline bg-surface p-1 self-start">
-          <button
-            type="button"
-            onClick={() => setActiveTab("properties")}
-            className={cn(
-              "rounded-control px-4 py-1.5 text-small font-bold transition-all",
-              activeTab === "properties"
-                ? "bg-primary text-white"
-                : "text-muted hover:text-ink"
-            )}
-          >
-            العقارات المعروضة
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab("requests")}
-            className={cn(
-              "rounded-control px-4 py-1.5 text-small font-bold transition-all",
-              activeTab === "requests"
-                ? "bg-primary text-white"
-                : "text-muted hover:text-ink"
-            )}
-          >
-            طلبات المستأجرين
-          </button>
-        </div>
+        {/* Tab Switcher — guests can also browse tenant requests. */}
+        {isGuest && (
+          <div className="flex rounded-control border border-hairline bg-surface p-1 self-start">
+            <button
+              type="button"
+              onClick={() => setActiveTab("properties")}
+              className={cn(
+                "rounded-control px-4 py-1.5 text-small font-bold transition-all",
+                effectiveTab === "properties"
+                  ? "bg-primary text-white"
+                  : "text-muted hover:text-ink"
+              )}
+            >
+              العقارات المعروضة
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("requests")}
+              className={cn(
+                "rounded-control px-4 py-1.5 text-small font-bold transition-all",
+                effectiveTab === "requests"
+                  ? "bg-primary text-white"
+                  : "text-muted hover:text-ink"
+              )}
+            >
+              طلبات المستأجرين
+            </button>
+          </div>
+        )}
       </div>
 
-      {activeTab === "properties" ? (
+      {effectiveTab === "properties" ? (
         <>
           <form
             onSubmit={submitSemanticSearch}

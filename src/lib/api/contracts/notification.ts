@@ -56,7 +56,15 @@ export const SOCKET_EVENTS = {
   supportTicketCreated: "support:ticket:created",
   /** A new reply landed on a support ticket (customer or assigned agent). */
   supportMessageReceived: "support:message:received",
+  /** Admin suspended this account → show a blocking notice + log out. */
+  accountSuspended: "account:suspended",
 } as const;
+
+export interface AccountSuspendedPayload {
+  message: string;
+  reason: string | null;
+  suspendedUntil: string | null;
+}
 
 /** Payload for the `support:message:received` event (matches the NestJS gateway). */
 export interface RealtimeSupportMessage {

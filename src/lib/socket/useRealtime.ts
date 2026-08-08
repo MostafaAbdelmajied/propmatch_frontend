@@ -4,7 +4,8 @@ import { useEffect, useSyncExternalStore } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { io, type Socket } from "socket.io-client";
 import { SOCKET_EVENTS } from "@/src/lib/api/contracts/notification";
-import type { Notification, NotificationsResponse, RealtimeSupportMessage } from "@/src/lib/api/contracts/notification";
+import type { AccountSuspendedPayload, Notification, NotificationsResponse, RealtimeSupportMessage } from "@/src/lib/api/contracts/notification";
+import { useSuspensionStore } from "@/src/lib/store/useSuspensionStore";
 import { useToast } from "@/src/components/ui/Toast";
 import type { AdminQueuesResponse, QueueItem } from "@/src/lib/api/contracts/admin";
 import type { MatchMessage, RealtimeMatchMessage } from "@/src/lib/api/contracts/message";
@@ -217,12 +218,20 @@ export function useRealtime(): RealtimeState {
       playNotificationChime();
     };
 
+    // Admin suspended this account → surface a blocking modal (RealtimeProvider)
+    // and log the user out. This is what makes suspension feel real-time.
+    const onAccountSuspended = (payload: AccountSuspendedPayload) => {
+      useSuspensionStore.getState().setSuspension(payload);
+      playNotificationChime();
+    };
+
     s.on(SOCKET_EVENTS.notification, onNotification);
     s.on(SOCKET_EVENTS.adminQueueItem, onQueueItem);
     s.on(SOCKET_EVENTS.message, onMessage);
     s.on(SOCKET_EVENTS.messageEdited, onMessageEdited);
     s.on(SOCKET_EVENTS.messageDeleted, onMessageDeleted);
     s.on(SOCKET_EVENTS.supportMessageReceived, onSupportMessage);
+    s.on(SOCKET_EVENTS.accountSuspended, onAccountSuspended);
     return () => {
       s.off(SOCKET_EVENTS.notification, onNotification);
       s.off(SOCKET_EVENTS.adminQueueItem, onQueueItem);
@@ -230,6 +239,7 @@ export function useRealtime(): RealtimeState {
       s.off(SOCKET_EVENTS.messageEdited, onMessageEdited);
       s.off(SOCKET_EVENTS.messageDeleted, onMessageDeleted);
       s.off(SOCKET_EVENTS.supportMessageReceived, onSupportMessage);
+      s.off(SOCKET_EVENTS.accountSuspended, onAccountSuspended);
     };
   }, [qc, toast]);
 

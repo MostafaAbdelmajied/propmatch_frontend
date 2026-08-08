@@ -58,6 +58,7 @@ export const ROLE_CAPABILITIES: Record<AdminRole, Capability[]> = {
     "report:export",
     "ticket:reply",
     "audit:view",
+    "user:suspend",
     "admin:create",
     "admin:manage",
   ],
