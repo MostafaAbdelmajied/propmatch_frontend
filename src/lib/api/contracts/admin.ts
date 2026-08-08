@@ -282,6 +282,8 @@ export const AdminUserListItemSchema = z.object({
   role: z.enum(["TENANT", "LANDLORD", "ADMIN"]),
   isActive: z.boolean(),
   createdAt: z.string(),
+  /** Set once soft-deleted/suspended (self-delete or admin delete); null otherwise. */
+  deletedAt: z.string().nullable(),
 });
 export type AdminUserListItem = z.infer<typeof AdminUserListItemSchema>;
 
@@ -289,6 +291,9 @@ export const AdminUsersResponseSchema = z.object({
   items: z.array(AdminUserListItemSchema),
 });
 export type AdminUsersResponse = z.infer<typeof AdminUsersResponseSchema>;
+
+/** GET /admin/users?status= — mirrors AdminService.listUsers's default. */
+export type AdminUserStatusFilter = "active" | "deleted" | "all";
 
 /**
  * GET /admin/reactivations item — a soft-deleted user's self-service

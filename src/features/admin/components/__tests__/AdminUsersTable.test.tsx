@@ -14,8 +14,36 @@ const deleteUserHook = useDeleteUser as jest.MockedFunction<typeof useDeleteUser
 const getSession = useAdminSession as jest.MockedFunction<typeof useAdminSession>;
 
 const users = [
-  { id: "user-1", fullName: "مستأجر تجريبي", email: "tenant@test.local", role: "TENANT" as const, isActive: true, createdAt: "2026-07-01T00:00:00.000Z" },
-  { id: "user-2", fullName: "مالك تجريبي", email: "landlord@test.local", role: "LANDLORD" as const, isActive: true, createdAt: "2026-07-02T00:00:00.000Z" },
+  {
+    id: "user-1",
+    fullName: "مستأجر تجريبي",
+    email: "tenant@test.local",
+    role: "TENANT" as const,
+    isActive: true,
+    createdAt: "2026-07-01T00:00:00.000Z",
+    deletedAt: null,
+  },
+  {
+    id: "user-2",
+    fullName: "مالك تجريبي",
+    email: "landlord@test.local",
+    role: "LANDLORD" as const,
+    isActive: true,
+    createdAt: "2026-07-02T00:00:00.000Z",
+    deletedAt: null,
+  },
+];
+
+const deletedUsers = [
+  {
+    id: "user-3",
+    fullName: "مستخدم محذوف",
+    email: "deleted@test.local",
+    role: "TENANT" as const,
+    isActive: true,
+    createdAt: "2026-06-01T00:00:00.000Z",
+    deletedAt: "2026-07-10T00:00:00.000Z",
+  },
 ];
 
 function renderTable() {
@@ -85,5 +113,28 @@ describe("AdminUsersTable", () => {
       "user-1",
       expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) }),
     );
+  });
+
+  it("switches to the deleted/suspended tab and shows the deletedAt column", () => {
+    getUsers.mockImplementation((status) =>
+      ({
+        data: { items: status === "deleted" ? deletedUsers : users },
+        isLoading: false,
+        isError: false,
+        refetch: jest.fn(),
+      }) as unknown as ReturnType<typeof useAdminUsers>,
+    );
+    renderTable();
+
+    expect(screen.getByText("مستأجر تجريبي")).toBeInTheDocument();
+    expect(screen.queryByText("مستخدم محذوف")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "المعلّقون / المحذوفون" }));
+
+    expect(screen.getByText("مستخدم محذوف")).toBeInTheDocument();
+    expect(screen.queryByText("مستأجر تجريبي")).not.toBeInTheDocument();
+    expect(screen.getByText("تاريخ الحذف")).toBeInTheDocument();
+    // No delete action for an already-deleted account.
+    expect(screen.queryByTitle("حذف المستخدم")).not.toBeInTheDocument();
   });
 });

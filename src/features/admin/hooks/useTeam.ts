@@ -7,6 +7,7 @@ import type {
   AdminSession,
   AdminTeamMember,
   AdminUsersResponse,
+  AdminUserStatusFilter,
   AuditLogEntry,
   CreateAdminRequest,
   LoginHistoryEntry,
@@ -65,11 +66,16 @@ export function useLoginHistory() {
   });
 }
 
-/** Every non-deleted platform account (tenants, landlords, admins). */
-export function useAdminUsers() {
+/**
+ * Platform accounts (tenants, landlords, admins). `status` mirrors
+ * AdminService.listUsers's query param — defaults to 'active' so the main
+ * tab stays clean; pass 'deleted' for the Suspended/Deleted tab or 'all' to
+ * see everything.
+ */
+export function useAdminUsers(status: AdminUserStatusFilter = "active") {
   return useQuery({
-    queryKey: ["admin", "users"],
-    queryFn: () => api.get<AdminUsersResponse>("admin/users"),
+    queryKey: ["admin", "users", status],
+    queryFn: () => api.get<AdminUsersResponse>(`admin/users?status=${status}`),
   });
 }
 
@@ -82,6 +88,9 @@ export function useDeleteUser() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.delete<{ success: boolean; id: string }>(`admin/users/${id}`),
+    // Matches every ["admin", "users", status] entry regardless of which
+    // tab's status filter it was fetched under — the row needs to disappear
+    // from "active" and (once refetched) appear under "deleted".
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "users"] }),
   });
 }

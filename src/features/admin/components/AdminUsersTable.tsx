@@ -17,10 +17,16 @@ const roleLabels: Record<AdminUserListItem["role"], string> = {
   ADMIN: "مشرف",
 };
 
+const statusTabs: { value: "active" | "deleted"; label: string }[] = [
+  { value: "active", label: "المستخدمون النشطون" },
+  { value: "deleted", label: "المعلّقون / المحذوفون" },
+];
+
 export function AdminUsersTable() {
   const toast = useToast();
   const { data: session } = useAdminSession();
-  const { data, isLoading, isError, refetch } = useAdminUsers();
+  const [statusFilter, setStatusFilter] = useState<"active" | "deleted">("active");
+  const { data, isLoading, isError, refetch } = useAdminUsers(statusFilter);
   const deleteUser = useDeleteUser();
   const [target, setTarget] = useState<AdminUserListItem | null>(null);
 
@@ -64,6 +70,27 @@ export function AdminUsersTable() {
         </p>
       </div>
 
+      {/* Status tabs */}
+      <div role="tablist" className="flex w-fit rounded-pill border border-hairline bg-surface p-1">
+        {statusTabs.map((tab) => (
+          <button
+            key={tab.value}
+            type="button"
+            role="tab"
+            aria-selected={statusFilter === tab.value}
+            onClick={() => setStatusFilter(tab.value)}
+            className={cn(
+              "rounded-pill px-4 py-1.5 text-small font-semibold transition-colors",
+              statusFilter === tab.value
+                ? "bg-primary text-white"
+                : "text-muted hover:bg-background",
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       {isError ? (
         <ErrorState onRetry={() => refetch()} />
       ) : isLoading ? (
@@ -73,7 +100,10 @@ export function AdminUsersTable() {
           ))}
         </div>
       ) : !data || data.items.length === 0 ? (
-        <EmptyState Icon={Users} title="لا يوجد مستخدمون" />
+        <EmptyState
+          Icon={Users}
+          title={statusFilter === "deleted" ? "لا يوجد حسابات معلّقة أو محذوفة" : "لا يوجد مستخدمون"}
+        />
       ) : (
         <div className="overflow-x-auto rounded-card border border-hairline">
           <table className="w-full min-w-[640px] text-start text-small">
@@ -83,6 +113,9 @@ export function AdminUsersTable() {
                 <th className="p-3 text-start font-semibold">النوع</th>
                 <th className="p-3 text-start font-semibold">تاريخ الانضمام</th>
                 <th className="p-3 text-start font-semibold">الحالة</th>
+                {statusFilter === "deleted" && (
+                  <th className="p-3 text-start font-semibold">تاريخ الحذف</th>
+                )}
                 <th className="p-3 text-start font-semibold">إجراءات</th>
               </tr>
             </thead>
@@ -99,14 +132,23 @@ export function AdminUsersTable() {
                     <span
                       className={cn(
                         "inline-flex items-center gap-1 rounded-pill px-2 py-0.5 text-caption font-semibold",
-                        user.isActive ? "bg-success-tint text-success" : "bg-error-tint text-error",
+                        user.deletedAt
+                          ? "bg-error-tint text-error"
+                          : user.isActive
+                            ? "bg-success-tint text-success"
+                            : "bg-error-tint text-error",
                       )}
                     >
-                      {user.isActive ? "نشط" : "معطّل"}
+                      {user.deletedAt ? "معلّق" : user.isActive ? "نشط" : "معطّل"}
                     </span>
                   </td>
+                  {statusFilter === "deleted" && (
+                    <td className="p-3 text-muted">
+                      {user.deletedAt ? formatDate(user.deletedAt) : "—"}
+                    </td>
+                  )}
                   <td className="p-3">
-                    {user.role !== "ADMIN" && (
+                    {user.role !== "ADMIN" && !user.deletedAt && (
                       <button
                         type="button"
                         title="حذف المستخدم"
