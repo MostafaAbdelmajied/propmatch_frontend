@@ -24,6 +24,52 @@ interface PropertyImageGalleryProps {
   autoPlayInterval?: number;
 }
 
+/**
+ * `next/image` that degrades to a placeholder if the file can't load, instead of
+ * a broken image that keeps re-requesting (a missing `/public/properties/*` file
+ * otherwise 404s and the optimizer 400s on every re-render / auto-scroll tick).
+ */
+function GalleryImage({
+  src,
+  alt,
+  sizes,
+  className,
+  priority,
+  onClick,
+}: {
+  src: string;
+  alt: string;
+  sizes: string;
+  className?: string;
+  priority?: boolean;
+  onClick?: () => void;
+}) {
+  const [failed, setFailed] = useState(false);
+  // Reset when the source changes — the same GalleryImage instance is reused as
+  // the carousel navigates, so a stale `failed` from a previous image must not
+  // poison the next (this is what made arrow navigation "break").
+  useEffect(() => setFailed(false), [src]);
+  if (failed) {
+    return (
+      <div className="absolute inset-0 flex items-center justify-center bg-background text-muted">
+        <ImageOff className="size-10" aria-hidden />
+      </div>
+    );
+  }
+  return (
+    <Image
+      src={src}
+      alt={alt}
+      fill
+      sizes={sizes}
+      className={className}
+      priority={priority}
+      onClick={onClick}
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
 export function PropertyImageGallery({
   images,
   title,
@@ -95,10 +141,9 @@ export function PropertyImageGallery({
         onMouseLeave={() => setIsHovered(false)}
       >
         {/* Main Image */}
-        <Image
+        <GalleryImage
           src={currentImage.imageUrl}
           alt={`${title} - صورة ${currentIndex + 1}`}
-          fill
           sizes="(max-width:1024px) 100vw, 66vw"
           className="object-cover transition-all duration-500 ease-in-out cursor-pointer"
           priority={currentIndex === 0}
@@ -215,10 +260,9 @@ export function PropertyImageGallery({
           {/* Modal Main Display Area */}
           <div className="relative flex flex-1 items-center justify-center py-4">
             <div className="relative h-full w-full max-w-5xl">
-              <Image
+              <GalleryImage
                 src={currentImage.imageUrl}
                 alt={`${title} - صورة ${currentIndex + 1}`}
-                fill
                 sizes="100vw"
                 className="object-contain"
               />
@@ -261,10 +305,9 @@ export function PropertyImageGallery({
                       : "opacity-50 hover:opacity-90"
                   }`}
                 >
-                  <Image
+                  <GalleryImage
                     src={img.imageUrl}
                     alt={`Thumbnail ${idx + 1}`}
-                    fill
                     sizes="80px"
                     className="object-cover"
                   />

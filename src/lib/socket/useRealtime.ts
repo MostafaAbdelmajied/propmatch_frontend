@@ -1,5 +1,11 @@
 "use client";
 
+import { useEffect, useSyncExternalStore } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { io, type Socket } from "socket.io-client";
+import { SOCKET_EVENTS } from "@/src/lib/api/contracts/notification";
+import type { AccountSuspendedPayload, Notification, NotificationsResponse, RealtimeSupportMessage } from "@/src/lib/api/contracts/notification";
+import { useSuspensionStore } from "@/src/lib/store/useSuspensionStore";
 import { useToast } from "@/src/components/ui/Toast";
 import type { AdminQueuesResponse, QueueItem } from "@/src/lib/api/contracts/admin";
 import type { MatchMessage, RealtimeMatchMessage } from "@/src/lib/api/contracts/message";
@@ -216,6 +222,22 @@ export function useRealtime(): RealtimeState {
       playNotificationChime();
     };
 
+    const onMessageEdited = (payload: { id: string; matchConnectionId: string; body: string; editedAt?: string | null }) => {
+      qc.setQueryData<MatchMessage[]>(["matches", payload.matchConnectionId, "messages"], (prev) =>
+        prev?.map((item) =>
+          item.id === payload.id ? { ...item, body: payload.body, editedAt: payload.editedAt ?? new Date().toISOString() } : item,
+        ) ?? prev,
+      );
+      qc.invalidateQueries({ queryKey: ["matches"] });
+    };
+
+    const onMessageDeleted = (payload: { id: string; matchConnectionId: string }) => {
+      qc.setQueryData<MatchMessage[]>(["matches", payload.matchConnectionId, "messages"], (prev) =>
+        prev?.filter((item) => item.id !== payload.id) ?? prev,
+      );
+      qc.invalidateQueries({ queryKey: ["matches"] });
+    };
+
     // Live support-ticket chat. The payload lacks the full message shape, so we
     // invalidate the affected ticket + list queries and let react-query refetch
     // the authoritative TicketDetail. Both the customer and the assigned agent
@@ -228,6 +250,13 @@ export function useRealtime(): RealtimeState {
       playNotificationChime();
     };
 
+    // Admin suspended this account → surface a blocking modal (RealtimeProvider)
+    // and log the user out. This is what makes suspension feel real-time.
+    const onAccountSuspended = (payload: AccountSuspendedPayload) => {
+      useSuspensionStore.getState().setSuspension(payload);
+      playNotificationChime();
+    };
+
     const onPaymentUpdated = (payment: PaymentUpdatedPayload) => {
       if (payment.status === "SUCCESS") {
         void qc.invalidateQueries({ queryKey: ["quota"] });
@@ -237,13 +266,19 @@ export function useRealtime(): RealtimeState {
     s.on(SOCKET_EVENTS.notification, onNotification);
     s.on(SOCKET_EVENTS.adminQueueItem, onQueueItem);
     s.on(SOCKET_EVENTS.message, onMessage);
+    s.on(SOCKET_EVENTS.messageEdited, onMessageEdited);
+    s.on(SOCKET_EVENTS.messageDeleted, onMessageDeleted);
     s.on(SOCKET_EVENTS.supportMessageReceived, onSupportMessage);
+    s.on(SOCKET_EVENTS.accountSuspended, onAccountSuspended);
     s.on(SOCKET_EVENTS.paymentUpdated, onPaymentUpdated);
     return () => {
       s.off(SOCKET_EVENTS.notification, onNotification);
       s.off(SOCKET_EVENTS.adminQueueItem, onQueueItem);
       s.off(SOCKET_EVENTS.message, onMessage);
+      s.off(SOCKET_EVENTS.messageEdited, onMessageEdited);
+      s.off(SOCKET_EVENTS.messageDeleted, onMessageDeleted);
       s.off(SOCKET_EVENTS.supportMessageReceived, onSupportMessage);
+      s.off(SOCKET_EVENTS.accountSuspended, onAccountSuspended);
       s.off(SOCKET_EVENTS.paymentUpdated, onPaymentUpdated);
     };
   }, [qc, toast]);

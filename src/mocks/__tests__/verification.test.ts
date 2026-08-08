@@ -7,7 +7,7 @@ const auth = () => `Bearer ${tokensFor(user()).accessToken}`;
 const call = (method: string, path: string, body?: unknown) =>
   dispatch(method, path, new URLSearchParams(), auth(), body);
 
-function submission(nationalId?: string) {
+function submission(nationalId: string | null = "29001011234567") {
   const formData = new FormData();
   const files = {
     nationalIdFront: new File(["front"], "front.jpg", { type: "image/jpeg" }),
@@ -15,7 +15,7 @@ function submission(nationalId?: string) {
     selfie: new File(["selfie"], "selfie.webp", { type: "image/webp" }),
   };
   const get = formData.get.bind(formData);
-  if (nationalId !== undefined) formData.append("nationalId", nationalId);
+  if (nationalId !== null) formData.append("nationalId", nationalId);
   formData.append("nationalIdFront", "placeholder");
   formData.append("nationalIdBack", "placeholder");
   formData.append("selfie", "placeholder");
@@ -81,7 +81,9 @@ describe("verification mock contract", () => {
     expect(events.filter((event) => event.kind === "adminQueueItem")).toHaveLength(1);
   });
 
-  it("rejects plain JSON, a missing file, and text values in document fields", () => {
+  it("rejects plain JSON, a missing national ID, a missing file, and text document fields", () => {
+    expect(call("POST", "/verification/submit", submission(null)).status).toBe(400);
+    expect(call("POST", "/verification/submit", submission("123")).status).toBe(400);
     const missing = new FormData();
     missing.append("nationalIdFront", new File(["front"], "front.jpg", { type: "image/jpeg" }));
     missing.append("nationalIdBack", new File(["back"], "back.jpg", { type: "image/jpeg" }));
@@ -106,12 +108,13 @@ describe("verification mock contract", () => {
     expect(result.body).toMatchObject({ statusCode: 409, message });
   });
 
-  it("allows RESUBMISSION_REQUIRED and preserves an omitted national ID", () => {
+  it("requires and replaces the national ID during RESUBMISSION_REQUIRED", () => {
     const row = setStatus("RESUBMISSION_REQUIRED", "existing-national-id");
-    const result = call("POST", "/verification/submit", submission());
+    expect(call("POST", "/verification/submit", submission(null)).status).toBe(400);
+    const result = call("POST", "/verification/submit", submission("29001011234567"));
     expect(result.status).toBe(200);
     expect(row.status).toBe("PENDING");
-    expect(row.nationalId).toBe("existing-national-id");
+    expect(row.nationalId).toBe("29001011234567");
     expect(row.rejectionReason).toBeNull();
     expect(row.reviewedBy).toBeNull();
     expect(row.reviewedAt).toBeNull();

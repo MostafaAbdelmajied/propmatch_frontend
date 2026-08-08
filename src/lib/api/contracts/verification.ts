@@ -35,7 +35,7 @@ export type VerificationResponse = z.infer<typeof VerificationResponseSchema>;
 
 /** Browser-only input for the multipart verification submission endpoint. */
 export type SubmitVerificationInput = {
-  nationalId?: string;
+  nationalId: string;
   nationalIdFront: File;
   nationalIdBack: File;
   selfie: File;

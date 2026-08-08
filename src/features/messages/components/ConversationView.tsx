@@ -8,6 +8,7 @@ import { Button } from "@/src/components/ui/Button";
 import { cn } from "@/src/utils/cn";
 import {
   useMatchConversations,
+  useConfirmMatchAgreement,
   useMatchMessages,
   useSendMatchMessage,
   useUpdateMatchMessage,
@@ -40,7 +41,20 @@ export function formatMessageTimestamp(createdAtStr?: string | null): string {
   } else if (diffDays === 1) {
     dayStr = "أمس";
   } else {
-    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const monthNames = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
     const day = date.getDate();
     const month = monthNames[date.getMonth()];
     const year = date.getFullYear();
@@ -70,11 +84,16 @@ export function ConversationView({ matchConnectionId }: { matchConnectionId: str
   const updateMessage = useUpdateMatchMessage(matchConnectionId);
   const deleteMessage = useDeleteMatchMessage(matchConnectionId);
   const upload = useChatUpload();
+  const confirmAgreement = useConfirmMatchAgreement(matchConnectionId);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [body, setBody] = useState("");
-  const [pending, setPending] = useState<(UploadedAttachment & { durationMs?: number }) | null>(null);
+  const [pending, setPending] = useState<(UploadedAttachment & { durationMs?: number }) | null>(
+    null,
+  );
   const [sendError, setSendError] = useState<string | null>(null);
+  const [agreementConfirmOpen, setAgreementConfirmOpen] = useState(false);
+  const [agreementAcknowledged, setAgreementAcknowledged] = useState(false);
 
   // Edit message inline state
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -85,7 +104,9 @@ export function ConversationView({ matchConnectionId }: { matchConnectionId: str
   const [lightboxIndex, setLightboxIndex] = useState(0);
 
   const mediaItems: MediaItem[] = data
-    .filter((m) => m.attachmentUrl && (m.attachmentType === "IMAGE" || m.attachmentType === "VIDEO"))
+    .filter(
+      (m) => m.attachmentUrl && (m.attachmentType === "IMAGE" || m.attachmentType === "VIDEO"),
+    )
     .map((m) => ({
       id: m.id,
       url: m.attachmentUrl!,
@@ -161,19 +182,98 @@ export function ConversationView({ matchConnectionId }: { matchConnectionId: str
           <ArrowRight className="size-5" aria-hidden />
         </Link>
         <div className="min-w-0 flex-1">
-          <p className="truncate font-bold text-ink">{summary?.otherParticipantName ?? "المحادثة"}</p>
-          {summary?.propertyTitle && <p className="truncate text-small text-muted">{summary.propertyTitle}</p>}
+          <p className="truncate font-bold text-ink">
+            {summary?.otherParticipantName ?? "المحادثة"}
+          </p>
+          {summary?.propertyTitle && (
+            <p className="truncate text-small text-muted">{summary.propertyTitle}</p>
+          )}
         </div>
-        <Link
-          href={`/contracts/new?matchConnectionId=${matchConnectionId}`}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-control border border-hairline px-3 py-2 text-caption font-semibold text-primary hover:bg-primary-tint"
-        >
-          <FileText className="size-4" aria-hidden />
-          إنشاء عقد إيجار
-        </Link>
+        {summary && (
+          <Link
+            href={`/contracts/new?matchConnectionId=${matchConnectionId}`}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-control border border-hairline px-3 py-2 text-caption font-semibold text-primary hover:bg-primary-tint"
+          >
+            <FileText className="size-4" aria-hidden />
+            إنشاء عقد إيجار
+          </Link>
+        )}
+        {summary?.canConfirmAgreement ? (
+          <Button size="sm" onClick={() => setAgreementConfirmOpen(true)}>
+            <Check className="size-4" aria-hidden />
+            تم التوصل إلى اتفاق
+          </Button>
+        ) : summary && !summary.agreementReachedAt ? (
+          <span className="rounded-pill bg-pending-tint px-3 py-2 text-caption font-semibold text-pending">
+            بانتظار تأكيد الطرف الآخر
+          </span>
+        ) : null}
       </header>
 
-      <section className="flex min-h-72 flex-1 flex-col gap-3 rounded-card border border-hairline bg-background p-4" aria-live="polite">
+      {agreementConfirmOpen && (
+        <section
+          className="rounded-card border border-primary/30 bg-primary-tint p-5"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="agreement-confirm-title"
+        >
+          <h2 id="agreement-confirm-title" className="text-title font-bold text-ink">
+            تأكيد التوصل إلى اتفاق نهائي
+          </h2>
+          <p className="mt-2 text-body text-body-text">
+            استخدم هذا التأكيد فقط بعد اتفاق الطرفين على استئجار العقار. بعد التأكيد سيتم أرشفة
+            العقار تلقائيًا ولن يظهر لباقي المستأجرين.
+            {role === "tenant" && " كما سيتوقف طلبك الحالي عن الظهور لباقي الملاك."}
+          </p>
+          <label className="mt-4 flex items-start gap-2 text-small text-ink">
+            <input
+              type="checkbox"
+              checked={agreementAcknowledged}
+              onChange={(event) => setAgreementAcknowledged(event.target.checked)}
+              className="mt-1"
+            />
+            {role === "tenant"
+              ? "أؤكد أنني توصلت إلى اتفاق نهائي مع هذا المالك وأريد إغلاق طلب السكن الحالي."
+              : "أؤكد أنني توصلت إلى اتفاق نهائي مع هذا المستأجر وأريد أرشفة العقار."}
+          </label>
+          {confirmAgreement.isError && (
+            <p className="mt-3 text-small text-error" role="alert">
+              تعذر تأكيد الاتفاق. ربما تم إغلاق الطلب من محادثة أخرى؛ حدّث الصفحة وحاول مرة أخرى.
+            </p>
+          )}
+          <div className="mt-4 flex gap-2">
+            <Button
+              variant="secondary"
+              disabled={confirmAgreement.isPending}
+              onClick={() => {
+                setAgreementConfirmOpen(false);
+                setAgreementAcknowledged(false);
+              }}
+            >
+              إلغاء
+            </Button>
+            <Button
+              disabled={!agreementAcknowledged || confirmAgreement.isPending}
+              loading={confirmAgreement.isPending}
+              onClick={() =>
+                confirmAgreement.mutate(undefined, {
+                  onSuccess: () => {
+                    setAgreementConfirmOpen(false);
+                    setAgreementAcknowledged(false);
+                  },
+                })
+              }
+            >
+              تأكيد الاتفاق وأرشفة العقار
+            </Button>
+          </div>
+        </section>
+      )}
+
+      <section
+        className="flex min-h-72 flex-1 flex-col gap-3 rounded-card border border-hairline bg-background p-4"
+        aria-live="polite"
+      >
         {isLoading ? (
           <p className="text-small text-muted">جارٍ تحميل الرسائل...</p>
         ) : data.length ? (
@@ -268,23 +368,30 @@ export function ConversationView({ matchConnectionId }: { matchConnectionId: str
                     </button>
                   </div>
                 ) : (
-                  message.body && <p className="text-body leading-relaxed" dir="auto">{message.body}</p>
+                  message.body && (
+                    <p className="text-body leading-relaxed" dir="auto">
+                      {message.body}
+                    </p>
+                  )
                 )}
 
-                {/* Message Timestamp */}
+                {/* Message Timestamp (+ edited marker) */}
                 <span
                   className={cn(
                     "text-[10px] font-medium self-end opacity-80 select-none mt-0.5",
                     message.isMine ? "text-white/80" : "text-muted",
                   )}
                 >
+                  {message.editedAt && <span title="تم التعديل">معدّل · </span>}
                   {formatMessageTimestamp(message.createdAt)}
                 </span>
               </div>
             );
           })
         ) : (
-          <p className="m-auto text-center text-small text-muted">ابدأ المحادثة برسالة قصيرة ومحترمة.</p>
+          <p className="m-auto text-center text-small text-muted">
+            ابدأ المحادثة برسالة قصيرة ومحترمة.
+          </p>
         )}
       </section>
 
@@ -292,7 +399,12 @@ export function ConversationView({ matchConnectionId }: { matchConnectionId: str
         {pending && (
           <div className="mb-3 flex items-center gap-2 rounded-control border border-hairline bg-background p-2">
             <div className="min-w-0 flex-1">
-              <ChatAttachmentView url={pending.url} type={pending.type} name={pending.name} durationMs={pending.durationMs} />
+              <ChatAttachmentView
+                url={pending.url}
+                type={pending.type}
+                name={pending.name}
+                durationMs={pending.durationMs}
+              />
             </div>
             <button
               type="button"
@@ -351,7 +463,9 @@ export function ConversationView({ matchConnectionId }: { matchConnectionId: str
           </div>
         </div>
         {(sendError || upload.error) && (
-          <p className="mt-1 text-small text-error" role="alert">{sendError ?? upload.error}</p>
+          <p className="mt-1 text-small text-error" role="alert">
+            {sendError ?? upload.error}
+          </p>
         )}
       </form>
 
