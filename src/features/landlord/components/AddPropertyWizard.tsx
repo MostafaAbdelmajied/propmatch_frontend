@@ -136,7 +136,37 @@ function AddPropertyWizardContent() {
 
   async function next() {
     const fields = stepFields[stepKeys[step]] as unknown as (keyof AddPropertyForm)[];
-    if (await form.trigger(fields)) setStep((s) => Math.min(s + 1, steps.length - 1));
+    if (await form.trigger(fields)) {
+      setStep((s) => Math.min(s + 1, steps.length - 1));
+    } else {
+      // Never leave the button feeling dead — tell the user why it didn't advance.
+      const firstError = Object.keys(form.formState.errors)[0];
+      toast(
+        "error",
+        firstError === "images"
+          ? "أضف صورة واحدة على الأقل للعقار قبل المتابعة"
+          : "يرجى إكمال الحقول المطلوبة قبل المتابعة",
+      );
+    }
+  }
+
+  /** Submit blocked by validation must never fail silently. Jump to the step
+   * that owns the first offending field — e.g. images (step 2) are dropped from
+   * the persisted draft, so after a reload the submit on step 3 would otherwise
+   * do nothing — and tell the user. */
+  function onInvalid(errors: typeof form.formState.errors) {
+    const firstErrorField = Object.keys(errors)[0] ?? "";
+    const targetStep = stepKeys.findIndex((key) =>
+      (stepFields[key] as readonly string[]).includes(firstErrorField),
+    );
+    if (targetStep >= 0 && targetStep !== step) setStep(targetStep);
+    const isImages = firstErrorField === "images";
+    toast(
+      "error",
+      isImages
+        ? "أضف صورة واحدة على الأقل للعقار قبل الإرسال"
+        : "يرجى مراجعة الحقول المطلوبة قبل الإرسال",
+    );
   }
 
   function submit(values: AddPropertyForm) {
@@ -177,7 +207,7 @@ function AddPropertyWizardContent() {
         <Stepper current={step} />
       </div>
 
-      <form onSubmit={form.handleSubmit(submit)} className="flex flex-col gap-5">
+      <form onSubmit={form.handleSubmit(submit, onInvalid)} className="flex flex-col gap-5">
         {step === 0 && <PropertyDetailsStep form={form} />}
         {step === 1 && <MediaAndServicesStep form={form} />}
         {step === 2 && (

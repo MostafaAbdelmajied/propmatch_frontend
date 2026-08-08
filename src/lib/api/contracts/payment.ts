@@ -32,12 +32,28 @@ export const paymentTypePrices: Record<PaymentType, number> = {
 export const PaymentStatusSchema = z.enum(["PENDING", "SUCCESS", "FAILED"]);
 export type PaymentStatus = z.infer<typeof PaymentStatusSchema>;
 
-export const CreateCheckoutRequestSchema = z.object({
-  paymentType: PaymentTypeSchema,
-  /** Required for BOOST_LISTING; the backend verifies ownership and approval. */
-  propertyId: z.string().uuid().optional(),
-  method: z.enum(["CARD", "WALLET"]).optional(),
-});
+const EgyptianMobileSchema = z
+  .string()
+  .transform((value) => value.replace(/[\s-]/g, ""))
+  .pipe(z.string().regex(/^(?:\+20|0020|0)1[0125]\d{8}$/));
+
+export const CreateCheckoutRequestSchema = z
+  .object({
+    paymentType: PaymentTypeSchema,
+    /** Required for BOOST_LISTING; the backend verifies ownership and approval. */
+    propertyId: z.string().uuid().optional(),
+    method: z.enum(["CARD", "WALLET"]).optional(),
+    walletPhone: EgyptianMobileSchema.optional(),
+  })
+  .superRefine((request, context) => {
+    if (request.method === "WALLET" && !request.walletPhone) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["walletPhone"],
+        message: "Wallet phone is required for mobile wallet payments",
+      });
+    }
+  });
 export type CreateCheckoutRequest = z.infer<typeof CreateCheckoutRequestSchema>;
 
 export const CheckoutSessionSchema = z.object({

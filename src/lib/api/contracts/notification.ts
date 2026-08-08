@@ -48,11 +48,25 @@ export const SOCKET_EVENTS = {
   /** A new item entered an admin moderation queue. */
   adminQueueItem: "admin:queue:item",
   message: "message",
+  /** A match message was edited by its sender. */
+  messageEdited: "message:edited",
+  /** A match message was deleted by its sender. */
+  messageDeleted: "message:deleted",
   /** A new support ticket was created (admins). */
   supportTicketCreated: "support:ticket:created",
   /** A new reply landed on a support ticket (customer or assigned agent). */
   supportMessageReceived: "support:message:received",
+  /** Admin suspended this account → show a blocking notice + log out. */
+  accountSuspended: "account:suspended",
+  /** A persisted payment reached a terminal state for the authenticated user. */
+  paymentUpdated: "payment:updated",
 } as const;
+
+export interface AccountSuspendedPayload {
+  message: string;
+  reason: string | null;
+  suspendedUntil: string | null;
+}
 
 /** Payload for the `support:message:received` event (matches the NestJS gateway). */
 export interface RealtimeSupportMessage {

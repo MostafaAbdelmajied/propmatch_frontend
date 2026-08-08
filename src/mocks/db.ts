@@ -154,10 +154,12 @@ export interface MockFavorite {
 export interface MockMatchConnection {
   id: string;
   tenantId: string;
+  tenantRequestId: string | null;
   propertyId: string;
   ownerId: string;
   matchScore: number;
   status: MatchConnectionStatus;
+  agreementReachedAt: string | null;
   createdAt: string;
 }
 
@@ -344,8 +346,8 @@ function makeQuota(userId: string): MockQuota {
     planExpiresAt: null,
     maxActiveListings: 1,
     freeListingsLeft: 0,
-    optimizerUsesLeft: 0,
-    freeOffersLeft: 3,
+    optimizerUsesLeft: 5,
+    freeOffersLeft: 5,
     lastResetDate: null,
   };
 }

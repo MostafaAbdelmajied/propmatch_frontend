@@ -78,6 +78,18 @@ export function EditPropertyForm({ propertyId }: { propertyId: string }) {
       existingImageIds: property.images.map((image) => image.id),
       newImages: [],
     });
+    // Hydrate the service chips from the loaded property. Without this, `tags`
+    // stays [] and the tags→propertyAroundServices sync effect below clobbers
+    // the saved services to "", which fails the required-min(1) rule and makes
+    // the submit silently do nothing (no visible error for this field).
+    setTags(
+      property.propertyAroundServices
+        ? property.propertyAroundServices
+            .split(/[،,]/)
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : [],
+    );
   }, [form, propertyQuery.data]);
 
   const retainedIds = useWatch({ control: form.control, name: "existingImageIds" });
@@ -239,6 +251,15 @@ export function EditPropertyForm({ propertyId }: { propertyId: string }) {
     });
   }
 
+  /** Submit blocked by validation must never fail silently — tell the user and
+   * focus the first offending field (some errors, e.g. الخدمات القريبة, have no
+   * inline slot). */
+  function onInvalid(errors: typeof form.formState.errors) {
+    const firstField = Object.keys(errors)[0] as keyof FormValues | undefined;
+    if (firstField) form.setFocus(firstField);
+    toast("error", "يرجى مراجعة الحقول المطلوبة قبل الحفظ");
+  }
+
   if (propertyQuery.isLoading) {
     return (
       <div className="mx-auto flex max-w-3xl flex-col gap-4">
@@ -264,7 +285,7 @@ export function EditPropertyForm({ propertyId }: { propertyId: string }) {
         </p>
       </div>
 
-      <form className="flex flex-col gap-5" onSubmit={form.handleSubmit(submit)}>
+      <form className="flex flex-col gap-5" onSubmit={form.handleSubmit(submit, onInvalid)}>
         <FormCard title="بيانات العقار">
           <Controller
             control={form.control}
@@ -432,6 +453,11 @@ export function EditPropertyForm({ propertyId }: { propertyId: string }) {
                 إضافة
               </Button>
             </div>
+            {form.formState.errors.propertyAroundServices && (
+              <p className="text-caption text-error" role="alert">
+                {form.formState.errors.propertyAroundServices.message}
+              </p>
+            )}
           </div>
 
           <div>
