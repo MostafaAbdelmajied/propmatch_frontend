@@ -53,7 +53,7 @@ export function SuspensionModal() {
           </p>
         )}
         <p className="mt-3 text-caption text-muted">
-          إذا كنت تعتقد أن هذا خطأ، تواصل مع فريق الدعم.
+          بعد تسجيل الخروج، أدخل بيانات حسابك مرة أخرى لإرسال تذكرة مراجعة إلى الإدارة.
         </p>
         <Button
           variant="primary"
@@ -62,7 +62,7 @@ export function SuspensionModal() {
           onClick={acknowledge}
           className="mt-6"
         >
-          حسنًا، تسجيل الخروج
+          تسجيل الخروج وطلب مراجعة
         </Button>
       </div>
     </div>

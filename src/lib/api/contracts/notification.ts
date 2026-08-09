@@ -99,3 +99,12 @@ export interface RealtimeSupportMessage {
   internal: boolean;
   at: string;
 }
+
+/** Payload for `support:ticket:created` delivered to connected admins. */
+export interface RealtimeSupportTicket {
+  ticketId: string;
+  subject: string;
+  userName: string;
+  priority: string;
+  createdAt: string;
+}

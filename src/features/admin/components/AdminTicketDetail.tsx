@@ -8,10 +8,11 @@ import { useToast } from "@/src/components/ui/Toast";
 import { ticketStatusLabels, type TicketStatus } from "@/src/lib/api/contracts/support";
 import { cn } from "@/src/utils/cn";
 import { formatRelativeTime } from "@/src/utils/format";
-import { ArrowRight, Bot, Send, StickyNote, User as UserIcon, UserPlus } from "lucide-react";
+import { ArrowRight, Bot, Send, StickyNote, User as UserIcon, UserCheck, UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useTicket, useTicketActions } from "../hooks/useTickets";
+import { useAdminSession, useUnsuspendUser } from "../hooks/useTeam";
 import { AttachmentBar, type PendingAttachment } from "@/src/features/messages/components/AttachmentBar";
 import { ChatAttachmentView } from "@/src/features/messages/components/ChatAttachmentView";
 
@@ -22,6 +23,8 @@ export function AdminTicketDetail({ id }: { id: string }) {
   const toast = useToast();
   const { data: ticket, isLoading, isError, refetch } = useTicket(id);
   const { reply, assign, setStatus } = useTicketActions(id);
+  const { data: session } = useAdminSession();
+  const unsuspend = useUnsuspendUser();
   const [text, setText] = useState("");
   const [internal, setInternal] = useState(false);
   const [pending, setPending] = useState<PendingAttachment | null>(null);
@@ -30,6 +33,20 @@ export function AdminTicketDetail({ id }: { id: string }) {
   if (isLoading || !ticket) return <Skeleton className="h-96 w-full" />;
 
   const canSend = Boolean(text.trim() || pending);
+  const ticketUserId = ticket.userId;
+  const isSuspensionAppeal = ticket.escalationReason === "طلب مراجعة إيقاف الحساب";
+  const canUnsuspend = session?.capabilities.includes("user:suspend") ?? false;
+
+  function approveSuspensionAppeal() {
+    unsuspend.mutate(ticketUserId, {
+      onSuccess: () => {
+        setStatus.mutate("closed", {
+          onSuccess: () => toast("success", "تم رفع الإيقاف وإغلاق تذكرة المراجعة"),
+        });
+      },
+      onError: () => toast("error", "تعذر رفع إيقاف الحساب"),
+    });
+  }
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -61,6 +78,16 @@ export function AdminTicketDetail({ id }: { id: string }) {
           رجوع
         </Button>
         <div className="flex items-center gap-2">
+          {isSuspensionAppeal && canUnsuspend && (
+            <Button
+              size="sm"
+              loading={unsuspend.isPending || setStatus.isPending}
+              onClick={approveSuspensionAppeal}
+            >
+              <UserCheck className="size-4" aria-hidden />
+              رفع الإيقاف وإغلاق التذكرة
+            </Button>
+          )}
           {!ticket.assignedAdminId && (
             <Button size="sm" variant="secondary" loading={assign.isPending} onClick={() => assign.mutate()}>
               <UserPlus className="size-4" aria-hidden />

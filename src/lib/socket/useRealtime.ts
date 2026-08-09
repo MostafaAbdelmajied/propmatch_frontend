@@ -10,6 +10,7 @@ import type {
   Notification,
   NotificationsResponse,
   RealtimeSupportMessage,
+  RealtimeSupportTicket,
   RealtimeReactivationRequest,
 } from "@/src/lib/api/contracts/notification";
 import { useSuspensionStore } from "@/src/lib/store/useSuspensionStore";
@@ -266,6 +267,12 @@ export function useRealtime(): RealtimeState {
       playNotificationChime();
     };
 
+    const onSupportTicketCreated = (payload: RealtimeSupportTicket) => {
+      toast("info", `تذكرة دعم جديدة من ${payload.userName}: ${payload.subject}`);
+      qc.invalidateQueries({ queryKey: ["admin", "tickets"] });
+      playNotificationChime();
+    };
+
     // Active invalidation: an admin just soft-deleted this exact session's
     // account. Passive invalidation (401 on next request) would leave an
     // already-open tab working until it happens to hit the network again —
@@ -318,6 +325,7 @@ export function useRealtime(): RealtimeState {
     s.on(SOCKET_EVENTS.messageEdited, onMessageEdited);
     s.on(SOCKET_EVENTS.messageDeleted, onMessageDeleted);
     s.on(SOCKET_EVENTS.supportMessageReceived, onSupportMessage);
+    s.on(SOCKET_EVENTS.supportTicketCreated, onSupportTicketCreated);
     s.on(SOCKET_EVENTS.forceLogout, onForceLogout);
     s.on(SOCKET_EVENTS.newReactivationRequest, onReactivationRequested);
     s.on(SOCKET_EVENTS.accountSuspended, onAccountSuspended);
@@ -329,6 +337,7 @@ export function useRealtime(): RealtimeState {
       s.off(SOCKET_EVENTS.messageEdited, onMessageEdited);
       s.off(SOCKET_EVENTS.messageDeleted, onMessageDeleted);
       s.off(SOCKET_EVENTS.supportMessageReceived, onSupportMessage);
+      s.off(SOCKET_EVENTS.supportTicketCreated, onSupportTicketCreated);
       s.off(SOCKET_EVENTS.forceLogout, onForceLogout);
       s.off(SOCKET_EVENTS.newReactivationRequest, onReactivationRequested);
       s.off(SOCKET_EVENTS.accountSuspended, onAccountSuspended);
