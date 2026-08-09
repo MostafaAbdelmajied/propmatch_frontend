@@ -22,7 +22,6 @@ export const ChatMessageSchema = z.object({
 });
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 
-
 export const ChatRequestSchema = z.object({
   message: z.string().min(1).max(2000),
 });
@@ -33,8 +32,16 @@ export type ChatRequest = z.infer<typeof ChatRequestSchema>;
 
 /** Lifecycle: NEW → ASSIGNED → IN_PROGRESS → WAITING → CLOSED (supports upper & lower). */
 export const TicketStatusSchema = z.enum([
-  "NEW", "ASSIGNED", "IN_PROGRESS", "WAITING", "CLOSED",
-  "new", "assigned", "in_progress", "waiting", "closed",
+  "NEW",
+  "ASSIGNED",
+  "IN_PROGRESS",
+  "WAITING",
+  "CLOSED",
+  "new",
+  "assigned",
+  "in_progress",
+  "waiting",
+  "closed",
 ]);
 export type TicketStatus = z.infer<typeof TicketStatusSchema>;
 
@@ -53,8 +60,16 @@ export const ticketStatusLabels: Record<string, string> = {
 
 /** Support Priority: LOW, NORMAL, HIGH, URGENT, CRITICAL (supports upper & lower). */
 export const SupportPrioritySchema = z.enum([
-  "LOW", "NORMAL", "HIGH", "URGENT", "CRITICAL",
-  "low", "normal", "high", "urgent", "critical",
+  "LOW",
+  "NORMAL",
+  "HIGH",
+  "URGENT",
+  "CRITICAL",
+  "low",
+  "normal",
+  "high",
+  "urgent",
+  "critical",
 ]);
 export type SupportPriority = z.infer<typeof SupportPrioritySchema>;
 
@@ -72,10 +87,7 @@ export const priorityLabels: Record<string, string> = {
 };
 
 /** Who authored a message: AI, USER, ADMIN (supports upper & lower). */
-export const SupportAuthorSchema = z.enum([
-  "AI", "USER", "ADMIN",
-  "ai", "user", "admin",
-]);
+export const SupportAuthorSchema = z.enum(["AI", "USER", "ADMIN", "ai", "user", "admin"]);
 export type SupportAuthor = z.infer<typeof SupportAuthorSchema>;
 
 export const SupportMessageSchema = z.object({
@@ -107,6 +119,14 @@ export const TicketSummarySchema = z.object({
   createdAt: z.string(),
 });
 export type TicketSummary = z.infer<typeof TicketSummarySchema>;
+
+export const AdminTicketsResponseSchema = z.object({
+  items: z.array(TicketSummarySchema),
+  total: z.number().int().nonnegative(),
+  page: z.number().int().positive(),
+  pageSize: z.number().int().positive(),
+});
+export type AdminTicketsResponse = z.infer<typeof AdminTicketsResponseSchema>;
 
 export const TicketDetailSchema = TicketSummarySchema.extend({
   userId: z.string(),

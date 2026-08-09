@@ -2,12 +2,46 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/src/lib/api/browserClient";
-import type { TicketDetail, TicketStatus, TicketSummary } from "@/src/lib/api/contracts/support";
+import type {
+  AdminTicketsResponse,
+  TicketDetail,
+  TicketStatus,
+} from "@/src/lib/api/contracts/support";
 
-export function useTickets() {
+export type AdminTicketStatusFilter =
+  "all" | "new" | "assigned" | "in_progress" | "waiting" | "closed";
+export type AdminTicketCommercialFilter = "ALL" | "FREEMIUM" | "OWNER_PLUS" | "PREMIUM";
+
+export interface AdminTicketsQuery {
+  status?: AdminTicketStatusFilter;
+  commercialPriority?: AdminTicketCommercialFilter;
+  page?: number;
+  pageSize?: number;
+}
+
+export function buildAdminTicketsPath(query: AdminTicketsQuery = {}): string {
+  const params = new URLSearchParams();
+  if (query.status && query.status !== "all") params.set("status", query.status);
+  if (query.commercialPriority && query.commercialPriority !== "ALL") {
+    params.set("commercialPriority", query.commercialPriority);
+  }
+  if (query.page) params.set("page", String(query.page));
+  if (query.pageSize) params.set("pageSize", String(query.pageSize));
+  const search = params.toString();
+  return search ? `admin/tickets?${search}` : "admin/tickets";
+}
+
+export function useTickets(query: AdminTicketsQuery = {}) {
   return useQuery({
-    queryKey: ["admin", "tickets"],
-    queryFn: () => api.get<{ items: TicketSummary[] }>("admin/tickets"),
+    queryKey: [
+      "admin",
+      "tickets",
+      query.status ?? "all",
+      query.commercialPriority ?? "ALL",
+      query.page ?? 1,
+      query.pageSize ?? 20,
+    ],
+    queryFn: () => api.get<AdminTicketsResponse>(buildAdminTicketsPath(query)),
   });
 }
 
@@ -47,7 +81,8 @@ export function useTicketActions(id: string) {
   });
 
   const setStatus = useMutation({
-    mutationFn: (status: TicketStatus) => api.post<TicketDetail>(`admin/tickets/${id}/status`, { status }),
+    mutationFn: (status: TicketStatus) =>
+      api.post<TicketDetail>(`admin/tickets/${id}/status`, { status }),
     onSuccess: invalidate,
   });
 
