@@ -14,7 +14,7 @@ const cairo = Cairo({
 
 export const metadata: Metadata = {
   title: "PropMatch AI",
-  description: "استأجر مباشرة من المالك. بدون سمسار، وبدون عمولة.",
+  description: "اعثر على سكنك بثقة عبر إعلانات واضحة ومطابقة ذكية.",
 };
 
 export default async function RootLayout({
