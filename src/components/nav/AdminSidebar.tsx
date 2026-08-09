@@ -165,7 +165,7 @@ export function AdminSidebar({ userName }: { userName: string }) {
 
       <div className="border-t border-hairline p-3">
         <div className={cn("flex items-center", compact ? "flex-col gap-2" : "gap-2")}>
-          <NotificationBell placement={compact ? "end" : "start"} />
+          <NotificationBell placement={compact ? "end" : "start"} direction="up" />
           {!compact && (
             <span className="min-w-0 flex-1 truncate text-caption font-bold text-body-text">
               {userName}
@@ -181,7 +181,7 @@ export function AdminSidebar({ userName }: { userName: string }) {
     <>
       <aside
         className={cn(
-          "sticky top-0 hidden h-dvh shrink-0 flex-col border-l border-hairline bg-surface transition-[width] duration-200 lg:flex",
+          "sticky top-0 z-30 hidden h-dvh shrink-0 flex-col border-l border-hairline bg-surface transition-[width] duration-200 lg:flex",
           collapsed ? "w-20" : "w-72",
         )}
       >

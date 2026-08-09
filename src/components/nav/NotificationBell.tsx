@@ -24,7 +24,13 @@ const typeIcon: Record<NotificationType, typeof Bell> = {
   CONTRACT_REJECTED: FileText,
 };
 
-export function NotificationBell({ placement = "start" }: { placement?: "start" | "end" }) {
+export function NotificationBell({
+  placement = "start",
+  direction = "down",
+}: {
+  placement?: "start" | "end";
+  direction?: "up" | "down";
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const qc = useQueryClient();
@@ -77,7 +83,10 @@ export function NotificationBell({ placement = "start" }: { placement?: "start" 
         <div
           dir="rtl"
           className={cn(
-            "fixed inset-x-3 top-14 z-50 overflow-hidden rounded-card border border-hairline bg-surface shadow-2xl animate-in fade-in-50 duration-200 sm:absolute sm:inset-x-auto sm:top-full sm:mt-2 sm:w-80",
+            "fixed inset-x-3 z-50 overflow-hidden rounded-card border border-hairline bg-surface shadow-2xl animate-in fade-in-50 duration-200 sm:absolute sm:inset-x-auto sm:w-80",
+            direction === "up"
+              ? "bottom-14 sm:bottom-full sm:top-auto sm:mb-2"
+              : "top-14 sm:top-full sm:mt-2",
             placement === "start" ? "sm:start-0" : "sm:end-0",
           )}
         >
