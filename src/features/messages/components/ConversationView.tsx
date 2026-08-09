@@ -271,7 +271,7 @@ export function ConversationView({ matchConnectionId }: { matchConnectionId: str
       )}
 
       <section
-        className="flex min-h-72 flex-1 flex-col gap-3 rounded-card border border-hairline bg-background p-4"
+        className="flex min-h-72 max-h-[60vh] flex-1 flex-col gap-3 overflow-y-auto overscroll-contain rounded-card border border-hairline bg-background p-4"
         aria-live="polite"
       >
         {isLoading ? (
