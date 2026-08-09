@@ -16,7 +16,12 @@ const isPdfPath = (path: string[]) => path.at(-1) === "pdf" && path.at(-3) === "
 
 async function forwardPdf(request: NextRequest, path: string[]) {
   const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
-  const upstream = await backendRaw(`/${path.join("/")}${request.nextUrl.search}`, { method: "GET", accessToken });
+  const acceptLanguage = request.headers.get("accept-language") || "ar";
+  const upstream = await backendRaw(`/${path.join("/")}${request.nextUrl.search}`, {
+    method: "GET",
+    accessToken,
+    headers: { "Accept-Language": acceptLanguage },
+  });
   if (!upstream.ok) return new NextResponse(await upstream.text(), { status: upstream.status, headers: { "content-type": upstream.headers.get("content-type") ?? "application/json" } });
   return new Response(upstream.body, { status: upstream.status, headers: {
     "content-type": upstream.headers.get("content-type") ?? "application/pdf",
@@ -33,10 +38,16 @@ async function forwardPdf(request: NextRequest, path: string[]) {
  */
 async function forwardStream(request: NextRequest, path: string[]) {
   const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
+  const acceptLanguage = request.headers.get("accept-language") || "ar";
   const target = `/${path.join("/")}${request.nextUrl.search}`;
   const body = await request.json().catch(() => undefined);
 
-  const upstream = await backendStream(target, { method: "POST", accessToken, body });
+  const upstream = await backendStream(target, {
+    method: "POST",
+    accessToken,
+    body,
+    headers: { "Accept-Language": acceptLanguage },
+  });
 
   return new Response(upstream.body, {
     status: upstream.status,
@@ -50,6 +61,7 @@ async function forwardStream(request: NextRequest, path: string[]) {
 
 async function forward(request: NextRequest, path: string[], hasBody: boolean) {
   const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
+  const acceptLanguage = request.headers.get("accept-language") || "ar";
   const search = request.nextUrl.search;
   const target = `/${path.join("/")}${search}`;
 
@@ -65,6 +77,7 @@ async function forward(request: NextRequest, path: string[], hasBody: boolean) {
       method: request.method,
       accessToken,
       body,
+      headers: { "Accept-Language": acceptLanguage },
     });
     return NextResponse.json(data ?? { ok: true });
   } catch (error) {

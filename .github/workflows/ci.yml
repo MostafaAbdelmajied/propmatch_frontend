@@ -16,6 +16,12 @@ concurrency:
 permissions:
   contents: read
 
+# These are non-secret placeholders. Next and Jest load the backend environment
+# during configuration, but CI does not need a running API for static checks.
+env:
+  NESTJS_API_URL: http://127.0.0.1:3001/api
+  NEXT_PUBLIC_SOCKET_URL: http://127.0.0.1:3001
+
 # Node 22, deliberately below the 24 devs run locally: CI on the lower
 # supported version catches accidental use of newer-Node APIs. The reverse
 # (CI above local/deploy) passes here and breaks in production. package.json
@@ -73,7 +79,4 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      # No env deliberately: the build must not depend on local .env.local. If
-      # someone introduces a build-time env dependency, this failing is the
-      # point — it would otherwise only break in deployment.
       - run: npm run build

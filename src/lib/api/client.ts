@@ -48,6 +48,7 @@ export async function backendStream(
     headers: {
       "Content-Type": "application/json",
       Accept: "text/event-stream",
+      "Accept-Language": "ar",
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       ...headers,
     },
@@ -64,7 +65,11 @@ export async function backendRaw(
   const { body, accessToken, headers, ...rest } = options;
   return fetch(`${getConfiguredBackendUrl()}${path}`, {
     ...rest,
-    headers: { ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), ...headers },
+    headers: {
+      "Accept-Language": "ar",
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      ...headers,
+    },
     body: body !== undefined ? JSON.stringify(body) : undefined,
     cache: "no-store",
   });
@@ -76,6 +81,7 @@ export async function backendFetch<T>(path: string, options: BackendFetchOptions
   const response = await fetch(`${getConfiguredBackendUrl()}${path}`, {
     ...rest,
     headers: {
+      "Accept-Language": "ar",
       ...(body !== undefined && !(body instanceof FormData)
         ? { "Content-Type": "application/json" }
         : {}),

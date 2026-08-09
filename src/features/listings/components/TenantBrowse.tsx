@@ -200,8 +200,8 @@ export function TenantBrowse({ canBrowseTenantRequests }: { canBrowseTenantReque
   // tenant can't act on another tenant's request (see handleRequestCardClick),
   // and landlords have their own /landlord/requests. So it's shown only to
   // guests; any signed-in user browsing here sees just the properties view.
-  const isGuest = !user;
-  const effectiveTab = isGuest ? activeTab : "properties";
+  const showRequestTabs = canBrowseTenantRequests;
+  const effectiveTab = showRequestTabs ? activeTab : "properties";
 
   return (
     <div className="flex flex-col gap-5">
@@ -216,7 +216,7 @@ export function TenantBrowse({ canBrowseTenantRequests }: { canBrowseTenantReque
         </div>
 
         {/* Tab Switcher — guests can also browse tenant requests. */}
-        {isGuest && (
+        {showRequestTabs && (
           <div className="flex rounded-control border border-hairline bg-surface p-1 self-start">
             <button
               type="button"

@@ -10,14 +10,17 @@ import { VerifiedBadge } from "@/src/components/ui/VerifiedBadge";
 import { useLogout, useSession } from "@/src/features/auth/hooks/useSession";
 import { useQuota } from "@/src/features/landlord/hooks/useLandlord";
 import { PaymentSheet } from "@/src/features/payments/PaymentSheet";
+import { useCommercialCatalog } from "@/src/features/payments/useCommercialCatalog";
 import { api } from "@/src/lib/api/browserClient";
-import type { PaymentType } from "@/src/lib/api/contracts/payment";
+import type { CheckoutPaymentType } from "@/src/lib/api/contracts/payment";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
+  ArrowLeft,
   Building2,
   Camera,
   Check,
+  CheckCircle2,
   Crown,
   Edit,
   FileCheck2,
@@ -28,6 +31,7 @@ import {
   Phone,
   ShieldAlert,
   Sparkles,
+  TrendingUp,
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
@@ -70,15 +74,59 @@ function compressImage(file: File, maxWidth = 300, maxHeight = 300): Promise<str
   });
 }
 
+function CurrentPlanStatus({ planName }: { planName: string }) {
+  return (
+    <div
+      role="status"
+      className="flex min-h-14 items-center justify-center gap-2.5 rounded-xl border border-success/20 bg-success-tint px-4 text-success"
+    >
+      <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-success/10">
+        <CheckCircle2 className="size-4" aria-hidden />
+      </span>
+      <span className="flex flex-col items-start text-start leading-tight">
+        <span className="whitespace-nowrap text-caption font-extrabold">الخطة الحالية</span>
+        <span className="mt-0.5 text-[11px] font-semibold opacity-80">{planName}</span>
+      </span>
+    </div>
+  );
+}
+
 export function ProfileScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { data: user, isLoading } = useSession();
   const quotaQuery = useQuota();
   const { data: quota, isLoading: isQuotaLoading } = quotaQuery;
+  const commercial = useCommercialCatalog().data;
+  const freePlan = commercial?.plans.FREE ?? {
+    activeListings: 1,
+    offers: 5,
+    aiUses: 5,
+    boostCredits: 0,
+    boostDurationDays: 7,
+  };
+  const ownerPlusPlan = commercial?.plans.OWNER_PLUS ?? {
+    activeListings: 3,
+    offers: 30,
+    aiUses: 10,
+    boostCredits: 1,
+    boostDurationDays: 7,
+  };
+  const premiumPlan = commercial?.plans.PREMIUM ?? {
+    activeListings: 10,
+    offers: 100,
+    aiUses: 30,
+    boostCredits: 2,
+    boostDurationDays: 7,
+  };
+  const ownerPlusMonthly = commercial?.products.OWNER_PLUS_MONTHLY?.priceEgp ?? 299;
+  const ownerPlusYearly = commercial?.products.OWNER_PLUS_YEARLY?.priceEgp ?? 2_990;
+  const premiumMonthly = commercial?.products.PREMIUM_MONTHLY?.priceEgp ?? 699;
+  const premiumYearly = commercial?.products.PREMIUM_YEARLY?.priceEgp ?? 6_990;
+  const aiAddon = commercial?.products.AI_USES_10_90D;
   const logout = useLogout();
 
-  const [activePaymentType, setActivePaymentType] = useState<PaymentType | null>(null);
+  const [activePaymentType, setActivePaymentType] = useState<CheckoutPaymentType | null>(null);
   const [showOfferInfo, setShowOfferInfo] = useState(false);
 
   // Avatar uploading state
@@ -256,7 +304,7 @@ export function ProfileScreen() {
               </span>
               {quota?.planExpiresAt && (
                 <span className="text-caption text-muted font-semibold whitespace-nowrap">
-                  تجدد في {new Date(quota.planExpiresAt).toLocaleDateString("ar-EG")}
+                  ينتهي الاشتراك في {new Date(quota.planExpiresAt).toLocaleDateString("ar-EG")}
                 </span>
               )}
             </div>
@@ -319,14 +367,25 @@ export function ProfileScreen() {
               </p>
               <p className="leading-relaxed">
                 العرض المباشر هو عرض يرسله المالك إلى مستأجر على طلبه المنشور، ويشمل العقار المقترح
-                والسعر والرسالة. يحصل المالك المجاني على 3 عروض مباشرة، وتصبح غير محدودة في الخطة
-                المميزة.
+                والسعر والرسالة. يحصل المالك المجاني على 5 عروض شهريًا، وOwner Plus على 30، وPremium
+                على 100 عرض. لا يُرحّل رصيد الخطة إلى الشهر التالي.
+              </p>
+            </div>
+          )}
+
+          {quota?.listingGraceEndsAt && (
+            <div className="flex items-start gap-2 rounded-card border border-pending/30 bg-pending-tint p-4 text-small text-pending">
+              <AlertTriangle className="mt-0.5 size-5 shrink-0" aria-hidden />
+              <p>
+                سعة العقارات الحالية أقل من عدد عقاراتك النشطة. اختر العقارات التي تريد أرشفتها قبل{" "}
+                <strong>{new Date(quota.listingGraceEndsAt).toLocaleDateString("ar-EG")}</strong>؛
+                بعد ذلك سيؤرشف النظام أحدث العقارات الزائدة تلقائيًا.
               </p>
             </div>
           )}
 
           {/* Current Quotas Cards with Progress Bars */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {/* Active Listings Progress Bar */}
             <div className="flex flex-col gap-2 rounded-card border border-hairline bg-surface p-4 shadow-xs">
               <div className="flex items-center justify-between">
@@ -364,12 +423,12 @@ export function ProfileScreen() {
                 <div
                   className="h-full bg-trust-blue transition-all duration-500"
                   style={{
-                    width: `${Math.min(100, ((quota?.freeOffersLeft ?? 0) / (quota?.planType === "PREMIUM" ? 50 : quota?.planType === "OWNER_PLUS" ? 10 : 5)) * 100)}%`,
+                    width: `${Math.min(100, ((quota?.freeOffersLeft ?? 0) / (quota?.planType === "PREMIUM" ? premiumPlan.offers : quota?.planType === "OWNER_PLUS" ? ownerPlusPlan.offers : freePlan.offers || 1)) * 100)}%`,
                   }}
                 />
               </div>
               <span className="text-[11px] text-muted">
-                تُرحّل الاستخدامات غير المستهلكة للشهر القادم
+                تتجدد كوتا الخطة شهريًا بدون ترحيل؛ الإضافات لها صلاحيتها المستقلة
               </span>
             </div>
 
@@ -388,12 +447,28 @@ export function ProfileScreen() {
                 <div
                   className="h-full bg-accent transition-all duration-500"
                   style={{
-                    width: `${Math.min(100, ((quota?.optimizerUsesLeft ?? 0) / (quota?.planType === "PREMIUM" ? 20 : quota?.planType === "OWNER_PLUS" ? 10 : 5)) * 100)}%`,
+                    width: `${Math.min(100, ((quota?.optimizerUsesLeft ?? 0) / (quota?.planType === "PREMIUM" ? premiumPlan.aiUses : quota?.planType === "OWNER_PLUS" ? ownerPlusPlan.aiUses : freePlan.aiUses || 1)) * 100)}%`,
                   }}
                 />
               </div>
               <span className="text-[11px] text-muted">
-                تُرحّل الاستخدامات غير المستهلكة للشهر القادم
+                تتجدد كوتا الخطة شهريًا بدون ترحيل؛ رصيد الإضافة ينتهي خلال 90 يومًا
+              </span>
+            </div>
+
+            <div className="flex flex-col gap-2 rounded-card border border-hairline bg-surface p-4 shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-caption font-semibold text-muted">
+                  <TrendingUp className="size-4 text-primary" />
+                  رصيد Boost الشهري
+                </span>
+                <span className="text-caption font-bold text-ink">
+                  {quota?.boostCreditsLeft ?? 0} متبقي
+                </span>
+              </div>
+              <p className="text-small font-bold text-ink">كل رصيد = 7 أيام ظهور مميز</p>
+              <span className="text-[11px] text-muted">
+                لا يُرحّل الرصيد الشهري؛ يمكنك شراء Boost مستقل عند الحاجة
               </span>
             </div>
           </div>
@@ -402,7 +477,7 @@ export function ProfileScreen() {
           <div className="flex flex-col gap-3">
             <h3 className="text-title font-bold text-ink">خطط اشتراك المالك المتاحة</h3>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
               {/* Free Owner Plan */}
               <div className="flex flex-col justify-between rounded-card border border-hairline bg-surface p-4 shadow-xs">
                 <div>
@@ -417,27 +492,82 @@ export function ProfileScreen() {
                   </p>
                   <ul className="flex flex-col gap-2 text-caption text-body-text mb-4">
                     <li className="flex items-center gap-1.5">
-                      <Check className="size-3.5 text-success shrink-0" /> وحدة عقارية نشطة واحدة
-                      (1)
+                      <Check className="size-3.5 text-success shrink-0" /> {freePlan.activeListings}{" "}
+                      وحدة عقارية نشطة
                     </li>
                     <li className="flex items-center gap-1.5">
-                      <Check className="size-3.5 text-success shrink-0" /> 3 عروض إيجار مباشرة
-                      شهرياً
+                      <Check className="size-3.5 text-success shrink-0" /> {freePlan.offers} عروض
+                      إيجار مباشرة شهرياً
                     </li>
                     <li className="flex items-center gap-1.5">
-                      <Check className="size-3.5 text-success shrink-0" /> 3 استخدامات محسن الذكاء
-                      الاصطناعي
+                      <Check className="size-3.5 text-success shrink-0" /> {freePlan.aiUses}{" "}
+                      استخدامات محسن الذكاء الاصطناعي
                     </li>
                     <li className="flex items-center gap-1.5">
-                      <Check className="size-3.5 text-success shrink-0" /> إنشاء وتصدير عقود PDF
-                      مجاناً
+                      <Check className="size-3.5 text-success shrink-0" /> تحليلات المشاهدات
+                      والمفضلة والعروض، بدون رصيد Boost
                     </li>
                   </ul>
                 </div>
-                {quota?.planType === "FREE" && (
-                  <span className="rounded-card bg-background py-2 text-center text-caption font-bold text-muted">
-                    الخطة الحالية
-                  </span>
+                {quota?.planType === "FREE" && <CurrentPlanStatus planName="الخطة المجانية" />}
+              </div>
+
+              {/* Owner Plus */}
+              <div className="flex flex-col justify-between rounded-card border border-primary/30 bg-surface p-4 shadow-xs">
+                <div>
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-body font-bold text-ink">Owner Plus</span>
+                    <Sparkles className="size-5 text-primary" aria-hidden />
+                  </div>
+                  <p className="mb-3 text-h2 font-extrabold text-ink">
+                    {ownerPlusMonthly}{" "}
+                    <span className="text-caption font-normal text-muted">ج.م / شهريًا</span>
+                  </p>
+                  <ul className="mb-4 flex flex-col gap-2 text-caption text-body-text">
+                    <li className="flex items-center gap-1.5">
+                      <Check className="size-3.5 shrink-0 text-success" />{" "}
+                      {ownerPlusPlan.activeListings} عقارات نشطة
+                    </li>
+                    <li className="flex items-center gap-1.5">
+                      <Check className="size-3.5 shrink-0 text-success" /> {ownerPlusPlan.offers}{" "}
+                      عرضًا و{ownerPlusPlan.aiUses} استخدامات AI شهريًا
+                    </li>
+                    <li className="flex items-center gap-1.5">
+                      <Check className="size-3.5 shrink-0 text-success" />{" "}
+                      {ownerPlusPlan.boostCredits} Boost لمدة {ownerPlusPlan.boostDurationDays} أيام
+                      وتحليلات المطابقات
+                    </li>
+                    <li className="flex items-center gap-1.5">
+                      <Check className="size-3.5 shrink-0 text-success" /> {ownerPlusYearly} ج.م
+                      سنويًا
+                    </li>
+                  </ul>
+                </div>
+                {quota?.planType === "OWNER_PLUS" ? (
+                  <CurrentPlanStatus planName="Owner Plus" />
+                ) : (
+                  <Button
+                    variant="primary"
+                    size="lg"
+                    block
+                    disabled={
+                      isQuotaLoading || commercial?.products.OWNER_PLUS_MONTHLY?.enabled === false
+                    }
+                    aria-label={`الاشتراك في خطة Owner Plus مقابل ${ownerPlusMonthly} جنيهًا شهريًا`}
+                    className="group min-h-14 rounded-xl px-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card active:translate-y-0 active:scale-[0.99]"
+                    onClick={() => setActivePaymentType("OWNER_PLUS_MONTHLY")}
+                  >
+                    <span className="flex min-w-0 flex-1 flex-col items-start gap-0.5 text-start">
+                      <span className="text-small font-extrabold leading-tight">اشترك الآن</span>
+                      <span className="text-[11px] font-semibold text-white/80">
+                        Owner Plus • {ownerPlusMonthly} ج.م/شهر
+                      </span>
+                    </span>
+                    <ArrowLeft
+                      className="size-4 shrink-0 transition-transform group-hover:-translate-x-0.5"
+                      aria-hidden
+                    />
+                  </Button>
                 )}
               </div>
 
@@ -448,37 +578,52 @@ export function ProfileScreen() {
                     <span className="text-body font-bold text-ink">الخطة الـ Premium</span>
                   </div>
                   <p className="text-h2 font-extrabold text-ink mb-3">
-                    999 <span className="text-caption font-normal text-muted">ج.م / شهرياً</span>
+                    {premiumMonthly}{" "}
+                    <span className="text-caption font-normal text-muted">ج.م / شهريًا</span>
                   </p>
                   <ul className="flex flex-col gap-2 text-caption text-body-text mb-4">
                     <li className="flex items-center gap-1.5">
-                      <Check className="size-3.5 text-success shrink-0" /> حتى 5 وحدات عقارية نشطة
+                      <Check className="size-3.5 text-success shrink-0" /> حتى{" "}
+                      {premiumPlan.activeListings} عقارات نشطة
                     </li>
                     <li className="flex items-center gap-1.5">
-                      <Check className="size-3.5 text-success shrink-0" /> عروض إيجار لا محدودة مع
-                      المستأجرين
+                      <Check className="size-3.5 text-success shrink-0" /> {premiumPlan.offers} عرض
+                      شهريًا
                     </li>
                     <li className="flex items-center gap-1.5">
-                      <Check className="size-3.5 text-success shrink-0" /> 5 استخدامات لمحسن الذكاء
-                      الاصطناعي
+                      <Check className="size-3.5 text-success shrink-0" /> {premiumPlan.aiUses}{" "}
+                      استخدامًا لمحسن الذكاء الاصطناعي
                     </li>
                     <li className="flex items-center gap-1.5">
-                      <Check className="size-3.5 text-success shrink-0" /> تتجدد المزايا شهريًا
-                      أثناء الاشتراك
+                      <Check className="size-3.5 text-success shrink-0" /> رصيدا Boost وتحليلات
+                      كاملة؛ {premiumYearly} ج.م سنويًا
                     </li>
                   </ul>
                 </div>
                 {quota?.planType === "PREMIUM" ? (
-                  <span className="rounded-card bg-success-tint py-2 text-center text-caption font-bold text-success">
-                    الخطة الحالية
-                  </span>
+                  <CurrentPlanStatus planName="Premium" />
                 ) : (
                   <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => setActivePaymentType("PREMIUM_OWNER")}
+                    variant="primary"
+                    size="lg"
+                    block
+                    disabled={
+                      isQuotaLoading || commercial?.products.PREMIUM_MONTHLY?.enabled === false
+                    }
+                    aria-label={`الاشتراك في خطة Premium مقابل ${premiumMonthly} جنيهًا شهريًا`}
+                    className="group min-h-14 rounded-xl px-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card active:translate-y-0 active:scale-[0.99]"
+                    onClick={() => setActivePaymentType("PREMIUM_MONTHLY")}
                   >
-                    اشترك مقابل 999 ج.م شهرياً
+                    <span className="flex min-w-0 flex-1 flex-col items-start gap-0.5 text-start">
+                      <span className="text-small font-extrabold leading-tight">اشترك الآن</span>
+                      <span className="text-[11px] font-semibold text-white/80">
+                        Premium • {premiumMonthly} ج.م/شهر
+                      </span>
+                    </span>
+                    <ArrowLeft
+                      className="size-4 shrink-0 transition-transform group-hover:-translate-x-0.5"
+                      aria-hidden
+                    />
                   </Button>
                 )}
               </div>
@@ -491,18 +636,35 @@ export function ProfileScreen() {
                     <Sparkles className="size-5 text-accent" aria-hidden />
                   </div>
                   <p className="text-h2 font-extrabold text-ink mb-3">
-                    199 <span className="text-caption font-normal text-muted">ج.م لمرة واحدة</span>
+                    {aiAddon?.priceEgp ?? 39}{" "}
+                    <span className="text-caption font-normal text-muted">ج.م لمرة واحدة</span>
                   </p>
                   <p className="text-caption leading-relaxed text-body-text mb-4">
-                    +10 استخدامات جديدة لمحسن وصف العقار بالذكاء الاصطناعي عند نفاد رصيدك.
+                    +{aiAddon?.quantity ?? 10} استخدامات لمحسن وصف العقار، بصلاحية مستقلة لمدة{" "}
+                    {aiAddon?.validityDays ?? 90} يومًا.
                   </p>
                 </div>
                 <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setActivePaymentType("AI_ADDON")}
+                  variant="primary"
+                  size="lg"
+                  block
+                  disabled={
+                    isQuotaLoading || commercial?.products.AI_USES_10_90D?.enabled === false
+                  }
+                  aria-label={`شراء ${aiAddon?.quantity ?? 10} استخدامات لمحسن الذكاء الاصطناعي مقابل ${aiAddon?.priceEgp ?? 39} جنيهًا`}
+                  className="group min-h-14 rounded-xl px-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card active:translate-y-0 active:scale-[0.99]"
+                  onClick={() => setActivePaymentType("AI_USES_10_90D")}
                 >
-                  شراء باقة الذكاء الاصطناعي
+                  <span className="flex min-w-0 flex-1 flex-col items-start gap-0.5 text-start">
+                    <span className="text-small font-extrabold leading-tight">شراء الإضافة</span>
+                    <span className="text-[11px] font-semibold text-white/80">
+                      {aiAddon?.quantity ?? 10} استخدامات AI • {aiAddon?.priceEgp ?? 39} ج.م
+                    </span>
+                  </span>
+                  <ArrowLeft
+                    className="size-4 shrink-0 transition-transform group-hover:-translate-x-0.5"
+                    aria-hidden
+                  />
                 </Button>
               </div>
             </div>

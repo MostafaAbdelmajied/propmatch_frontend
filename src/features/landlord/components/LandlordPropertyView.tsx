@@ -11,8 +11,9 @@ import { Button } from "@/src/components/ui/Button";
 import { PaymentSheet } from "@/src/features/payments/PaymentSheet";
 import { useToast } from "@/src/components/ui/Toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { useDeleteProperty } from "../hooks/useLandlord";
+import { useBoostProperty, useDeleteProperty } from "../hooks/useLandlord";
 import { ArchivePropertyAction } from "./ArchivePropertyAction";
+import { PropertyAnalyticsPanel } from "./PropertyAnalyticsPanel";
 
 /** Landlord view of their own listing: status, rejection reason, boost CTA. */
 export function LandlordPropertyView({ id }: { id: string }) {
@@ -23,6 +24,21 @@ export function LandlordPropertyView({ id }: { id: string }) {
   const qc = useQueryClient();
   const router = useRouter();
   const remove = useDeleteProperty(id);
+  const boost = useBoostProperty(id);
+
+  function activateBoost() {
+    boost.mutate(undefined, {
+      onSuccess: () => {
+        toast("success", "تم استخدام رصيد Boost لمدة 7 أيام");
+        qc.invalidateQueries({ queryKey: ["properties", id] });
+        qc.invalidateQueries({ queryKey: ["quota"] });
+      },
+      onError: (error) => {
+        if (error.code === "QUOTA_EXHAUSTED") setBoostOpen(true);
+        else toast("error", error.message);
+      },
+    });
+  }
 
   function deleteProperty() {
     remove.mutate(undefined, {
@@ -54,10 +70,10 @@ export function LandlordPropertyView({ id }: { id: string }) {
                 تعديل العقار
               </Link>
             )}
-            {p.status === "APPROVED" && !p.isBoosted && (
-              <Button size="sm" onClick={() => setBoostOpen(true)}>
+            {p.status === "APPROVED" && (
+              <Button size="sm" onClick={activateBoost} loading={boost.isPending}>
                 <TrendingUp className="size-4" aria-hidden />
-                تمييز الإعلان
+                {p.isBoosted ? "إضافة Boost متتالٍ" : "تمييز الإعلان"}
               </Button>
             )}
             {p.status !== "ARCHIVED" && (
@@ -76,10 +92,12 @@ export function LandlordPropertyView({ id }: { id: string }) {
 
       <PropertyDetailView id={id} hideContact />
 
+      <PropertyAnalyticsPanel propertyId={id} />
+
       <PaymentSheet
         open={boostOpen}
         onClose={() => setBoostOpen(false)}
-        paymentType="BOOST_LISTING"
+        paymentType="BOOST_7D"
         propertyId={id}
         onActivated={() => {
           toast("success", "تم تمييز إعلانك");

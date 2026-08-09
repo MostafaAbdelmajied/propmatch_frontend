@@ -1,7 +1,4 @@
-import { AdminLogoutButton } from "@/src/components/nav/AdminLogoutButton";
-import { AdminNavLinks } from "@/src/components/nav/AdminNavLinks";
-import { NotificationBell } from "@/src/components/nav/RoleNav";
-import { Logo } from "@/src/components/ui/Logo";
+import { AdminSidebar } from "@/src/components/nav/AdminSidebar";
 import { requireRole } from "@/src/lib/api/serverSession";
 
 /**
@@ -13,24 +10,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const user = await requireRole("admin", "/admin");
 
   return (
-    <div className="flex min-h-dvh flex-col">
-      <header className="sticky top-0 z-30 border-b border-hairline bg-surface">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-3">
-            <Logo href="/admin" />
-            <span className="rounded-pill bg-primary-tint px-2 py-0.5 text-caption font-bold text-primary">
-              لوحة المشرف
-            </span>
-          </div>
-          <AdminNavLinks />
-          <div className="flex items-center gap-3">
-            <NotificationBell />
-            <span className="text-small font-semibold text-body-text">{user.fullName}</span>
-            <AdminLogoutButton />
-          </div>
-        </div>
-      </header>
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">{children}</main>
+    <div className="min-h-dvh bg-background lg:flex">
+      <AdminSidebar userName={user.fullName} />
+      <div className="min-w-0 flex-1">
+        <main className="mx-auto w-full max-w-[96rem] px-4 py-6 sm:px-6">{children}</main>
+      </div>
     </div>
   );
 }
