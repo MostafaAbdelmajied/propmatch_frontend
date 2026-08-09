@@ -475,6 +475,13 @@ export function UnifiedAiAssistant({
               : msg,
           ),
         );
+        if (done.escalated && done.ticketId) {
+          setFrustrated(false);
+          setTicketsAccordionOpen(true);
+          setSelectedTicketId(done.ticketId);
+          void myTickets.refetch();
+          toast("success", "تم إنشاء التذكرة وتحويلك لموظف الدعم الفني");
+        }
       }
     } catch {
       const fallbackMsg: ChatMessage = {

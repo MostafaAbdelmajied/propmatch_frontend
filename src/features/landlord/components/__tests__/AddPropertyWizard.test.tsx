@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AddPropertyWizard } from "../AddPropertyWizard";
+import { loadPropertyDraft } from "../../propertyDraftDb";
 
 const mockCreateMutate = jest.fn();
 const mockOptimizeRun = jest.fn();
@@ -44,7 +45,16 @@ jest.mock("../../hooks/useLandlord", () => ({
   }),
 }));
 
-const draftValues = {
+// IndexedDB isn't available in jsdom — the draft cache is mocked at the
+// module boundary rather than polyfilling a real IndexedDB for tests.
+jest.mock("../../propertyDraftDb", () => ({
+  loadPropertyDraft: jest.fn(),
+  savePropertyDraft: jest.fn(),
+  clearPropertyDraft: jest.fn(),
+}));
+const mockLoadDraft = jest.mocked(loadPropertyDraft);
+
+const completeDraftValues = {
   governorate: "الدقهلية",
   city: "المنصورة",
   district: "حي الجامعة",
@@ -58,15 +68,17 @@ const draftValues = {
   isFurnished: false,
   hasElevator: true,
   hasParking: true,
-  description: "وصف تفصيلي مناسب للعقار المعروض للإيجار في موقع مميز.",
+  // ≥20 chars — schema-valid final description, as if the AI already ran.
+  description: "وصف نهائي مكتمل يفي بالحد الأدنى لطول الوصف المطلوب للعقار.",
   propertyAroundServices: "جامعة، مواصلات، صيدلية",
 };
 
-function restoreMediaStep() {
-  window.localStorage.setItem(
-    "propmatch:add-property-draft",
-    JSON.stringify({ step: 1, values: draftValues, optimizerUsesLeft: 5 }),
-  );
+function restoreMediaStep(overrides: Record<string, unknown> = {}) {
+  mockLoadDraft.mockResolvedValue({
+    step: 1,
+    values: { ...completeDraftValues, ...overrides },
+    optimizerUsesLeft: 5,
+  });
 }
 
 async function reachReviewStep({ waitUntilArmed = true } = {}) {
@@ -86,7 +98,7 @@ async function reachReviewStep({ waitUntilArmed = true } = {}) {
   return { ...view, image, user };
 }
 
-describe("AddPropertyWizard submission intent", () => {
+describe("AddPropertyWizard", () => {
   beforeAll(() => {
     Object.defineProperty(URL, "createObjectURL", {
       configurable: true,
@@ -99,15 +111,51 @@ describe("AddPropertyWizard submission intent", () => {
   });
 
   beforeEach(() => {
-    window.localStorage.clear();
+    mockLoadDraft.mockReset();
+    mockLoadDraft.mockResolvedValue(null);
     mockCreateMutate.mockReset();
     mockOptimizeRun.mockReset();
     mockToast.mockReset();
     mockRouterPush.mockReset();
     mockQuotaRefetch.mockReset();
     mockOptimizeRun.mockImplementation(async (_description, _context, onToken) => {
-      onToken("وصف محسّن للعقار دون إرسال الإعلان إلى المراجعة.");
+      onToken("وصف محسّن للعقار.");
     });
+  });
+
+  it("no longer shows a manual initial-description field on the media step", async () => {
+    restoreMediaStep();
+    render(<AddPropertyWizard />);
+
+    await waitFor(() => screen.getByText(/الخدمات المحيطة/));
+    expect(screen.queryByText("الوصف المبسّط للعقار")).not.toBeInTheDocument();
+    expect(
+      screen.queryByPlaceholderText("اكتب وصفًا أولياً للعقار…"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("blocks the AI optimizer and toasts the missing fields when the form is incomplete", async () => {
+    mockLoadDraft.mockResolvedValue({
+      step: 2,
+      values: { ...completeDraftValues, title: "", rentAmount: undefined, areaM2: undefined },
+      optimizerUsesLeft: 5,
+    });
+    const user = userEvent.setup();
+    render(<AddPropertyWizard />);
+
+    const optimizeButton = await screen.findByRole("button", {
+      name: "تحسين الوصف بالذكاء الاصطناعي",
+    });
+    await user.click(optimizeButton);
+
+    await waitFor(() => expect(mockToast).toHaveBeenCalled());
+    const [tone, message] = mockToast.mock.calls[0] as [string, string];
+    expect(tone).toBe("error");
+    expect(message).toContain("يرجى ملء الحقول التالية");
+    expect(message).toContain("عنوان الإعلان");
+    expect(message).toContain("السعر");
+    expect(message).toContain("المساحة");
+    expect(mockOptimizeRun).not.toHaveBeenCalled();
   });
 
   it("optimizes the description without creating a property", async () => {
@@ -182,7 +230,7 @@ describe("AddPropertyWizard submission intent", () => {
     await waitFor(() => expect(mockCreateMutate).toHaveBeenCalledTimes(1));
     expect(mockCreateMutate).toHaveBeenCalledWith(
       expect.objectContaining({
-        title: draftValues.title,
+        title: completeDraftValues.title,
         images: [image],
       }),
       expect.any(Object),

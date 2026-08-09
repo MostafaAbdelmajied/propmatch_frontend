@@ -30,22 +30,20 @@ import { useEffect, useMemo, useState } from "react";
 import { Controller, useForm, type UseFormReturn } from "react-hook-form";
 import { useCreateProperty, useQuota, useStreamOptimizeDescription } from "../hooks/useLandlord";
 import { addPropertyFormSchema, stepFields, type AddPropertyForm } from "../validation/schemas";
+import { clearPropertyDraft, loadPropertyDraft, savePropertyDraft } from "../propertyDraftDb";
 
 const steps = ["تفاصيل العقار", "الصور والخدمات", "تحسين الوصف والإنهاء"] as const;
 const REVIEW_STEP_INDEX = steps.length - 1;
 const REVIEW_SUBMISSION_ARM_DELAY_MS = 600;
 type StepKey = keyof typeof stepFields;
 const stepKeys: StepKey[] = ["propertyDetails", "mediaAndServices", "aiOptimization"];
-const PROPERTY_DRAFT_STORAGE_KEY = "propmatch:add-property-draft";
 const MAX_PROPERTY_IMAGES = 10;
 const MAX_PROPERTY_IMAGE_SIZE = 5 * 1024 * 1024;
 const PROPERTY_IMAGE_ACCEPT = ".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp";
-
-type PropertyDraft = {
-  step: number;
-  values: Partial<AddPropertyForm>;
-  optimizerUsesLeft?: number;
-};
+/** Debounce IndexedDB writes — form.watch fires on every keystroke, and each
+ * write now clones the full image File set (not just text), so writing on
+ * every keystroke would be wasteful. */
+const DRAFT_SAVE_DEBOUNCE_MS = 500;
 
 const defaults: Partial<AddPropertyForm> = {
   governorate: "الدقهلية",
@@ -93,12 +91,13 @@ function AddPropertyWizardContent() {
   const [paywall, setPaywall] = useState<CheckoutPaymentType | null>(null);
 
   useEffect(() => {
-    try {
-      const savedDraft = window.localStorage.getItem(PROPERTY_DRAFT_STORAGE_KEY);
-      if (savedDraft) {
-        const draft = JSON.parse(savedDraft) as PropertyDraft;
-        if (draft.values && typeof draft.step === "number") {
-          form.reset({ ...defaults, ...draft.values });
+    let cancelled = false;
+    (async () => {
+      try {
+        const draft = await loadPropertyDraft();
+        if (cancelled) return;
+        if (draft?.values && typeof draft.step === "number") {
+          form.reset({ ...defaults, ...draft.values } as AddPropertyForm);
           setStep(Math.max(0, Math.min(draft.step, steps.length - 1)));
           if (
             typeof draft.optimizerUsesLeft === "number" &&
@@ -108,12 +107,15 @@ function AddPropertyWizardContent() {
             setOptimizerUsesLeft(draft.optimizerUsesLeft);
           }
         }
+      } catch {
+        await clearPropertyDraft();
+      } finally {
+        if (!cancelled) setDraftRestored(true);
       }
-    } catch {
-      window.localStorage.removeItem(PROPERTY_DRAFT_STORAGE_KEY);
-    } finally {
-      setDraftRestored(true);
-    }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [form]);
 
   useEffect(() => {
@@ -137,21 +139,23 @@ function AddPropertyWizardContent() {
   useEffect(() => {
     if (!draftRestored) return;
 
+    let debounceTimer: number | null = null;
     const saveDraft = (values: Partial<AddPropertyForm>) => {
-      const valuesToPersist = { ...values };
-      delete valuesToPersist.images;
-      const draft: PropertyDraft = { step, values: valuesToPersist, optimizerUsesLeft };
-      try {
-        window.localStorage.setItem(PROPERTY_DRAFT_STORAGE_KEY, JSON.stringify(draft));
-      } catch {
-        // A full or unavailable browser storage must not block form use.
-      }
+      if (debounceTimer !== null) window.clearTimeout(debounceTimer);
+      debounceTimer = window.setTimeout(() => {
+        // Images kept intact — IndexedDB (unlike the old localStorage cache)
+        // natively stores File objects, so uploaded photos survive a remount.
+        void savePropertyDraft({ step, values, optimizerUsesLeft });
+      }, DRAFT_SAVE_DEBOUNCE_MS);
     };
     saveDraft(form.getValues());
     const subscription = form.watch((values) => {
-      saveDraft(values);
+      saveDraft(values as Partial<AddPropertyForm>);
     });
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      if (debounceTimer !== null) window.clearTimeout(debounceTimer);
+    };
   }, [draftRestored, form, optimizerUsesLeft, step]);
 
   async function next() {
@@ -199,7 +203,7 @@ function AddPropertyWizardContent() {
     create.mutate(values, {
       onSuccess: () => {
         setReviewConfirmationOpen(false);
-        window.localStorage.removeItem(PROPERTY_DRAFT_STORAGE_KEY);
+        void clearPropertyDraft();
         // ERD: PROPERTY.status defaults to PENDING — admin must approve (PRO-04).
         toast("success", "تم إرسال إعلانك للمراجعة");
         router.push("/landlord");
@@ -903,19 +907,6 @@ function MediaAndServicesStep({ form }: StepProps) {
           <p className="text-caption text-error">{form.formState.errors.images.message}</p>
         )}
       </div>
-
-      <div className="flex flex-col gap-2 border-t border-hairline pt-5">
-        <label className="text-small font-bold text-ink">الوصف المبسّط للعقار</label>
-        <p className="text-caption text-muted">
-          اكتب مسوّدة أو وصفاً أولياً لعقارك. في الخطوة القادمة، يمكنك استخدام الذكاء الاصطناعي لتحسين صيغة الوصف بعد تجميع كامل بيانات العقار.
-        </p>
-        <TextAreaField
-          placeholder="اكتب وصفًا أولياً للعقار…"
-          className="min-h-32"
-          error={form.formState.errors.description?.message}
-          {...form.register("description")}
-        />
-      </div>
     </Card>
   );
 }
@@ -926,6 +917,29 @@ type OptimizationAndReviewStepProps = StepProps & {
   onAiPaywall: () => void;
   onOptimizerStateChange: (isOptimizing: boolean) => void;
 };
+
+/** Arabic labels for the toast listing which required fields are still
+ * missing/invalid — every field the AI Optimizer needs as context (i.e.
+ * everything from steps 1–2 except `description`, which the AI itself
+ * produces, so requiring it up front would be a chicken-and-egg block). */
+const REQUIRED_FIELD_LABELS: Partial<Record<keyof AddPropertyForm, string>> = {
+  propertyType: "نوع العقار",
+  title: "عنوان الإعلان",
+  rentAmount: "السعر",
+  governorate: "الموقع",
+  city: "الموقع",
+  district: "الموقع",
+  manualAddress: "العنوان التفصيلي",
+  areaM2: "المساحة",
+  bedrooms: "عدد غرف النوم",
+  bathrooms: "عدد الحمّامات",
+  propertyAroundServices: "الخدمات المحيطة",
+  images: "صور العقار",
+};
+const AI_OPTIMIZER_REQUIRED_FIELDS = [
+  ...stepFields.propertyDetails,
+  ...stepFields.mediaAndServices,
+] as (keyof AddPropertyForm)[];
 
 function OptimizationAndReviewStep({
   form,
@@ -944,6 +958,28 @@ function OptimizationAndReviewStep({
     event.preventDefault();
     event.stopPropagation();
     if (optimize.isStreaming) return;
+
+    // Hard gate: the optimizer needs every other field as context, so it
+    // must never fire on an incomplete form — never a silent no-op, always
+    // a toast naming exactly what's missing.
+    const formIsValid = await form.trigger(AI_OPTIMIZER_REQUIRED_FIELDS);
+    if (!formIsValid) {
+      const missingLabels = Array.from(
+        new Set(
+          AI_OPTIMIZER_REQUIRED_FIELDS.filter((field) => form.formState.errors[field]).map(
+            (field) => REQUIRED_FIELD_LABELS[field] ?? field,
+          ),
+        ),
+      );
+      toast(
+        "error",
+        missingLabels.length > 0
+          ? `يرجى ملء الحقول التالية: ${missingLabels.join("، ")}`
+          : "يرجى إكمال بيانات العقار قبل استخدام محسّن الوصف",
+      );
+      return;
+    }
+
     if (optimizerUsesLeft <= 0) {
       onAiPaywall();
       return;

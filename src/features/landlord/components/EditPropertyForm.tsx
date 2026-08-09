@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/src/components/ui/Button";
+import { ConfirmDialog } from "@/src/components/ui/ConfirmDialog";
 import { InputField, SelectField, TextAreaField } from "@/src/components/ui/Field";
 import { cn } from "@/src/utils/cn";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -32,6 +33,7 @@ export function EditPropertyForm({ propertyId }: { propertyId: string }) {
   const propertyQuery = useProperty(propertyId);
   const regions = useActiveRegions();
   const update = useUpdateProperty(propertyId);
+  const [reviewConfirmationOpen, setReviewConfirmationOpen] = useState(false);
   const form = useForm<FormValues>({
     resolver: zodResolver(editPropertyFormSchema),
     defaultValues: {
@@ -54,6 +56,14 @@ export function EditPropertyForm({ propertyId }: { propertyId: string }) {
       newImages: [],
     },
     mode: "onTouched",
+  });
+  const [tags, setTags] = useState<string[]>(() => {
+    const initialServices = form.getValues("propertyAroundServices");
+    if (!initialServices) return [];
+    return initialServices
+      .split(/[،,]/)
+      .map((service) => service.trim())
+      .filter(Boolean);
   });
 
   useEffect(() => {
@@ -82,6 +92,8 @@ export function EditPropertyForm({ propertyId }: { propertyId: string }) {
     // stays [] and the tags→propertyAroundServices sync effect below clobbers
     // the saved services to "", which fails the required-min(1) rule and makes
     // the submit silently do nothing (no visible error for this field).
+    // The property arrives asynchronously, so the editable chip state must be hydrated here.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setTags(
       property.propertyAroundServices
         ? property.propertyAroundServices
@@ -122,15 +134,6 @@ export function EditPropertyForm({ propertyId }: { propertyId: string }) {
     "مطاعم وكافيهات",
     "حديقة عامة",
   ];
-
-  const [tags, setTags] = useState<string[]>(() => {
-    const initialServices = form.getValues("propertyAroundServices");
-    if (!initialServices) return [];
-    return initialServices
-      .split(/[،,]/)
-      .map((s: string) => s.trim())
-      .filter(Boolean);
-  });
 
   const [customTag, setCustomTag] = useState("");
 
@@ -244,11 +247,22 @@ export function EditPropertyForm({ propertyId }: { propertyId: string }) {
   function submit(values: FormValues) {
     update.mutate(values, {
       onSuccess: () => {
+        setReviewConfirmationOpen(false);
         toast("success", "تم حفظ التعديلات وإرسال العقار للمراجعة");
         router.push(`/landlord/properties/${propertyId}`);
       },
-      onError: (error) => toast("error", error.message),
+      onError: (error) => {
+        setReviewConfirmationOpen(false);
+        toast("error", error.message);
+      },
     });
+  }
+
+  function confirmSubmitForReview() {
+    void form.handleSubmit(submit, (errors) => {
+      setReviewConfirmationOpen(false);
+      onInvalid(errors);
+    })();
   }
 
   /** Submit blocked by validation must never fail silently — tell the user and
@@ -285,7 +299,10 @@ export function EditPropertyForm({ propertyId }: { propertyId: string }) {
         </p>
       </div>
 
-      <form className="flex flex-col gap-5" onSubmit={form.handleSubmit(submit, onInvalid)}>
+      <form
+        className="flex flex-col gap-5"
+        onSubmit={form.handleSubmit(() => setReviewConfirmationOpen(true), onInvalid)}
+      >
         <FormCard title="بيانات العقار">
           <Controller
             control={form.control}
@@ -533,6 +550,17 @@ export function EditPropertyForm({ propertyId }: { propertyId: string }) {
           حفظ وإرسال للمراجعة
         </Button>
       </form>
+
+      <ConfirmDialog
+        open={reviewConfirmationOpen}
+        title="إرسال التعديلات للمراجعة"
+        message="هل أنت متأكد من اكتمال تعديلات العقار وترغب في إرسالها الآن؟ لن يظهر العقار للمستأجرين حتى موافقة الإدارة."
+        confirmLabel="نعم، حفظ وإرسال"
+        cancelLabel="العودة للتعديل"
+        loading={update.isPending}
+        onConfirm={confirmSubmitForReview}
+        onCancel={() => setReviewConfirmationOpen(false)}
+      />
     </div>
   );
 }
