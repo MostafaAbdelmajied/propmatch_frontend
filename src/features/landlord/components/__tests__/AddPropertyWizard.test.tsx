@@ -1,0 +1,183 @@
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { AddPropertyWizard } from "../AddPropertyWizard";
+import { loadPropertyDraft } from "../../propertyDraftDb";
+
+const mockCreateMutate = jest.fn();
+const mockOptimizeRun = jest.fn();
+const mockToast = jest.fn();
+const mockRouterPush = jest.fn();
+const mockQuotaRefetch = jest.fn();
+
+jest.mock("next/navigation", () => ({
+  useRouter: () => ({ push: mockRouterPush }),
+}));
+
+jest.mock("@/src/components/ui/Toast", () => ({
+  useToast: () => mockToast,
+}));
+
+jest.mock("@/src/features/ekyc/components/VerificationGate", () => ({
+  VerificationGate: ({ children }: { children: React.ReactNode }) => children,
+}));
+
+jest.mock("@/src/features/payments/PaymentSheet", () => ({
+  PaymentSheet: () => null,
+}));
+
+jest.mock("@/src/features/admin/hooks/useRegions", () => ({
+  useActiveRegions: () => ({ data: [], isLoading: false }),
+}));
+
+jest.mock("../../hooks/useLandlord", () => ({
+  useCreateProperty: () => ({ mutate: mockCreateMutate, isPending: false }),
+  useQuota: () => ({
+    data: {
+      optimizerUsesLeft: 5,
+      maxActiveListings: 3,
+      activeUnitCount: 0,
+    },
+    refetch: mockQuotaRefetch,
+  }),
+  useStreamOptimizeDescription: () => ({
+    run: mockOptimizeRun,
+    isStreaming: false,
+  }),
+}));
+
+// IndexedDB isn't available in jsdom — the draft cache is mocked at the
+// module boundary rather than polyfilling a real IndexedDB for tests.
+jest.mock("../../propertyDraftDb", () => ({
+  loadPropertyDraft: jest.fn(),
+  savePropertyDraft: jest.fn(),
+  clearPropertyDraft: jest.fn(),
+}));
+const mockLoadDraft = jest.mocked(loadPropertyDraft);
+
+const completeDraftValues = {
+  governorate: "الدقهلية",
+  city: "المنصورة",
+  district: "حي الجامعة",
+  manualAddress: "شارع الجمهورية",
+  title: "شقة مميزة للإيجار",
+  propertyType: "APARTMENT",
+  rentAmount: 5000,
+  areaM2: 120,
+  bedrooms: 3,
+  bathrooms: 2,
+  isFurnished: false,
+  hasElevator: true,
+  hasParking: true,
+  // ≥20 chars — schema-valid final description, as if the AI already ran.
+  description: "وصف نهائي مكتمل يفي بالحد الأدنى لطول الوصف المطلوب للعقار.",
+  propertyAroundServices: "جامعة، مواصلات، صيدلية",
+};
+
+function restoreMediaStep(overrides: Record<string, unknown> = {}) {
+  mockLoadDraft.mockResolvedValue({
+    step: 1,
+    values: { ...completeDraftValues, ...overrides },
+    optimizerUsesLeft: 5,
+  });
+}
+
+async function reachReviewStep() {
+  restoreMediaStep();
+  const user = userEvent.setup();
+  const view = render(<AddPropertyWizard />);
+  const imageInput = await waitFor(() => {
+    const input = view.container.querySelector<HTMLInputElement>('input[type="file"]');
+    expect(input).not.toBeNull();
+    return input!;
+  });
+  const image = new File(["image"], "property.jpg", { type: "image/jpeg" });
+  await user.upload(imageInput, image);
+  await user.click(screen.getByRole("button", { name: "التالي" }));
+  await screen.findByText("تحسين صيغة الوصف بالذكاء الاصطناعي (الخطوة الأخيرة)");
+  return { ...view, image, user };
+}
+
+describe("AddPropertyWizard", () => {
+  beforeAll(() => {
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: jest.fn(() => "blob:property.jpg"),
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: jest.fn(),
+    });
+  });
+
+  beforeEach(() => {
+    mockLoadDraft.mockReset();
+    mockLoadDraft.mockResolvedValue(null);
+    mockCreateMutate.mockReset();
+    mockOptimizeRun.mockReset();
+    mockToast.mockReset();
+    mockRouterPush.mockReset();
+    mockQuotaRefetch.mockReset();
+    mockOptimizeRun.mockImplementation(async (_description, _context, onToken) => {
+      onToken("وصف محسّن للعقار.");
+    });
+  });
+
+  it("no longer shows a manual initial-description field on the media step", async () => {
+    restoreMediaStep();
+    render(<AddPropertyWizard />);
+
+    await waitFor(() => screen.getByText(/الخدمات المحيطة/));
+    expect(screen.queryByText("الوصف المبسّط للعقار")).not.toBeInTheDocument();
+    expect(
+      screen.queryByPlaceholderText("اكتب وصفًا أولياً للعقار…"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("runs the AI optimizer once the form is complete", async () => {
+    const { user } = await reachReviewStep();
+
+    await user.click(screen.getByRole("button", { name: "تحسين الوصف بالذكاء الاصطناعي" }));
+
+    await waitFor(() => expect(mockOptimizeRun).toHaveBeenCalledTimes(1));
+    expect(mockCreateMutate).not.toHaveBeenCalled();
+  });
+
+  it("blocks the AI optimizer and toasts the missing fields when the form is incomplete", async () => {
+    mockLoadDraft.mockResolvedValue({
+      step: 2,
+      values: { ...completeDraftValues, title: "", rentAmount: undefined, areaM2: undefined },
+      optimizerUsesLeft: 5,
+    });
+    const user = userEvent.setup();
+    render(<AddPropertyWizard />);
+
+    const optimizeButton = await screen.findByRole("button", {
+      name: "تحسين الوصف بالذكاء الاصطناعي",
+    });
+    await user.click(optimizeButton);
+
+    await waitFor(() => expect(mockToast).toHaveBeenCalled());
+    const [tone, message] = mockToast.mock.calls[0] as [string, string];
+    expect(tone).toBe("error");
+    expect(message).toContain("يرجى ملء الحقول التالية");
+    expect(message).toContain("عنوان الإعلان");
+    expect(message).toContain("السعر");
+    expect(message).toContain("المساحة");
+    expect(mockOptimizeRun).not.toHaveBeenCalled();
+  });
+
+  it("submits the property with the uploaded image once the form validates", async () => {
+    const { image, user } = await reachReviewStep();
+
+    await user.click(screen.getByRole("button", { name: "إرسال للمراجعة" }));
+
+    await waitFor(() => expect(mockCreateMutate).toHaveBeenCalledTimes(1));
+    expect(mockCreateMutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: completeDraftValues.title,
+        images: [image],
+      }),
+      expect.any(Object),
+    );
+  });
+});
