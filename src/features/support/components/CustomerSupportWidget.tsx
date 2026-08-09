@@ -71,6 +71,7 @@ export function CustomerSupportWidget() {
     }
 
     const replyId = makeUniqueId("ai_reply");
+    const clientRequestId = crypto.randomUUID();
     setMessages((m) => [...m, { id: makeUniqueId("user_msg"), role: "user", content: trimmed }]);
     setTyping(true);
 
@@ -78,7 +79,11 @@ export function CustomerSupportWidget() {
     try {
       const done = await streamPost(
         "support/ai-chat/stream",
-        { message: trimmed },
+        {
+          message: trimmed,
+          clientRequestId,
+          history: messages.map(({ role, content }) => ({ role, content })),
+        },
         {
           onToken: (token) => {
             if (!started) {
@@ -93,6 +98,10 @@ export function CustomerSupportWidget() {
         },
       );
       setMessages((m) => m.map((msg) => (msg.id === replyId ? { ...msg, declined: done.declined } : msg)));
+      if (done.escalated) {
+        setFrustrated(false);
+        toast("success", "تم إنشاء تذكرة دعم تلقائياً وسيتم التواصل معك قريباً.");
+      }
     } catch {
       setMessages((m) => [
         ...m,

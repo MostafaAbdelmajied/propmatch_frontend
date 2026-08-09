@@ -347,6 +347,7 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
     }
 
     const replyId = makeUniqueId("ai_reply");
+    const clientRequestId = crypto.randomUUID();
     const userMsg: ChatMessage = {
       id: makeUniqueId("user_msg"),
       role: "user",
@@ -376,7 +377,14 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
                 { url: attachment.url, type: attachment.type, name: attachment.name },
               ],
             }
-          : { message: trimmed },
+          : {
+              message: trimmed,
+              clientRequestId,
+              history:
+                mode === "SUPPORT"
+                  ? supportMessages.map(({ role, content }) => ({ role, content }))
+                  : undefined,
+            },
         {
           onToken: (token) => {
             if (!started) {
@@ -406,7 +414,8 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
       } else {
         setSupportMessages((m) => m.map((msg) => (msg.id === replyId ? { ...msg, declined: done.declined, suggestedGuide: done.suggestedGuide } : msg)));
         if (done.escalated) {
-          setFrustrated(true);
+          setFrustrated(false);
+          toast("success", "تم إنشاء تذكرة دعم تلقائياً وسيتم التواصل معك قريباً.");
         }
       }
     } catch {
