@@ -15,7 +15,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(response);
   } catch (error) {
     if (error instanceof BackendApiError) {
-      return NextResponse.json({ statusCode: error.statusCode, message: error.message }, { status: error.statusCode });
+      const body = error.body && typeof error.body === "object"
+        ? error.body
+        : { statusCode: error.statusCode, message: error.message };
+      return NextResponse.json(body, { status: error.statusCode });
     }
     throw error;
   }

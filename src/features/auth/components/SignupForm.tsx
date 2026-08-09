@@ -26,7 +26,9 @@ export function SignupForm() {
   async function onSubmit(values: SignupFormValues) {
     try {
       const res = await registerUser.mutateAsync(values);
-      router.push(`/verify-email?email=${encodeURIComponent(res.email)}`);
+      router.push(
+        `/verify-email?email=${encodeURIComponent(res.email)}&resendAvailableAt=${encodeURIComponent(res.resendAvailableAt)}`,
+      );
     } catch (e) {
       const message = isApiClientError(e) ? e.message : "تعذر إنشاء الحساب، حاول مرة أخرى";
       setError("root", { message });
