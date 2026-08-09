@@ -14,9 +14,8 @@ import { useMyProperties, useQuota } from "@/src/features/landlord/hooks/useLand
 import { formatEGP } from "@/src/utils/format";
 import { CreateOfferRequestSchema, type CreateOfferRequest } from "@/src/lib/api/contracts/offer";
 import type { BrowsableTenantRequest } from "@/src/lib/api/contracts/tenantRequest";
-import type { PropertySummary } from "@/src/lib/api/contracts/property";
 import type { CheckoutPaymentType } from "@/src/lib/api/contracts/payment";
-import { useSendOffer } from "../hooks/useOffers";
+import { useSendOffer, usePropertyScoresForRequest } from "../hooks/useOffers";
 
 export interface SendOfferSheetProps {
   request: BrowsableTenantRequest | null;
@@ -34,6 +33,7 @@ export function SendOfferSheet({ request, onClose }: SendOfferSheetProps) {
   const quota = useQuota();
   const properties = useMyProperties();
   const send = useSendOffer();
+  const propertyScores = usePropertyScoresForRequest(request?.id ?? null);
   const [paywall, setPaywall] = useState<CheckoutPaymentType | null>(null);
 
   const [propertyId, setPropertyId] = useState("");
@@ -136,10 +136,19 @@ export function SendOfferSheet({ request, onClose }: SendOfferSheetProps) {
                   }}
                   error={errors.propertyId}
                   options={offerable.map((p) => {
-                    const pct = calculateMatchScore(request, p);
+                    // Server-authoritative — same computeHybridMatch() score
+                    // as the request list card, never recomputed here. While
+                    // it's still loading, the option just omits the "(N%)"
+                    // suffix rather than showing a fabricated placeholder.
+                    const score = propertyScores.data?.items.find(
+                      (item) => item.propertyId === p.id,
+                    )?.score;
                     return {
                       value: p.id,
-                      label: `${p.title} · ${formatEGP(p.rentAmount)} (${pct}%)`,
+                      label:
+                        score === undefined
+                          ? `${p.title} · ${formatEGP(p.rentAmount)}`
+                          : `${p.title} · ${formatEGP(p.rentAmount)} (${score}%)`,
                     };
                   })}
                 />
@@ -180,39 +189,4 @@ export function SendOfferSheet({ request, onClose }: SendOfferSheetProps) {
       />
     </>
   );
-}
-
-/**
- * ⚠️ Client-side re-implementation of the server's matcher, powering the «N%»
- * in the property dropdown.
- *
- * **This contradicts ASSUMPTIONS.md #7** ("match score is server-authoritative
- * and volatile — never recomputed client-side"), and it cannot be made to
- * agree with the server:
- *
- * - `PropertySummary` carries no `description` / `propertyAroundServices`, so
- *   the semantic term (worth up to +10 server-side) is silently missing here.
- *   The original `p: any` was hiding exactly that.
- * - The server's arithmetic is itself only a placeholder for ChromaDB
- *   embeddings (PRO-09/11). Once the real matcher lands, this function
- *   reproduces none of it and the percentage becomes fiction.
- *
- * Kept as-is for now (behaviour unchanged) — the honest fix is a backend field
- * giving per-property scores for a request, since `BrowsableTenantRequest.
- * matchScore` is only the *best* score across the landlord's properties and
- * can't populate a per-row dropdown. **[CONFIRM with backend]**
- */
-function calculateMatchScore(r: BrowsableTenantRequest, p: PropertySummary): number {
-  let score = 50;
-  if (p.rentAmount >= r.minBudget && p.rentAmount <= r.maxBudget) score += 18;
-  else score -= 22;
-  if (r.preferredLocations.includes(p.district || "")) score += 12;
-  if (p.propertyType === r.propertyType) score += 8;
-  if (p.bedrooms >= r.requiredBedrooms) score += 5;
-  if (!r.needsFurnished || p.isFurnished) score += 5;
-  // The semantic term the server applies here is omitted: this payload has
-  // neither field to compute it from.
-  score += Math.round((r.flexibilityScore - 5) * 0.6);
-  if (p.isBoosted) score += 2;
-  return Math.max(5, Math.min(98, Math.round(score)));
 }
