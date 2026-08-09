@@ -115,7 +115,7 @@ export function AdminTicketDetail({ id }: { id: string }) {
       </div>
 
       {/* Thread */}
-      <div className="flex flex-col gap-3 rounded-card border border-hairline bg-surface p-4">
+      <div className="flex max-h-[60vh] flex-col gap-3 overflow-y-auto overscroll-contain rounded-card border border-hairline bg-surface p-4">
         {ticket.messages.map((m) => {
           const authorVal = String(m.authorType || m.author || "").toLowerCase();
           const isUser = authorVal === "user";
