@@ -169,14 +169,16 @@ export function useRealtime(): RealtimeState {
       // often on another screen when a draft changes state.
       if (n.type === "NEW_REVIEW_SUBMITTED") toast("info", n.message);
       else if (n.type === "REVIEW_APPROVED") toast("success", n.message);
-      else if (n.type === "NEW_OFFER_RECEIVED") {
-        // The same notification type covers a new offer, a counter-offer, and
-        // an accept/decline response in both marketplace directions. Refetch
-        // every affected inbox so the recipient sees it without a refresh.
+      else if (n.type === "NEW_OFFER_RECEIVED" || n.type === "NEW_MATCH") {
+        // Offer updates and accepted offers both change data owned by the
+        // other participant. Refetch only the affected inboxes and the match
+        // list; React Query only requests active observers, so this remains
+        // event-driven rather than becoming background polling.
         void qc.invalidateQueries({ queryKey: ["tenant", "offers"] });
         void qc.invalidateQueries({ queryKey: ["landlord", "offers"] });
         void qc.invalidateQueries({ queryKey: ["tenant", "listing-offers"] });
         void qc.invalidateQueries({ queryKey: ["landlord", "listing-offers"] });
+        void qc.invalidateQueries({ queryKey: ["matches"] });
         toast("info", n.message);
       }
     };
@@ -210,11 +212,21 @@ export function useRealtime(): RealtimeState {
               senderId: message.senderId,
               body: message.body,
               createdAt: message.createdAt,
+              editedAt: message.editedAt,
+              attachmentUrl: message.attachmentUrl,
+              attachmentType: message.attachmentType,
+              attachmentName: message.attachmentName,
+              attachmentDurationMs: message.attachmentDurationMs,
               isMine: false,
             },
           ];
         },
       );
+      // The socket is deliberately a delivery signal, while HTTP remains the
+      // source of truth. This also fills any fields a newer backend may add.
+      void qc.invalidateQueries({
+        queryKey: ["matches", message.matchConnectionId, "messages"],
+      });
       qc.invalidateQueries({ queryKey: ["matches"] });
       playNotificationChime();
     };
