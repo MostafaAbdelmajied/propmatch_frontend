@@ -30,6 +30,7 @@ export const NotificationTypeSchema = z.enum([
   "ACCOUNT_REACTIVATED",
   "ACCOUNT_REACTIVATION_REJECTED",
   "REACTIVATION_REQUEST",
+  "SUPPORT_TICKET_ESCALATED",
 ]);
 export type NotificationType = z.infer<typeof NotificationTypeSchema>;
 

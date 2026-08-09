@@ -15,6 +15,7 @@ import {
   FileText,
   Inbox,
   MessageCircle,
+  Headset,
   UserCheck,
   X,
 } from "lucide-react";
@@ -46,6 +47,7 @@ const typeIcon: Record<NotificationType, typeof Bell> = {
   ACCOUNT_REACTIVATED: UserCheck,
   ACCOUNT_REACTIVATION_REJECTED: CircleAlert,
   REACTIVATION_REQUEST: UserCheck,
+  SUPPORT_TICKET_ESCALATED: Headset,
 };
 
 export function NotificationBell({
