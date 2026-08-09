@@ -5,6 +5,7 @@ let mockPathname = "/tenant/messages/match-id";
 let mockAgreementReachedAt: string | null = null;
 let mockCanConfirmAgreement = true;
 const mockConfirmAgreement = jest.fn();
+const mockSendMessage = jest.fn();
 
 jest.mock("next/navigation", () => ({
   usePathname: () => mockPathname,
@@ -33,7 +34,7 @@ jest.mock("../../hooks/useMessages", () => ({
     isPending: false,
     isError: false,
   }),
-  useSendMatchMessage: () => ({ mutate: jest.fn(), isPending: false }),
+  useSendMatchMessage: () => ({ mutate: mockSendMessage, isPending: false }),
   useUpdateMatchMessage: () => ({ mutate: jest.fn(), isPending: false }),
   useDeleteMatchMessage: () => ({ mutate: jest.fn(), isPending: false }),
 }));
@@ -48,6 +49,7 @@ describe("ConversationView agreement gate", () => {
     mockAgreementReachedAt = null;
     mockCanConfirmAgreement = true;
     mockConfirmAgreement.mockReset();
+    mockSendMessage.mockReset();
   });
 
   it("requires the tenant to explicitly acknowledge the final agreement", () => {
@@ -94,5 +96,20 @@ describe("ConversationView agreement gate", () => {
     render(<ConversationView matchConnectionId="match-id" />);
     fireEvent.click(screen.getByRole("button", { name: /تم التوصل إلى اتفاق/ }));
     expect(screen.getByRole("dialog")).toHaveTextContent("أرشفة العقار");
+  });
+
+  it("sends with Enter and keeps Shift+Enter available for a new line", () => {
+    render(<ConversationView matchConnectionId="match-id" />);
+    const messageBox = screen.getByRole("textbox");
+
+    fireEvent.change(messageBox, { target: { value: "Hello" } });
+    fireEvent.keyDown(messageBox, { key: "Enter", shiftKey: true });
+    expect(mockSendMessage).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(messageBox, { key: "Enter" });
+    expect(mockSendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ body: "Hello" }),
+      expect.any(Object),
+    );
   });
 });

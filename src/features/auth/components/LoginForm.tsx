@@ -20,6 +20,7 @@ export function LoginForm() {
   const login = useLogin();
   const requestReactivation = useRequestReactivation();
   const toast = useToast();
+  const openingSuspensionAppeal = params.get("suspensionAppeal") === "1";
   const [deletedCredentials, setDeletedCredentials] = useState<LoginFormValues | null>(null);
   const [suspensionCredentials, setSuspensionCredentials] = useState<LoginFormValues | null>(null);
   const [suspensionNotice, setSuspensionNotice] = useState<string | null>(null);
@@ -76,7 +77,7 @@ export function LoginForm() {
       { ...suspensionCredentials, message: appealMessage.trim() },
       {
         onSuccess: () =>
-          toast("success", "تم إرسال تذكرة مراجعة الإيقاف إلى فريق الإدارة."),
+          toast("success", "تم إرسال رسالتك إلى خدمة العملاء لمراجعة إيقاف الحساب."),
         onError: () => toast("error", "تعذر إرسال التذكرة، حاول مرة أخرى"),
       },
     );
@@ -118,13 +119,13 @@ export function LoginForm() {
           <p className="mt-1">{suspensionNotice}</p>
         </div>
         <label className="flex flex-col gap-1.5 text-small font-semibold text-body-text">
-          سبب طلب المراجعة
+          رسالتك إلى خدمة العملاء
           <textarea
-            aria-label="سبب طلب المراجعة"
+            aria-label="رسالتك إلى خدمة العملاء"
             value={appealMessage}
             maxLength={1000}
             onChange={(event) => setAppealMessage(event.target.value)}
-            placeholder="اشرح باختصار لماذا تريد مراجعة قرار الإيقاف…"
+            placeholder="اكتب شكوتك أو اسأل عن الخطوات المطلوبة لحل إيقاف الحساب…"
             className="min-h-28 rounded-control border border-hairline bg-surface px-3.5 py-2.5 text-body font-normal focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
           />
           <span className="text-caption font-normal text-muted">10 أحرف على الأقل</span>
@@ -136,7 +137,7 @@ export function LoginForm() {
           disabled={appealMessage.trim().length < 10 || requestReactivation.isSuccess}
           onClick={requestSuspensionReview}
         >
-          إرسال تذكرة مراجعة للإدارة
+          إرسال إلى خدمة العملاء
         </Button>
         <button
           type="button"
@@ -155,6 +156,15 @@ export function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4" noValidate>
+      {openingSuspensionAppeal && (
+        <div className="rounded-control border border-primary/25 bg-primary-tint px-4 py-3 text-small text-body-text">
+          <p className="font-bold text-primary">التواصل مع خدمة العملاء بشأن إيقاف الحساب</p>
+          <p className="mt-1">
+            أدخل بيانات حسابك لتأكيد هويتك، ثم ستتمكن من كتابة شكوتك أو السؤال عن طريقة حل
+            الإيقاف.
+          </p>
+        </div>
+      )}
       <InputField
         label="البريد الإلكتروني"
         type="email"

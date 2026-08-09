@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { VerificationStatusSchema } from "./verification";
 
+const NormalizedEmailSchema = z.string().trim().toLowerCase().email().max(254);
+
 /**
  * Mirrors the Final ERD's `USER` entity. ERD fields are snake_case; the API
  * boundary is assumed to map them to camelCase (ASSUMPTIONS.md #2).
@@ -22,7 +24,7 @@ export type SignupRole = z.infer<typeof SignupRoleSchema>;
 
 export const RegisterRequestSchema = z.object({
   fullName: z.string().min(2),
-  email: z.string().email(),
+  email: NormalizedEmailSchema,
   phoneNumber: z.string().min(8),
   password: z.string().min(8),
   role: SignupRoleSchema,
@@ -30,19 +32,19 @@ export const RegisterRequestSchema = z.object({
 export type RegisterRequest = z.infer<typeof RegisterRequestSchema>;
 
 export const LoginRequestSchema = z.object({
-  email: z.string().email(),
+  email: NormalizedEmailSchema,
   password: z.string().min(1),
 });
 export type LoginRequest = z.infer<typeof LoginRequestSchema>;
 
 export const EmailVerificationRequestSchema = z.object({
-  email: z.string().email(),
+  email: NormalizedEmailSchema,
   code: z.string().regex(/^\d{6}$/),
 });
 export type EmailVerificationRequest = z.infer<typeof EmailVerificationRequestSchema>;
 
 export const ResendEmailVerificationRequestSchema = z.object({
-  email: z.string().email(),
+  email: NormalizedEmailSchema,
 });
 export type ResendEmailVerificationRequest = z.infer<typeof ResendEmailVerificationRequestSchema>;
 
@@ -106,19 +108,22 @@ export const BackendMeResponseSchema = z.union([
   z.object({ user: BackendUserResponseSchema }).transform(({ user }) => user),
 ]);
 
-export const BackendAuthTokensSchema = z.object({
-  accessToken: z.string().optional(),
-  accesstoken: z.string().optional(),
-  refreshToken: z.string(),
-  user: BackendUserResponseSchema,
-}).refine((tokens) => Boolean(tokens.accessToken ?? tokens.accesstoken), {
-  message: "Backend auth response must include an access token.",
-  path: ["accessToken"],
-}).transform((tokens) => ({
-  accessToken: tokens.accessToken ?? tokens.accesstoken!,
-  refreshToken: tokens.refreshToken,
-  user: tokens.user,
-}));
+export const BackendAuthTokensSchema = z
+  .object({
+    accessToken: z.string().optional(),
+    accesstoken: z.string().optional(),
+    refreshToken: z.string(),
+    user: BackendUserResponseSchema,
+  })
+  .refine((tokens) => Boolean(tokens.accessToken ?? tokens.accesstoken), {
+    message: "Backend auth response must include an access token.",
+    path: ["accessToken"],
+  })
+  .transform((tokens) => ({
+    accessToken: tokens.accessToken ?? tokens.accesstoken!,
+    refreshToken: tokens.refreshToken,
+    user: tokens.user,
+  }));
 export type BackendAuthTokens = z.infer<typeof BackendAuthTokensSchema>;
 
 /** POST /auth/login's 403 body for a soft-deleted account (see JwtStrategy /

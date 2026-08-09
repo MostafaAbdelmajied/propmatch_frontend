@@ -9,12 +9,13 @@ jest.mock("../../hooks/useSession", () => ({
 }));
 jest.mock("next/navigation", () => ({
   useRouter: () => ({ push: jest.fn() }),
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => mockSearchParams,
 }));
 jest.mock("@/src/components/ui/Toast", () => ({ useToast: () => jest.fn() }));
 
 const mockedLogin = jest.mocked(useLogin);
 const mockedRequestReactivation = jest.mocked(useRequestReactivation);
+let mockSearchParams = new URLSearchParams();
 
 function makeApiClientError(statusCode: number, message: string, body: unknown) {
   const err = new Error(message) as Error & { name: string; statusCode: number; body: unknown };
@@ -42,6 +43,7 @@ describe("LoginForm — account-state error handling", () => {
     mockedLogin.mockReset();
     mockedRequestReactivation.mockReset();
     requestReactivationMutate.mockReset();
+    mockSearchParams = new URLSearchParams();
     mockedRequestReactivation.mockReturnValue({
       mutate: requestReactivationMutate,
       isPending: false,
@@ -122,6 +124,20 @@ describe("LoginForm — account-state error handling", () => {
       },
       expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) }),
     );
+  });
+
+  it("explains the support flow when opened from the realtime suspension notice", () => {
+    mockSearchParams = new URLSearchParams("suspensionAppeal=1");
+    mockedLogin.mockReturnValue({
+      mutateAsync: jest.fn(),
+    } as unknown as ReturnType<typeof useLogin>);
+
+    renderForm();
+
+    expect(
+      screen.getByText("التواصل مع خدمة العملاء بشأن إيقاف الحساب"),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/أدخل بيانات حسابك لتأكيد هويتك/)).toBeInTheDocument();
   });
 
   it("falls back to the generic error message for a plain 401 (wrong password)", async () => {

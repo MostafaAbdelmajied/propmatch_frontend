@@ -14,6 +14,7 @@ import type { LeaseContract } from "@/src/lib/api/contracts/contract";
 import { MANDATORY_CLAUSES, renderMandatoryClauseBody } from "../builder/mandatoryClauses";
 import { useSession } from "@/src/features/auth/hooks/useSession";
 import { OptionalServices } from "./OptionalServices";
+import { UserReviewPanel } from "@/src/features/reviews/components/UserReviewPanel";
 
 const errorMessage = (error: unknown, fallback: string) => {
   const code =
@@ -97,6 +98,8 @@ export function ContractPreview({ contract }: { contract: LeaseContract }) {
       </div>
 
       {session.data && <OptionalServices role={session.data.role} />}
+
+      {contract.status === "generated" && <UserReviewPanel contractId={contract.id} />}
 
       {requestOpen && (
         <section
