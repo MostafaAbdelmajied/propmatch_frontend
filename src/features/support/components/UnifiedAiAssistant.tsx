@@ -41,6 +41,7 @@ import {
   useUserTicketDetail,
   useUserTicketReply,
 } from "../hooks/useUserSupport";
+import { buildChatStreamPayload } from "../chatStreamPayload";
 
 const statusTone: Record<string, string> = {
   NEW: "bg-trust-blue-tint text-trust-blue",
@@ -422,19 +423,13 @@ export function UnifiedAiAssistant({
     try {
       const done = await streamPost(
         endpoint,
-        attachment
-          ? {
-              message: trimmed,
-              attachments: [{ url: attachment.url, type: attachment.type, name: attachment.name }],
-            }
-          : {
-              message: trimmed,
-              clientRequestId,
-              history:
-                mode === "SUPPORT"
-                  ? supportMessages.map(({ role, content }) => ({ role, content }))
-                  : undefined,
-            },
+        buildChatStreamPayload({
+          mode,
+          message: trimmed,
+          attachment,
+          clientRequestId,
+          supportMessages,
+        }),
         {
           onToken: (token) => {
             if (!started) {
@@ -489,7 +484,7 @@ export function UnifiedAiAssistant({
         role: "assistant",
         content:
           mode === "LEGAL"
-            ? "أنا المستشار القانوني لمنصة PropMatch. يمكنني مساعدتك في استفسارات قانون الإيجار المصري رقم 4 لسنة 1996."
+            ? "تعذر الحصول على إجابة قانونية الآن. حاول مرة أخرى بعد قليل."
             : "أنا المساعد الآلي لخدمة العملاء. إذا كنت ترغب في التحدث مع موظف دعم فني، انقر على زر التحويل أدناه.",
       };
       if (mode === "LEGAL") {
