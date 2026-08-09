@@ -3,7 +3,6 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { io, type Socket } from "socket.io-client";
 import { SOCKET_EVENTS } from "@/src/lib/api/contracts/notification";
 import type {
   AccountSuspendedPayload,
@@ -19,10 +18,10 @@ import { authApi } from "@/src/lib/api/browserClient";
 import type { AdminQueuesResponse, QueueItem } from "@/src/lib/api/contracts/admin";
 import type { MatchMessage, RealtimeMatchMessage } from "@/src/lib/api/contracts/message";
 import type { PaymentStatus } from "@/src/lib/api/contracts/payment";
+import { getSocket, reconnectSocket } from "./socketClient";
 
-const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL;
+export { reconnectSocket } from "./socketClient";
 
-let socket: Socket | null = null;
 let sharedAudioCtx: AudioContext | null = null;
 
 // Keep the socket payload-to-cache mapping explicit. Socket events are
@@ -93,35 +92,6 @@ function playNotificationChime(): void {
   } catch (e) {
     console.warn("Notification chime error:", e);
   }
-}
-
-/** One shared connection per tab, regardless of how many components subscribe. */
-function getSocket(): Socket | null {
-  if (!SOCKET_URL || typeof window === "undefined") return null;
-  socket ??= io(SOCKET_URL, {
-    withCredentials: true,
-    // Keep retrying: the singleton may first connect before the auth cookie
-    // exists (e.g. a deep link → login → back), and must recover afterwards
-    // instead of giving up permanently.
-    reconnectionAttempts: Infinity,
-    reconnectionDelay: 1000,
-    reconnectionDelayMax: 5000,
-  });
-  return socket;
-}
-
-/**
- * Force the shared socket to re-run its handshake so it authenticates with the
- * CURRENT auth cookie. Call this after login/logout: the singleton may have
- * connected anonymously (e.g. on the /login page before the cookie existed) or
- * as a previous account, and must re-auth as the new user. Reuses the same
- * socket instance, so all `.on(...)` listeners stay bound.
- */
-export function reconnectSocket(): void {
-  const s = getSocket();
-  if (!s) return;
-  s.disconnect();
-  s.connect();
 }
 
 export interface PaymentUpdatedPayload {
