@@ -17,8 +17,10 @@ const kycDetails = {
   userId: "user-1",
   userName: "Test User",
   nationalId: null,
-  nationalIdFrontUrl: "http://localhost:3001/api/storage/private/11111111-1111-4111-8111-111111111111",
-  nationalIdBackUrl: "https://api.example.com/api/storage/private/22222222-2222-4222-8222-222222222222",
+  nationalIdFrontUrl:
+    "http://localhost:3001/api/storage/private/11111111-1111-4111-8111-111111111111",
+  nationalIdBackUrl:
+    "https://api.example.com/api/storage/private/22222222-2222-4222-8222-222222222222",
   selfieUrl: "https://api.example.com/api/storage/private/33333333-3333-4333-8333-333333333333",
   submittedAt: "2026-07-20T12:00:00.000Z",
 };
@@ -48,12 +50,16 @@ describe("AdminUserReview", () => {
     getKycReview.mockReset();
     reviewKyc.mockReset();
     mutate.mockReset();
-    getKycReview.mockReturnValue({ data: kycDetails, isLoading: false } as ReturnType<typeof useKycReview>);
+    getKycReview.mockReturnValue({ data: kycDetails, isLoading: false } as ReturnType<
+      typeof useKycReview
+    >);
     reviewKyc.mockReturnValue({ mutate, isPending: false } as ReturnType<typeof useReviewKyc>);
   });
 
   it("renders the existing loading fallback while KYC details load", () => {
-    getKycReview.mockReturnValue({ data: undefined, isLoading: true } as ReturnType<typeof useKycReview>);
+    getKycReview.mockReturnValue({ data: undefined, isLoading: true } as ReturnType<
+      typeof useKycReview
+    >);
     const { container } = renderReview();
 
     expect(container.querySelector(".animate-pulse")).toBeInTheDocument();
@@ -104,6 +110,42 @@ describe("AdminUserReview", () => {
 
     fireEvent.load(selfieImage);
     expect(within(selfie).queryByText("جارٍ تحميل الصورة")).not.toBeInTheDocument();
+  });
+
+  it("opens the protected images in a large navigable gallery", () => {
+    renderReview();
+
+    fireEvent.click(screen.getByRole("button", { name: `عرض ${labels[0]} بحجم كبير` }));
+
+    const gallery = screen.getByRole("dialog", { name: labels[0] });
+    expect(gallery).toBeInTheDocument();
+    expect(within(gallery).getByText("1 من 3")).toBeInTheDocument();
+    expect(within(gallery).getByRole("img", { name: labels[0] })).toHaveAttribute(
+      "src",
+      kycDetails.nationalIdFrontUrl,
+    );
+
+    fireEvent.click(within(gallery).getByRole("button", { name: "الصورة التالية" }));
+    expect(within(gallery).getByRole("heading", { name: labels[1] })).toBeInTheDocument();
+    expect(within(gallery).getByText("2 من 3")).toBeInTheDocument();
+    expect(within(gallery).getByRole("img", { name: labels[1] })).toHaveAttribute(
+      "src",
+      kycDetails.nationalIdBackUrl,
+    );
+
+    fireEvent.click(within(gallery).getByRole("button", { name: `عرض ${labels[2]}` }));
+    expect(within(gallery).getByRole("heading", { name: labels[2] })).toBeInTheDocument();
+    expect(within(gallery).getByText("3 من 3")).toBeInTheDocument();
+  });
+
+  it("closes the large gallery with Escape", () => {
+    renderReview();
+
+    fireEvent.click(screen.getByRole("button", { name: `عرض ${labels[0]} بحجم كبير` }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it.each([
