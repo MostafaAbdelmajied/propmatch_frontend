@@ -143,7 +143,7 @@ describe("AdminUsersTable", () => {
 
     expect(screen.getByText("مستأجر تجريبي")).toBeInTheDocument();
     expect(screen.getByText("مالك تجريبي")).toBeInTheDocument();
-    expect(screen.getAllByText("نشط")).toHaveLength(2);
+    expect(screen.getAllByText("نشط", { selector: "span" })).toHaveLength(2);
   });
 
   it("only shows the delete action when missing user:suspend", () => {
