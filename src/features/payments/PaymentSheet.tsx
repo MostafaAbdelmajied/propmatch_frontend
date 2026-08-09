@@ -17,6 +17,7 @@ import { cn } from "@/src/utils/cn";
 import { formatEGP } from "@/src/utils/format";
 import {
   AlertCircle,
+  AlertTriangle,
   ArrowRight,
   Check,
   CheckCircle2,
@@ -844,7 +845,16 @@ export function PaymentSheet({
             أكمل الدفع في النافذة المنبثقة. عند إغلاقها سنحاول التحقق من حالة الدفع تلقائيًا.
           </p>
 
-          {errorMessage && <p className="text-caption text-error">{errorMessage}</p>}
+          {errorMessage && (
+            <div className="flex flex-col items-center justify-center gap-2 rounded-card border border-amber-500/30 bg-amber-500/10 p-4 text-center shadow-xs">
+              <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-amber-500/20 text-amber-600">
+                <AlertTriangle className="size-6" aria-hidden />
+              </div>
+              <p className="mt-1 text-small font-bold text-amber-900 leading-relaxed">
+                {errorMessage}
+              </p>
+            </div>
+          )}
 
           <div className="grid gap-3 sm:grid-cols-2">
             <Button
