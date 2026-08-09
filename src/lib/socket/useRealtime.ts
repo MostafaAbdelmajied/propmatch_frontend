@@ -169,6 +169,16 @@ export function useRealtime(): RealtimeState {
       // often on another screen when a draft changes state.
       if (n.type === "NEW_REVIEW_SUBMITTED") toast("info", n.message);
       else if (n.type === "REVIEW_APPROVED") toast("success", n.message);
+      else if (n.type === "NEW_OFFER_RECEIVED") {
+        // The same notification type covers a new offer, a counter-offer, and
+        // an accept/decline response in both marketplace directions. Refetch
+        // every affected inbox so the recipient sees it without a refresh.
+        void qc.invalidateQueries({ queryKey: ["tenant", "offers"] });
+        void qc.invalidateQueries({ queryKey: ["landlord", "offers"] });
+        void qc.invalidateQueries({ queryKey: ["tenant", "listing-offers"] });
+        void qc.invalidateQueries({ queryKey: ["landlord", "listing-offers"] });
+        toast("info", n.message);
+      }
     };
 
     const onQueueItem = (item: QueueItem) => {
