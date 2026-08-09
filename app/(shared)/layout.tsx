@@ -3,6 +3,7 @@ import { SharedBackButton } from "@/src/components/nav/SharedBackButton";
 import { TenantNav } from "@/src/components/nav/TenantNav";
 import { Logo } from "@/src/components/ui/Logo";
 import { landingAfterLogin } from "@/src/features/auth/roleRouting";
+import { FloatingAiWidget } from "@/src/features/support/components/FloatingAiWidget";
 import { requireSession } from "@/src/lib/api/serverSession";
 
 /** Shared shell; each page applies its own role policy before rendering. */
@@ -17,6 +18,7 @@ export default async function SharedLayout({ children }: { children: React.React
       <div className="flex min-h-dvh flex-col pb-16 md:pb-0">
         {roleNav}
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">{children}</main>
+        <FloatingAiWidget />
       </div>
     );
   }

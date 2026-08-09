@@ -63,7 +63,10 @@ function executeRequest(method: string, path: string, body?: unknown): Promise<R
 
   return fetch(path, {
     method,
-    headers: body !== undefined && !isFormData ? { "Content-Type": "application/json" } : undefined,
+    headers: {
+      "Accept-Language": "ar",
+      ...(body !== undefined && !isFormData ? { "Content-Type": "application/json" } : {}),
+    },
     // FormData deliberately has no manually supplied Content-Type: fetch adds
     // the multipart boundary required by the backend.
     body: body !== undefined ? (isFormData ? body : JSON.stringify(body)) : undefined,
@@ -154,7 +157,7 @@ export async function streamPost(
   const stream = () =>
     fetch(`/api/backend/${path}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+      headers: { "Content-Type": "application/json", Accept: "text/event-stream", "Accept-Language": "ar" },
       body: JSON.stringify(body),
       signal,
     });

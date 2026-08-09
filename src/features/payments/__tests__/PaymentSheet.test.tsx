@@ -14,6 +14,10 @@ jest.mock("@/src/features/landlord/hooks/useLandlord", () => ({
   useQuota: () => ({ data: { planType: "FREE" } }),
 }));
 
+jest.mock("../useCommercialCatalog", () => ({
+  useCommercialCatalog: () => ({ data: undefined }),
+}));
+
 jest.mock("@/src/lib/socket/useRealtime", () => ({
   subscribeToPaymentUpdates: (listener: (payment: PaymentUpdatedPayload) => void) => {
     mockPaymentListener = listener;
@@ -36,9 +40,9 @@ describe("PaymentSheet successful checkout", () => {
     jest.mocked(api.post).mockResolvedValue({
       providerOrderId: "order-123",
       checkoutUrl: "https://checkout.example.test/pay",
-      amount: 199,
+      amount: 39,
       currency: "EGP",
-      paymentType: "AI_ADDON",
+      paymentType: "AI_USES_10_90D",
     });
 
     const popup = {
@@ -57,7 +61,12 @@ describe("PaymentSheet successful checkout", () => {
   it("shows one success message for duplicate provider confirmations", async () => {
     const onActivated = jest.fn();
     render(
-      <PaymentSheet open onClose={jest.fn()} paymentType="AI_ADDON" onActivated={onActivated} />,
+      <PaymentSheet
+        open
+        onClose={jest.fn()}
+        paymentType="AI_USES_10_90D"
+        onActivated={onActivated}
+      />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: /التالي: اختر طريقة الدفع/ }));

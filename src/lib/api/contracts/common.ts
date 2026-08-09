@@ -67,6 +67,7 @@ export const CapabilitySchema = z.enum([
   "request:reject",
   "review:moderate",
   "payment:view",
+  "commercial:manage",
   "partner_lead:view",
   "report:export",
   "ticket:reply",

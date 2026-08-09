@@ -76,7 +76,7 @@ export function AdminDashboard() {
   ].filter((c) => can(c.cap));
 
   return (
-    <div className="flex flex-col gap-5">
+    <div id="moderation" className="flex scroll-mt-6 flex-col gap-5">
       <div>
         <h1 className="text-h1 font-bold text-ink">لوحة المراجعة</h1>
         <p className="mt-1 text-small text-muted">تُحدَّث القائمة تلقائيًا فور وصول طلبات جديدة.</p>
@@ -151,7 +151,10 @@ function QueueColumn({
                   )}
                 >
                   <div className="min-w-0">
-                    <p className="truncate text-small font-bold text-ink">{item.title}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="truncate text-small font-bold text-ink">{item.title}</p>
+                      <CommercialPriorityBadge tier={item.commercialPriority} />
+                    </div>
                     <p className="truncate text-caption text-muted">{item.subtitle}</p>
                   </div>
                   <span className="flex shrink-0 items-center gap-1 text-caption text-muted">
@@ -215,6 +218,9 @@ function ModeratableItem({
   return (
     <div className="flex flex-col gap-2 rounded-control border border-hairline p-3 animate-[queue-slide-in_.5s_ease-out]">
       <div>
+        <div className="mb-1 flex items-center gap-2">
+          <CommercialPriorityBadge tier={item.commercialPriority} />
+        </div>
         {hrefBase ? (
           <Link
             href={`${hrefBase}/${item.subjectId}`}
@@ -288,5 +294,22 @@ function ModeratableItem({
         )}
       </div>
     </div>
+  );
+}
+
+function CommercialPriorityBadge({ tier }: { tier: QueueItem["commercialPriority"] }) {
+  tier ??= "FREEMIUM";
+  const label = tier === "PREMIUM" ? "Premium" : tier === "OWNER_PLUS" ? "Owner Plus" : "Freemium";
+  return (
+    <span
+      className={cn(
+        "shrink-0 rounded-pill px-2 py-0.5 text-[10px] font-bold",
+        tier === "PREMIUM" && "bg-amber-500/15 text-amber-700",
+        tier === "OWNER_PLUS" && "bg-primary-tint text-primary",
+        tier === "FREEMIUM" && "bg-background text-muted",
+      )}
+    >
+      {label}
+    </span>
   );
 }

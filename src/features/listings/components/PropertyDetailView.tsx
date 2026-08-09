@@ -11,6 +11,7 @@ import { formatNumber } from "@/src/utils/format";
 import { ArrowUpDown, Bath, BedDouble, Car, Lock, MapPin, Ruler, Sofa } from "lucide-react";
 import Link from "next/link";
 import { useProperty } from "../hooks/useProperties";
+import { useTrackPropertyView } from "../hooks/usePropertyAnalytics";
 import { PropertyImageGallery } from "./PropertyImageGallery";
 import { PropertyReviews } from "./PropertyReviews";
 
@@ -31,6 +32,7 @@ export function PropertyDetailView({
   /** Favorite toggle, injected by the tenant surface (see PropertyCard). */
   favoriteSlot?: React.ReactNode;
 }) {
+  useTrackPropertyView(id);
 
   const { data: p, isLoading, isError, refetch } = useProperty(id);
   const { data: user, isLoading: isSessionLoading } = useSession();

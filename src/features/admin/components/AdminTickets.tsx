@@ -60,6 +60,18 @@ export function AdminTickets() {
                       {ticketStatusLabels[t.status]}
                     </span>
                     <span className="truncate text-small font-bold text-ink">{t.subject}</span>
+                    {t.commercialPriority && (
+                      <span
+                        className={cn(
+                          "rounded-pill px-2 py-0.5 text-[10px] font-bold",
+                          t.commercialPriority === "PREMIUM" && "bg-amber-500/15 text-amber-700",
+                          t.commercialPriority === "OWNER_PLUS" && "bg-primary-tint text-primary",
+                          t.commercialPriority === "FREEMIUM" && "bg-background text-muted",
+                        )}
+                      >
+                        {t.commercialPriority === "PREMIUM" ? "Premium" : t.commercialPriority === "OWNER_PLUS" ? "Owner Plus" : "Freemium"}
+                      </span>
+                    )}
                   </div>
                   <p className="mt-1 flex items-center gap-1.5 text-caption text-muted">
                     <UserIcon className="size-3" aria-hidden />
