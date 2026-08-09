@@ -132,7 +132,7 @@ export function isApiClientError(e: unknown): e is ApiClientError {
 
 export type StreamChunk =
   | { type: "token"; value: string }
-  | { type: "done"; id: string; declined?: boolean; escalated?: boolean; suggestedGuide?: string[] };
+  | { type: "done"; id: string; declined?: boolean; escalated?: boolean; suggestedGuide?: string[]; ticketId?: string };
 
 
 export interface StreamHandlers {

@@ -10,9 +10,10 @@ import { VerifiedBadge } from "@/src/components/ui/VerifiedBadge";
 import { useLogout, useSession } from "@/src/features/auth/hooks/useSession";
 import { useQuota } from "@/src/features/landlord/hooks/useLandlord";
 import { PaymentSheet } from "@/src/features/payments/PaymentSheet";
+import { AddOnsWizard } from "@/src/features/payments/AddOnsWizard";
 import { useCommercialCatalog } from "@/src/features/payments/useCommercialCatalog";
 import { api } from "@/src/lib/api/browserClient";
-import type { CheckoutPaymentType } from "@/src/lib/api/contracts/payment";
+import { paymentTypePrices, type CheckoutPaymentType } from "@/src/lib/api/contracts/payment";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
@@ -28,6 +29,7 @@ import {
   Loader2,
   LogOut,
   Mail,
+  Package,
   Phone,
   ShieldAlert,
   Sparkles,
@@ -37,6 +39,8 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+
+import { AvatarCropModal } from "@/src/features/profile/components/AvatarCropModal";
 
 function compressImage(file: File, maxWidth = 300, maxHeight = 300): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -73,6 +77,19 @@ function compressImage(file: File, maxWidth = 300, maxHeight = 300): Promise<str
     reader.onerror = (error) => reject(error);
   });
 }
+
+/** The 6 SKUs AddOnsWizard offers — kept in sync manually since it's a small,
+ * fixed catalog. Used only to compute the "starting from" price shown on the
+ * generic Add-Ons card before the wizard opens. */
+const ADD_ON_PAYMENT_TYPES: CheckoutPaymentType[] = [
+  "EXTRA_LISTING_60D",
+  "OFFERS_10_60D",
+  "BOOST_7D",
+  "BOOST_14D",
+  "BOOST_30D",
+  "AI_USES_10_90D",
+];
+const ADD_ON_MIN_PRICE_EGP = Math.min(...ADD_ON_PAYMENT_TYPES.map((t) => paymentTypePrices[t]));
 
 function CurrentPlanStatus({ planName }: { planName: string }) {
   return (
@@ -123,15 +140,17 @@ export function ProfileScreen() {
   const ownerPlusYearly = commercial?.products.OWNER_PLUS_YEARLY?.priceEgp ?? 2_990;
   const premiumMonthly = commercial?.products.PREMIUM_MONTHLY?.priceEgp ?? 699;
   const premiumYearly = commercial?.products.PREMIUM_YEARLY?.priceEgp ?? 6_990;
-  const aiAddon = commercial?.products.AI_USES_10_90D;
   const logout = useLogout();
 
   const [activePaymentType, setActivePaymentType] = useState<CheckoutPaymentType | null>(null);
+  const [showAddOnsWizard, setShowAddOnsWizard] = useState(false);
   const [showOfferInfo, setShowOfferInfo] = useState(false);
 
-  // Avatar uploading state
+  // Avatar uploading & Cropping state
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [avatarProgress, setAvatarProgress] = useState(0);
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+  const [showCropper, setShowCropper] = useState(false);
 
   // Update Account Wizard state
   const [showUpdateWizard, setShowUpdateWizard] = useState(false);
@@ -153,20 +172,33 @@ export function ProfileScreen() {
     }
   }, [user]);
 
-  async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleAvatarFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      setCropImageSrc(dataUrl);
+      setShowCropper(true);
+    };
+    reader.readAsDataURL(file);
+    // Reset file input so selecting the same file again triggers onChange
+    e.target.value = "";
+  }
+
+  async function handleCropConfirm(croppedBase64: string) {
     setUploadingAvatar(true);
-    setAvatarProgress(25);
+    setAvatarProgress(30);
     try {
-      setAvatarProgress(50);
-      const compressedBase64 = await compressImage(file);
-      setAvatarProgress(75);
-      await api.patch("auth/profile", { avatarUrl: compressedBase64 });
+      setAvatarProgress(60);
+      await api.patch("auth/profile", { avatarUrl: croppedBase64 });
       setAvatarProgress(100);
       await queryClient.invalidateQueries({ queryKey: ["session"] });
       setUploadingAvatar(false);
       setAvatarProgress(0);
+      setShowCropper(false);
+      setCropImageSrc(null);
     } catch (err) {
       console.error(err);
       setUploadingAvatar(false);
@@ -256,7 +288,7 @@ export function ProfileScreen() {
                   type="file"
                   accept="image/*"
                   className="hidden"
-                  onChange={handleAvatarChange}
+                  onChange={handleAvatarFileSelect}
                   disabled={uploadingAvatar}
                 />
               </label>
@@ -628,37 +660,35 @@ export function ProfileScreen() {
                 )}
               </div>
 
-              {/* AI Addon Plan */}
+              {/* Add-Ons — generic entry point over all 6 add-on SKUs */}
               <div className="flex flex-col justify-between rounded-card border border-hairline bg-surface p-4 shadow-xs">
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-body font-bold text-ink">باقة الذكاء الاصطناعي</span>
-                    <Sparkles className="size-5 text-accent" aria-hidden />
+                    <span className="text-body font-bold text-ink">الإضافات</span>
+                    <Package className="size-5 text-accent" aria-hidden />
                   </div>
                   <p className="text-h2 font-extrabold text-ink mb-3">
-                    {aiAddon?.priceEgp ?? 39}{" "}
-                    <span className="text-caption font-normal text-muted">ج.م لمرة واحدة</span>
+                    من {ADD_ON_MIN_PRICE_EGP}{" "}
+                    <span className="text-caption font-normal text-muted">ج.م</span>
                   </p>
                   <p className="text-caption leading-relaxed text-body-text mb-4">
-                    +{aiAddon?.quantity ?? 10} استخدامات لمحسن وصف العقار، بصلاحية مستقلة لمدة{" "}
-                    {aiAddon?.validityDays ?? 90} يومًا.
+                    عقار نشط إضافي، عروض مطابقة، Boost، أو استخدامات ذكاء اصطناعي — إضافات مؤقتة
+                    ومستقلة عن باقتك الأساسية.
                   </p>
                 </div>
                 <Button
                   variant="primary"
                   size="lg"
                   block
-                  disabled={
-                    isQuotaLoading || commercial?.products.AI_USES_10_90D?.enabled === false
-                  }
-                  aria-label={`شراء ${aiAddon?.quantity ?? 10} استخدامات لمحسن الذكاء الاصطناعي مقابل ${aiAddon?.priceEgp ?? 39} جنيهًا`}
+                  disabled={isQuotaLoading}
+                  aria-label="عرض الإضافات المتاحة للشراء"
                   className="group min-h-14 rounded-xl px-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card active:translate-y-0 active:scale-[0.99]"
-                  onClick={() => setActivePaymentType("AI_USES_10_90D")}
+                  onClick={() => setShowAddOnsWizard(true)}
                 >
                   <span className="flex min-w-0 flex-1 flex-col items-start gap-0.5 text-start">
-                    <span className="text-small font-extrabold leading-tight">شراء الإضافة</span>
+                    <span className="text-small font-extrabold leading-tight">عرض الإضافات</span>
                     <span className="text-[11px] font-semibold text-white/80">
-                      {aiAddon?.quantity ?? 10} استخدامات AI • {aiAddon?.priceEgp ?? 39} ج.م
+                      6 إضافات متاحة
                     </span>
                   </span>
                   <ArrowLeft
@@ -864,6 +894,33 @@ export function ProfileScreen() {
             setActivePaymentType(null);
             quotaQuery.refetch();
           }}
+        />
+      )}
+
+      {/* Generic Add-Ons wizard — picks a SKU (+ property for Boost), then
+          hands off to PaymentSheet's checkout machinery. */}
+      {showAddOnsWizard && (
+        <AddOnsWizard
+          open={showAddOnsWizard}
+          onClose={() => setShowAddOnsWizard(false)}
+          onActivated={() => {
+            setShowAddOnsWizard(false);
+            quotaQuery.refetch();
+          }}
+        />
+      )}
+
+      {/* Avatar Crop & Rotate/Flip Modal */}
+      {showCropper && cropImageSrc && (
+        <AvatarCropModal
+          open={showCropper}
+          imageSrc={cropImageSrc}
+          onClose={() => {
+            setShowCropper(false);
+            setCropImageSrc(null);
+          }}
+          onConfirm={handleCropConfirm}
+          isUploading={uploadingAvatar}
         />
       )}
     </div>

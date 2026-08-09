@@ -50,6 +50,12 @@ export interface PaymentSheetProps {
   propertyId?: string;
   /** Fired once the webhook/reconcile-credited entitlement is confirmed. */
   onActivated?: () => void;
+  /**
+   * Skip the package-picker (step 1) and open straight on payment method —
+   * for callers (e.g. AddOnsWizard) that already did their own SKU/property
+   * selection UI and just need this sheet's checkout+polling machinery.
+   */
+  initialStep?: 1 | 2;
 }
 
 interface PackageDefinition {
@@ -67,6 +73,7 @@ export function PaymentSheet({
   paymentType,
   propertyId,
   onActivated,
+  initialStep = 1,
 }: PaymentSheetProps) {
   const toast = useToast();
   const quotaQuery = useQuota();
@@ -255,7 +262,7 @@ export function PaymentSheet({
           ? "OWNER_PLUS_MONTHLY"
           : "PREMIUM_MONTHLY";
 
-  const [step, setStep] = useState<1 | 2>(1);
+  const [step, setStep] = useState<1 | 2>(initialStep);
   const [selectedPaymentType, setSelectedPaymentType] =
     useState<CheckoutPaymentType>(defaultSelectedType);
   const [paymentMethod, setPaymentMethod] = useState<"CARD" | "WALLET">("CARD");
@@ -470,7 +477,7 @@ export function PaymentSheet({
     if (checkoutWindowRef.current && !checkoutWindowRef.current.closed) {
       checkoutWindowRef.current.close();
     }
-    setStep(1);
+    setStep(initialStep);
     setPhase("form");
     setSession(null);
     setErrorMessage(null);
@@ -699,14 +706,16 @@ export function PaymentSheet({
           {/* STEP 2: Select Payment Method & Confirm */}
           {step === 2 && (
             <div className="flex flex-col gap-5 animate-in fade-in-50 duration-200">
-              <button
-                type="button"
-                onClick={() => setStep(1)}
-                className="flex items-center gap-1.5 text-caption font-bold text-primary hover:underline self-start"
-              >
-                <ArrowRight className="size-4" />
-                العودة لتغيير الباقة المختارة
-              </button>
+              {initialStep === 1 && (
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="flex items-center gap-1.5 text-caption font-bold text-primary hover:underline self-start"
+                >
+                  <ArrowRight className="size-4" />
+                  العودة لتغيير الباقة المختارة
+                </button>
+              )}
 
               {/* Selected Package Summary Card */}
               <div className="rounded-card border border-primary/30 bg-primary-tint/20 p-4">

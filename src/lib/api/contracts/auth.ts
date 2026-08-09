@@ -35,6 +35,11 @@ export const LoginRequestSchema = z.object({
 });
 export type LoginRequest = z.infer<typeof LoginRequestSchema>;
 
+export const RequestAccountReviewSchema = LoginRequestSchema.extend({
+  message: z.string().min(10).max(1000).optional(),
+});
+export type RequestAccountReview = z.infer<typeof RequestAccountReviewSchema>;
+
 export const UserSchema = z.object({
   id: z.string(),
   fullName: z.string(),
@@ -110,6 +115,16 @@ export type AccountSuspendedError = z.infer<typeof AccountSuspendedErrorSchema>;
 /** POST /auth/request-reactivation response. */
 export const RequestReactivationResponseSchema = z.object({
   id: z.string(),
-  status: z.enum(["PENDING", "APPROVED", "REJECTED"]),
+  kind: z.literal("SUSPENSION_APPEAL").optional(),
+  status: z.enum([
+    "PENDING",
+    "APPROVED",
+    "REJECTED",
+    "new",
+    "assigned",
+    "in_progress",
+    "waiting",
+    "closed",
+  ]),
 });
 export type RequestReactivationResponse = z.infer<typeof RequestReactivationResponseSchema>;

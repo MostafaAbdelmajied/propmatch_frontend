@@ -8,6 +8,7 @@ import type {
   AuthResponse,
   LoginRequest,
   RegisterRequest,
+  RequestAccountReview,
   RequestReactivationResponse,
   User,
 } from "@/src/lib/api/contracts/auth";
@@ -46,7 +47,7 @@ export function useLogin() {
 /** POST /auth/request-reactivation — public, no session involved. */
 export function useRequestReactivation() {
   return useMutation({
-    mutationFn: (body: LoginRequest) =>
+    mutationFn: (body: RequestAccountReview) =>
       api.post<RequestReactivationResponse>("auth/request-reactivation", body),
   });
 }

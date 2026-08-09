@@ -9,17 +9,26 @@ import { z } from "zod";
 /** ERD enum — verbatim. */
 export const NotificationTypeSchema = z.enum([
   "EKYC_APPROVED",
+  "EKYC_RESUBMISSION_REQUIRED",
   "PROPERTY_APPROVED",
+  "PROPERTY_REJECTED",
   "NEW_MATCH",
   "PAYMENT_SUCCESS",
   "NEW_REVIEW_SUBMITTED",
   "REVIEW_APPROVED",
+  "REVIEW_REJECTED",
   "NEW_TENANT_REQUEST",
+  "TENANT_REQUEST_APPROVED",
+  "TENANT_REQUEST_REJECTED",
   "NEW_OFFER_RECEIVED",
   "NEW_MESSAGE",
   "CONTRACT_READY_FOR_REVIEW",
   "CONTRACT_APPROVED",
   "CONTRACT_REJECTED",
+  "HIGH_MATCH_TENANT_REQUEST",
+  "ACCOUNT_REACTIVATED",
+  "ACCOUNT_REACTIVATION_REJECTED",
+  "REACTIVATION_REQUEST",
 ]);
 export type NotificationType = z.infer<typeof NotificationTypeSchema>;
 
@@ -89,4 +98,13 @@ export interface RealtimeSupportMessage {
   content: string;
   internal: boolean;
   at: string;
+}
+
+/** Payload for `support:ticket:created` delivered to connected admins. */
+export interface RealtimeSupportTicket {
+  ticketId: string;
+  subject: string;
+  userName: string;
+  priority: string;
+  createdAt: string;
 }

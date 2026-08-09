@@ -20,8 +20,10 @@ export function LoginForm() {
   const login = useLogin();
   const requestReactivation = useRequestReactivation();
   const toast = useToast();
-  const [suspendedCredentials, setSuspendedCredentials] = useState<LoginFormValues | null>(null);
+  const [deletedCredentials, setDeletedCredentials] = useState<LoginFormValues | null>(null);
+  const [suspensionCredentials, setSuspensionCredentials] = useState<LoginFormValues | null>(null);
   const [suspensionNotice, setSuspensionNotice] = useState<string | null>(null);
+  const [appealMessage, setAppealMessage] = useState("");
   const {
     register,
     handleSubmit,
@@ -30,7 +32,8 @@ export function LoginForm() {
   } = useForm<LoginFormValues>({ resolver: zodResolver(loginFormSchema) });
 
   async function onSubmit(values: LoginFormValues) {
-    setSuspendedCredentials(null);
+    setDeletedCredentials(null);
+    setSuspensionCredentials(null);
     setSuspensionNotice(null);
     try {
       const res = (await login.mutateAsync(values)) as AuthResponse;
@@ -43,16 +46,13 @@ export function LoginForm() {
         // gets there after signIn's password check passes) — the account
         // itself is soft-deleted, so the fix is reactivation, not a retry.
         if (code === "ACCOUNT_DELETED") {
-          setSuspendedCredentials(values);
+          setDeletedCredentials(values);
           return;
         }
-        // ACCOUNT_SUSPENDED is a live account an admin temporarily or
-        // permanently blocked — a completely different state from a
-        // deleted "ghost" account. There is no self-service reactivation
-        // for this; requesting one would 401 (requestReactivation only
-        // ever accepts a *deleted* account). Just show the reason/end
-        // date the backend already composed into the message.
+        // A suspended account remains blocked, but verified credentials may
+        // create one support appeal ticket for admin review.
         if (code === "ACCOUNT_SUSPENDED") {
+          setSuspensionCredentials(values);
           setSuspensionNotice(e.message);
           return;
         }
@@ -63,14 +63,26 @@ export function LoginForm() {
   }
 
   function requestReactivationNow() {
-    if (!suspendedCredentials) return;
-    requestReactivation.mutate(suspendedCredentials, {
+    if (!deletedCredentials) return;
+    requestReactivation.mutate(deletedCredentials, {
       onSuccess: () => toast("success", "تم إرسال طلب إعادة التفعيل — سيراجعه أحد المشرفين قريبًا."),
       onError: () => toast("error", "تعذر إرسال طلب إعادة التفعيل، حاول مرة أخرى"),
     });
   }
 
-  if (suspendedCredentials) {
+  function requestSuspensionReview() {
+    if (!suspensionCredentials || appealMessage.trim().length < 10) return;
+    requestReactivation.mutate(
+      { ...suspensionCredentials, message: appealMessage.trim() },
+      {
+        onSuccess: () =>
+          toast("success", "تم إرسال تذكرة مراجعة الإيقاف إلى فريق الإدارة."),
+        onError: () => toast("error", "تعذر إرسال التذكرة، حاول مرة أخرى"),
+      },
+    );
+  }
+
+  if (deletedCredentials) {
     return (
       <div className="flex flex-col gap-4">
         <div className="rounded-control bg-error-tint px-4 py-3 text-small text-error" role="alert">
@@ -89,7 +101,7 @@ export function LoginForm() {
         </Button>
         <button
           type="button"
-          onClick={() => setSuspendedCredentials(null)}
+          onClick={() => setDeletedCredentials(null)}
           className="text-center text-small font-semibold text-primary hover:underline"
         >
           العودة لتسجيل الدخول
@@ -98,19 +110,41 @@ export function LoginForm() {
     );
   }
 
-  // A live account an admin blocked — no reactivation flow (that's only for
-  // deleted "ghost" accounts, see accountErrorCode). Just show why + until
-  // when; the backend already composed the reason/end date into the message.
-  if (suspensionNotice) {
+  if (suspensionNotice && suspensionCredentials) {
     return (
       <div className="flex flex-col gap-4">
         <div className="rounded-control bg-error-tint px-4 py-3 text-small text-error" role="alert">
-          <p className="font-bold">حسابك موقوف مؤقتًا</p>
+          <p className="font-bold">تم إيقاف حسابك</p>
           <p className="mt-1">{suspensionNotice}</p>
         </div>
+        <label className="flex flex-col gap-1.5 text-small font-semibold text-body-text">
+          سبب طلب المراجعة
+          <textarea
+            aria-label="سبب طلب المراجعة"
+            value={appealMessage}
+            maxLength={1000}
+            onChange={(event) => setAppealMessage(event.target.value)}
+            placeholder="اشرح باختصار لماذا تريد مراجعة قرار الإيقاف…"
+            className="min-h-28 rounded-control border border-hairline bg-surface px-3.5 py-2.5 text-body font-normal focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+          />
+          <span className="text-caption font-normal text-muted">10 أحرف على الأقل</span>
+        </label>
+        <Button
+          type="button"
+          block
+          loading={requestReactivation.isPending}
+          disabled={appealMessage.trim().length < 10 || requestReactivation.isSuccess}
+          onClick={requestSuspensionReview}
+        >
+          إرسال تذكرة مراجعة للإدارة
+        </Button>
         <button
           type="button"
-          onClick={() => setSuspensionNotice(null)}
+          onClick={() => {
+            setSuspensionNotice(null);
+            setSuspensionCredentials(null);
+            setAppealMessage("");
+          }}
           className="text-center text-small font-semibold text-primary hover:underline"
         >
           العودة لتسجيل الدخول
@@ -158,8 +192,8 @@ export function LoginForm() {
 }
 
 /** Distinguishes the two 403 account states signIn can return — a deleted
- * "ghost" account (ACCOUNT_DELETED, self-service reactivation available) vs
- * a live but admin-blocked one (ACCOUNT_SUSPENDED, no reactivation flow). */
+ * account uses the activation queue; a suspended account uses a support
+ * appeal ticket while remaining blocked. */
 function accountErrorCode(body: unknown): string | null {
   if (typeof body !== "object" || body === null || !("code" in body)) return null;
   const code = (body as { code: unknown }).code;

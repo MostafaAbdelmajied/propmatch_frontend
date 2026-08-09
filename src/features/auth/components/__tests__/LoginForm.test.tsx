@@ -66,7 +66,7 @@ describe("LoginForm — account-state error handling", () => {
 
     await waitFor(() => expect(screen.getByText("هذا الحساب مجدول للحذف")).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "طلب إعادة التفعيل" })).toBeInTheDocument();
-    expect(screen.queryByText("حسابك موقوف مؤقتًا")).not.toBeInTheDocument();
+    expect(screen.queryByText("تم إيقاف حسابك")).not.toBeInTheDocument();
   });
 
   it("calls requestReactivation with the submitted credentials when the account is deleted", async () => {
@@ -90,7 +90,7 @@ describe("LoginForm — account-state error handling", () => {
     );
   });
 
-  it("shows a suspension notice (not the reactivation button) for ACCOUNT_SUSPENDED, and never calls requestReactivation", async () => {
+  it("lets an ACCOUNT_SUSPENDED user submit an admin review ticket", async () => {
     mockedLogin.mockReturnValue({
       mutateAsync: jest
         .fn()
@@ -105,12 +105,23 @@ describe("LoginForm — account-state error handling", () => {
 
     await fillAndSubmit();
 
-    await waitFor(() => expect(screen.getByText("حسابك موقوف مؤقتًا")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("تم إيقاف حسابك")).toBeInTheDocument());
     expect(
       screen.getByText("تم إيقاف حسابك حتى 2026-08-20. السبب: احتيال أو نصب."),
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "طلب إعادة التفعيل" })).not.toBeInTheDocument();
-    expect(requestReactivationMutate).not.toHaveBeenCalled();
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("سبب طلب المراجعة"), "أرجو مراجعة قرار إيقاف حسابي.");
+    await user.click(screen.getByRole("button", { name: "إرسال تذكرة مراجعة للإدارة" }));
+
+    expect(requestReactivationMutate).toHaveBeenCalledWith(
+      {
+        email: "user@example.com",
+        password: "Password123!",
+        message: "أرجو مراجعة قرار إيقاف حسابي.",
+      },
+      expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) }),
+    );
   });
 
   it("falls back to the generic error message for a plain 401 (wrong password)", async () => {
@@ -127,6 +138,6 @@ describe("LoginForm — account-state error handling", () => {
       expect(screen.getByText("البريد الإلكتروني أو كلمة المرور غير صحيحة")).toBeInTheDocument(),
     );
     expect(screen.queryByRole("button", { name: "طلب إعادة التفعيل" })).not.toBeInTheDocument();
-    expect(screen.queryByText("حسابك موقوف مؤقتًا")).not.toBeInTheDocument();
+    expect(screen.queryByText("تم إيقاف حسابك")).not.toBeInTheDocument();
   });
 });
