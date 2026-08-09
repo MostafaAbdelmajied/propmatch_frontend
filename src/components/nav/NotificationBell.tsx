@@ -24,7 +24,13 @@ const typeIcon: Record<NotificationType, typeof Bell> = {
   CONTRACT_REJECTED: FileText,
 };
 
-export function NotificationBell() {
+export function NotificationBell({
+  placement = "start",
+  direction = "down",
+}: {
+  placement?: "start" | "end";
+  direction?: "up" | "down";
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const qc = useQueryClient();
@@ -74,7 +80,16 @@ export function NotificationBell() {
       </button>
 
       {open && (
-        <div className="fixed inset-x-3 top-14 z-50 sm:absolute sm:inset-x-auto sm:end-0 sm:top-full sm:mt-2 sm:w-80 overflow-hidden rounded-card border border-hairline bg-surface shadow-2xl animate-in fade-in-50 duration-200">
+        <div
+          dir="rtl"
+          className={cn(
+            "fixed inset-x-3 z-50 overflow-hidden rounded-card border border-hairline bg-surface shadow-2xl animate-in fade-in-50 duration-200 sm:absolute sm:inset-x-auto sm:w-80",
+            direction === "up"
+              ? "bottom-14 sm:bottom-full sm:top-auto sm:mb-2"
+              : "top-14 sm:top-full sm:mt-2",
+            placement === "start" ? "sm:start-0" : "sm:end-0",
+          )}
+        >
           <div className="flex items-center justify-between border-b border-hairline px-4 py-3 bg-surface">
             <div className="flex items-center gap-2">
               <span className="text-small font-bold text-ink">الإشعارات</span>

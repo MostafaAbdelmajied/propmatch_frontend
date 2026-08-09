@@ -54,6 +54,7 @@ export const ROLE_CAPABILITIES: Record<AdminRole, Capability[]> = {
     "request:reject",
     "review:moderate",
     "payment:view",
+    "commercial:manage",
     "partner_lead:view",
     "report:export",
     "ticket:reply",
@@ -66,7 +67,7 @@ export const ROLE_CAPABILITIES: Record<AdminRole, Capability[]> = {
   ],
   "listings-manager": ["property:approve", "property:reject"],
   "kyc-reviewer": ["kyc:review"],
-  "finance-admin": ["payment:view", "partner_lead:view", "report:export"],
+  "finance-admin": ["payment:view", "commercial:manage", "partner_lead:view", "report:export"],
   "reviews-manager": ["review:moderate", "request:approve", "request:reject"],
   "customer-support": ["ticket:reply"],
   "read-only": [],
@@ -88,13 +89,7 @@ export type AdminSession = z.infer<typeof AdminSessionSchema>;
  * Moderation queues: eKYC, new properties, edited properties, tenant requests
  * and property reviews. All share PENDING → APPROVED/REJECTED.
  */
-export const QueueItemTypeSchema = z.enum([
-  "kyc",
-  "property",
-  "propertyEdit",
-  "request",
-  "review",
-]);
+export const QueueItemTypeSchema = z.enum(["kyc", "property", "propertyEdit", "request", "review"]);
 export type QueueItemType = z.infer<typeof QueueItemTypeSchema>;
 
 export const QueueItemSchema = z.object({
@@ -105,6 +100,7 @@ export const QueueItemSchema = z.object({
   title: z.string(),
   subtitle: z.string(),
   submittedAt: z.string(),
+  commercialPriority: z.enum(["FREEMIUM", "OWNER_PLUS", "PREMIUM"]).optional(),
 });
 export type QueueItem = z.infer<typeof QueueItemSchema>;
 
@@ -133,9 +129,18 @@ export const KycReviewDetailSchema = z.object({
   userId: z.string(),
   userName: z.string(),
   nationalId: z.string().nullable(),
-  nationalIdFrontUrl: z.string().url().refine((value) => /^https?:\/\//.test(value)),
-  nationalIdBackUrl: z.string().url().refine((value) => /^https?:\/\//.test(value)),
-  selfieUrl: z.string().url().refine((value) => /^https?:\/\//.test(value)),
+  nationalIdFrontUrl: z
+    .string()
+    .url()
+    .refine((value) => /^https?:\/\//.test(value)),
+  nationalIdBackUrl: z
+    .string()
+    .url()
+    .refine((value) => /^https?:\/\//.test(value)),
+  selfieUrl: z
+    .string()
+    .url()
+    .refine((value) => /^https?:\/\//.test(value)),
   submittedAt: z.string(),
 });
 export type KycReviewDetail = z.infer<typeof KycReviewDetailSchema>;
@@ -160,9 +165,14 @@ export const AdminPropertyReviewDetailSchema = z.object({
   propertyAroundServices: z.string().nullable(),
   status: ModerationStatusSchema,
   createdAt: z.string(),
-  images: z.array(z.object({
-    id: z.string(), imageUrl: z.string(), displayOrder: z.number().int(), isCover: z.boolean(),
-  })),
+  images: z.array(
+    z.object({
+      id: z.string(),
+      imageUrl: z.string(),
+      displayOrder: z.number().int(),
+      isCover: z.boolean(),
+    }),
+  ),
   ownerName: z.string(),
   ownerVerificationStatus: z.string(),
 });
@@ -217,7 +227,9 @@ export const AdminStatsSchema = z.object({
     activeListings: z.number(),
     pendingModeration: z.number(),
   }),
-  monthlyRevenue: z.array(z.object({ month: z.string(), revenue: z.number(), transactions: z.number() })),
+  monthlyRevenue: z.array(
+    z.object({ month: z.string(), revenue: z.number(), transactions: z.number() }),
+  ),
   moderationDistribution: z.array(z.object({ label: z.string(), value: z.number() })),
 });
 export type AdminStats = z.infer<typeof AdminStatsSchema>;

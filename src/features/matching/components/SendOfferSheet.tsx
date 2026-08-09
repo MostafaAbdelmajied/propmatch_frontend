@@ -15,7 +15,7 @@ import { formatEGP } from "@/src/utils/format";
 import { CreateOfferRequestSchema, type CreateOfferRequest } from "@/src/lib/api/contracts/offer";
 import type { BrowsableTenantRequest } from "@/src/lib/api/contracts/tenantRequest";
 import type { PropertySummary } from "@/src/lib/api/contracts/property";
-import type { PaymentType } from "@/src/lib/api/contracts/payment";
+import type { CheckoutPaymentType } from "@/src/lib/api/contracts/payment";
 import { useSendOffer } from "../hooks/useOffers";
 
 export interface SendOfferSheetProps {
@@ -34,7 +34,7 @@ export function SendOfferSheet({ request, onClose }: SendOfferSheetProps) {
   const quota = useQuota();
   const properties = useMyProperties();
   const send = useSendOffer();
-  const [paywall, setPaywall] = useState<PaymentType | null>(null);
+  const [paywall, setPaywall] = useState<CheckoutPaymentType | null>(null);
 
   const [propertyId, setPropertyId] = useState("");
   const [pitchMessage, setPitchMessage] = useState("");
@@ -72,12 +72,7 @@ export function SendOfferSheet({ request, onClose }: SendOfferSheetProps) {
     setErrors({});
     send.mutate(parsed.data, {
       onSuccess: (res) => {
-        toast(
-          "success",
-          quota.data?.offersUnlimited
-            ? "تم إرسال عرضك"
-            : `تم إرسال عرضك — المتبقي: ${res.freeOffersLeft}`,
-        );
+        toast("success", `تم إرسال عرضك — المتبقي: ${res.freeOffersLeft}`);
         reset();
       },
       onError: (e) => {
@@ -85,7 +80,7 @@ export function SendOfferSheet({ request, onClose }: SendOfferSheetProps) {
           toast("info", "وثّق هويتك أولًا لإرسال العروض");
           router.push("/landlord/verify");
         } else if (e.code === "QUOTA_EXHAUSTED") {
-          setPaywall("SINGLE_OFFER");
+          setPaywall("OFFERS_10_60D");
         } else {
           toast("error", e.message);
         }
@@ -156,17 +151,12 @@ export function SendOfferSheet({ request, onClose }: SendOfferSheetProps) {
                   onChange={(e) => setPitchMessage(e.target.value)}
                   error={errors.pitchMessage}
                 />
-                {quota.data && !quota.data.offersUnlimited && (
+                {quota.data && (
                   <QuotaChip
                     remaining={quota.data.freeOffersLeft}
                     label="عروض مباشرة مجانية متبقية"
                     className="self-start"
                   />
-                )}
-                {quota.data?.offersUnlimited && (
-                  <span className="self-start rounded-pill bg-success-tint px-3 py-1 text-caption font-bold text-success">
-                    عروض مباشرة غير محدودة ضمن الخطة المميزة
-                  </span>
                 )}
                 <Button size="lg" block onClick={submit} loading={send.isPending}>
                   <Send className="size-4" aria-hidden />
@@ -181,7 +171,7 @@ export function SendOfferSheet({ request, onClose }: SendOfferSheetProps) {
       <PaymentSheet
         open={paywall !== null}
         onClose={() => setPaywall(null)}
-        paymentType={paywall ?? "PREMIUM_OWNER"}
+        paymentType={paywall ?? "OFFERS_10_60D"}
         onActivated={() => {
           setPaywall(null);
           toast("success", "تم تفعيل الخطة المميزة — أرسل عرضك الآن");

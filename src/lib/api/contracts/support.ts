@@ -101,6 +101,7 @@ export const TicketSummarySchema = z.object({
   status: TicketStatusSchema,
   assignedAdminName: z.string().nullable().optional(),
   priority: SupportPrioritySchema.optional(),
+  commercialPriority: z.enum(["FREEMIUM", "OWNER_PLUS", "PREMIUM"]).optional(),
   escalationReason: z.string().nullable().optional(),
   lastMessageAt: z.string(),
   createdAt: z.string(),

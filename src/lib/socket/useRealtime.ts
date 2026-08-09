@@ -24,6 +24,17 @@ const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL;
 let socket: Socket | null = null;
 let sharedAudioCtx: AudioContext | null = null;
 
+// Keep the socket payload-to-cache mapping explicit. Socket events are
+// runtime data, so an older backend or a malformed event must not be able to
+// turn an unknown type into a property such as `undefinedQueue`.
+const adminQueueKeyByType: Record<QueueItem["type"], keyof AdminQueuesResponse> = {
+  kyc: "kycQueue",
+  property: "propertyQueue",
+  propertyEdit: "editedPropertyQueue",
+  request: "requestQueue",
+  review: "reviewQueue",
+};
+
 /** Ensure AudioContext is instantiated and unlocked after first user interaction */
 function initAndUnlockAudio(): void {
   if (typeof window === "undefined") return;
@@ -192,9 +203,14 @@ export function useRealtime(): RealtimeState {
     const onQueueItem = (item: QueueItem) => {
       qc.setQueryData<AdminQueuesResponse>(["admin", "queues"], (prev) => {
         if (!prev) return prev;
-        const key: keyof AdminQueuesResponse =
-          item.type === "propertyEdit" ? "editedPropertyQueue" : `${item.type}Queue`;
+        const key = adminQueueKeyByType[item.type];
+        // Be defensive at the boundary: the server payload may come from a
+        // newer/older deployment than this frontend and contain an unknown
+        // queue type. Ignore it and let the normal query refresh reconcile
+        // the authoritative queue data instead of crashing the event handler.
+        if (!key) return prev;
         const existing = prev[key];
+        if (!Array.isArray(existing)) return { ...prev, [key]: [item] };
         if (existing.some((q) => q.id === item.id)) return prev;
         return { ...prev, [key]: [item, ...existing] };
       });

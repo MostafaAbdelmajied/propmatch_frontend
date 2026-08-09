@@ -157,10 +157,19 @@ export function useStreamOptimizeDescription(propertyId = "draft") {
 }
 
 export function useBoostProperty(propertyId: string) {
-  return useMutation<{ ok: boolean }, LandlordActionError, void>({
+  return useMutation<
+    { campaignId: string; startsAt: string; endsAt: string; boostCreditsLeft: number },
+    LandlordActionError,
+    void
+  >({
     mutationFn: async () => {
       try {
-        return await api.post<{ ok: boolean }>(`landlord/properties/${propertyId}/boost`);
+        return await api.post<{
+          campaignId: string;
+          startsAt: string;
+          endsAt: string;
+          boostCreditsLeft: number;
+        }>(`landlord/properties/${propertyId}/boost`);
       } catch (e) {
         throw toActionError(e);
       }

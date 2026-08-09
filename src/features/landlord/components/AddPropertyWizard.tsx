@@ -9,7 +9,7 @@ import { useActiveRegions } from "@/src/features/admin/hooks/useRegions";
 import { VerificationGate } from "@/src/features/ekyc/components/VerificationGate";
 import { PaymentSheet } from "@/src/features/payments/PaymentSheet";
 import type { ActionError } from "@/src/lib/api/actionError";
-import type { PaymentType } from "@/src/lib/api/contracts/payment";
+import type { CheckoutPaymentType } from "@/src/lib/api/contracts/payment";
 import { propertyTypeLabels, type PropertyType } from "@/src/lib/api/contracts/property";
 import { cn } from "@/src/utils/cn";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -84,7 +84,7 @@ function AddPropertyWizardContent() {
   const [draftRestored, setDraftRestored] = useState(false);
   const [optimizerUsesLeft, setOptimizerUsesLeft] = useState(0);
   const create = useCreateProperty();
-  const [paywall, setPaywall] = useState<PaymentType | null>(null);
+  const [paywall, setPaywall] = useState<CheckoutPaymentType | null>(null);
 
   useEffect(() => {
     try {
@@ -181,7 +181,7 @@ function AddPropertyWizardContent() {
         if (e.code === "VERIFICATION_REQUIRED") {
           toast("info", e.message);
         } else if (e.code === "PLAN_LIMIT_REACHED") {
-          setPaywall("PREMIUM_OWNER");
+          setPaywall("EXTRA_LISTING_60D");
         } else {
           toast("error", e.message);
         }
@@ -215,7 +215,7 @@ function AddPropertyWizardContent() {
             form={form}
             optimizerUsesLeft={optimizerUsesLeft}
             onOptimizerUse={() => setOptimizerUsesLeft((uses) => Math.max(0, uses - 1))}
-            onAiPaywall={() => setPaywall("AI_ADDON")}
+            onAiPaywall={() => setPaywall("AI_USES_10_90D")}
           />
         )}
 
@@ -246,13 +246,13 @@ function AddPropertyWizardContent() {
       <PaymentSheet
         open={paywall !== null}
         onClose={() => setPaywall(null)}
-        paymentType={paywall ?? "PREMIUM_OWNER"}
+        paymentType={paywall ?? "EXTRA_LISTING_60D"}
         onActivated={() => {
           const activatedType = paywall;
           setPaywall(null);
           toast(
             "success",
-            activatedType === "AI_ADDON"
+            activatedType === "AI_USES_10_90D"
               ? "تمت إضافة استخدام الذكاء الاصطناعي"
               : "تم تفعيل الخطة المميزة — يمكنك إضافة وحدتك الآن",
           );
@@ -992,13 +992,13 @@ function OptimizationAndReviewStep({
                   : "انتهى رصيد الذكاء الاصطناعي الحالي"}
               </p>
               <p className="mt-0.5 text-caption text-muted">
-                يمكنك استخدام الرصيد الحالي أو شراء حزمة إضافية (10 استخدامات بـ 199 ج.م).
+                يمكنك استخدام الرصيد الحالي أو شراء حزمة إضافية (10 استخدامات بـ 39 ج.م، صالحة 90 يومًا).
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0 pt-2 sm:pt-0" aria-label={`${optimizerUsesLeft} محاولات تحسين متبقية`}>
             <span className="text-caption font-bold text-primary ml-1">
-              {optimizerUsesLeft} / 5
+              {optimizerUsesLeft} متبقي
             </span>
             <div className="flex items-center gap-1.5">
               {Array.from({ length: 5 }, (_, index) => (

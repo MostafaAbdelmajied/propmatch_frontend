@@ -7,11 +7,10 @@ import { useToast } from "@/src/components/ui/Toast";
 import { useQuota } from "@/src/features/landlord/hooks/useLandlord";
 import { api } from "@/src/lib/api/browserClient";
 import {
-  paymentTypeLabels,
   paymentTypePrices,
   type CheckoutSession,
   type PaymentTransaction,
-  type PaymentType,
+  type CheckoutPaymentType,
 } from "@/src/lib/api/contracts/payment";
 import { subscribeToPaymentUpdates } from "@/src/lib/socket/useRealtime";
 import { cn } from "@/src/utils/cn";
@@ -37,6 +36,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
 import { getCheckoutErrorMessage } from "./checkoutError";
+import { useCommercialCatalog } from "./useCommercialCatalog";
 
 type Phase = "form" | "creating_checkout" | "checkout" | "checking" | "success" | "error";
 const PENDING_PAYMENT_STORAGE_KEY = "propmatch:pending-payment";
@@ -45,15 +45,15 @@ export const PAYMENT_SUCCESS_MESSAGE = "تم الدفع بنجاح وإضافة 
 export interface PaymentSheetProps {
   open: boolean;
   onClose: () => void;
-  paymentType: PaymentType;
-  /** Required for BOOST_LISTING. */
+  paymentType: CheckoutPaymentType;
+  /** Required for BOOST_7D / BOOST_14D / BOOST_30D. */
   propertyId?: string;
   /** Fired once the webhook/reconcile-credited entitlement is confirmed. */
   onActivated?: () => void;
 }
 
 interface PackageDefinition {
-  type: PaymentType;
+  type: CheckoutPaymentType;
   label: string;
   description: string;
   price: number;
@@ -70,88 +70,155 @@ export function PaymentSheet({
 }: PaymentSheetProps) {
   const toast = useToast();
   const quotaQuery = useQuota();
+  const catalogQuery = useCommercialCatalog();
   const quota = quotaQuery.data;
   const isPaidPackage = quota?.planType && quota.planType !== "FREE";
-  const isAiPaywall = paymentType === "AI_ADDON";
-  const isOfferPaywall = paymentType === "SINGLE_OFFER";
+  const isAiPaywall = paymentType === "AI_USES_10_90D";
+  const isOfferPaywall = paymentType === "OFFERS_10_60D";
+  const isBoostPaywall = paymentType.startsWith("BOOST_");
+  const catalog = catalogQuery.data;
+  const price = (type: CheckoutPaymentType) =>
+    catalog?.products[type]?.priceEgp ?? paymentTypePrices[type];
+  const enabled = (type: CheckoutPaymentType) => catalog?.products[type]?.enabled ?? true;
+  const ownerPlus = catalog?.plans.OWNER_PLUS ?? {
+    activeListings: 3,
+    offers: 30,
+    aiUses: 10,
+    boostCredits: 1,
+    boostDurationDays: 7,
+  };
+  const premium = catalog?.plans.PREMIUM ?? {
+    activeListings: 10,
+    offers: 100,
+    aiUses: 30,
+    boostCredits: 2,
+    boostDurationDays: 7,
+  };
+  const listingAddon = catalog?.products.EXTRA_LISTING_60D;
+  const offersAddon = catalog?.products.OFFERS_10_60D;
+  const aiAddon = catalog?.products.AI_USES_10_90D;
 
   const allPackages: PackageDefinition[] = [
     {
-      type: "PREMIUM_OWNER",
-      label: "اشتراك المالك المميز",
-      description:
-        quota?.planType === "PREMIUM"
-          ? "إعادة تجديد اشتراكك المميز الحالي وشحن كوتا الوحدات والعروض بالكامل"
-          : "تفعيل كافة مزايا المالك المحترف لـ 5 وحدات عقارية وعروض لا محدودة",
-      price: paymentTypePrices.PREMIUM_OWNER,
-      icon: Crown,
-      additions: [
-        "+5 وحدات عقارية نشطة في نفس الوقت",
-        "عروض وتواصل غير محدود مع جميع المستأجرين",
-        "+5 محاولات استخدام لمحسن الوصف بالذكاء الاصطناعي",
-      ],
-    },
-    {
-      type: "OWNER_PLUS",
-      label: "اشتراك المالك Plus",
+      type: "OWNER_PLUS_MONTHLY",
+      label: "Owner Plus شهري",
       description:
         quota?.planType === "OWNER_PLUS"
-          ? "إعادة تجديد اشتراك Plus الحالي وشحن الكوتا بالكامل"
-          : "باقة متوسطة تتيح لك إدارة حتى 3 وحدات عقارية نشطة",
-      price: paymentTypePrices.OWNER_PLUS,
+          ? "تمديد باقة Owner Plus الحالية؛ الكوتا تتجدد كل شهر بدون ترحيل"
+          : `مناسبة للمالك الذي يدير حتى ${ownerPlus.activeListings} عقارات نشطة`,
+      price: price("OWNER_PLUS_MONTHLY"),
       icon: PlusCircle,
       additions: [
-        "+3 وحدات عقارية نشطة في نفس الوقت",
-        "عروض وتواصل مباشر مع المستأجرين",
-        "+3 محاولات استخدام لمحسن الوصف بالذكاء الاصطناعي",
+        `${ownerPlus.activeListings} عقارات نشطة و${ownerPlus.offers} عرضًا شهريًا`,
+        `${ownerPlus.aiUses} استخدامات AI شهريًا`,
+        `${ownerPlus.boostCredits} رصيد Boost لمدة ${ownerPlus.boostDurationDays} أيام وتحليلات المطابقات`,
       ],
     },
     {
-      type: "SINGLE_LISTING",
-      label: "إضافة عقار منفرد واحد",
-      description: "نشر وإضافة عقار واحد إضافي بدون اشتراك شهري كامل",
-      price: paymentTypePrices.SINGLE_LISTING,
+      type: "OWNER_PLUS_YEARLY",
+      label: "Owner Plus سنوي",
+      description: "سنة كاملة مع تجدد الكوتا والـBoost كل شهر بدون ترحيل",
+      price: price("OWNER_PLUS_YEARLY"),
+      icon: PlusCircle,
+      additions: [
+        "نفس مزايا Owner Plus الشهرية",
+        `توفير ${Math.max(0, price("OWNER_PLUS_MONTHLY") * 12 - price("OWNER_PLUS_YEARLY"))} ج.م مقارنة بالدفع الشهري`,
+        "صلاحية الاشتراك 12 شهرًا",
+      ],
+    },
+    {
+      type: "PREMIUM_MONTHLY",
+      label: "Premium شهري",
+      description: "للمالك النشط الذي يدير محفظة عقارية صغيرة",
+      price: price("PREMIUM_MONTHLY"),
+      icon: Crown,
+      additions: [
+        `${premium.activeListings} عقارات نشطة و${premium.offers} عرض شهريًا`,
+        `${premium.aiUses} استخدام AI شهريًا`,
+        `${premium.boostCredits} رصيد Boost، كل منها ${premium.boostDurationDays} أيام، وتحليلات كاملة`,
+      ],
+    },
+    {
+      type: "PREMIUM_YEARLY",
+      label: "Premium سنوي",
+      description: "سنة كاملة مع تجدد الكوتا والـBoost كل شهر بدون ترحيل",
+      price: price("PREMIUM_YEARLY"),
+      icon: Crown,
+      additions: [
+        "نفس مزايا Premium الشهرية",
+        `توفير ${Math.max(0, price("PREMIUM_MONTHLY") * 12 - price("PREMIUM_YEARLY"))} ج.م مقارنة بالدفع الشهري`,
+        "صلاحية الاشتراك 12 شهرًا",
+      ],
+    },
+    {
+      type: "EXTRA_LISTING_60D",
+      label: "عقار نشط إضافي",
+      description: "سعة عقار نشط إضافي بدون اشتراك",
+      price: price("EXTRA_LISTING_60D"),
       icon: Plus,
       additions: [
-        "+1 فرصة إضافة عقار جديد نشط",
-        "تفعيل فوري للعقار فور إتمام الدفع",
-        "دفع لمرة واحدة بدون التزام باشتراك شهري",
+        `+${listingAddon?.quantity ?? 1} عقار نشط إضافي`,
+        `صلاحية مستقلة لمدة ${listingAddon?.validityDays ?? 60} يومًا`,
+        "فترة سماح 7 أيام عند انتهاء السعة",
       ],
     },
     {
-      type: "SINGLE_OFFER",
-      label: "إرسال عرض منفرد واحد",
-      description: "إرسال عرض مباشر واحد لمستأجر دون الحاجة للاشتراك الشهري الكامل",
-      price: paymentTypePrices.SINGLE_OFFER,
+      type: "OFFERS_10_60D",
+      label: `${offersAddon?.quantity ?? 10} عروض مطابقة`,
+      description: `رصيد مؤقت لإرسال ${offersAddon?.quantity ?? 10} عروض على طلبات المستأجرين`,
+      price: price("OFFERS_10_60D"),
       icon: Send,
       additions: [
-        "+1 فرصة إرسال عرض جديد لمستأجر",
-        "تواصل مباشر مع صاحب طلب الاستئجار",
-        "دفع لمرة واحدة بدون التزام باشتراك شهري",
+        `${offersAddon?.quantity ?? 10} عروض إضافية`,
+        `صلاحية ${offersAddon?.validityDays ?? 60} يومًا`,
+        "يُستهلك الرصيد الأقرب انتهاءً أولًا",
       ],
     },
     {
-      type: "AI_ADDON",
-      label: "حزمة الذكاء الاصطناعي الإضافية",
-      description: "إعادة شحن محاولات الذكاء الاصطناعي لتحسين وصياغة العقارات",
-      price: paymentTypePrices.AI_ADDON,
+      type: "AI_USES_10_90D",
+      label: `${aiAddon?.quantity ?? 10} استخدامات AI`,
+      description: "رصيد إضافي لمحسن وصف العقارات",
+      price: price("AI_USES_10_90D"),
       icon: Sparkles,
       additions: [
-        "+10 استخدامات جديدة لمحسن الوصف بالذكاء الاصطناعي",
-        "صياغة وصف ذكي واحترافي يعتمد على كافة بيانات العقار",
+        `${aiAddon?.quantity ?? 10} استخدامات إضافية`,
+        `صلاحية ${aiAddon?.validityDays ?? 90} يومًا`,
+        "يُستهلك الرصيد الأقرب انتهاءً أولًا",
       ],
     },
     ...(propertyId
       ? [
           {
-            type: "BOOST_LISTING" as PaymentType,
-            label: "تمييز الإعلان العقاري",
-            description: "ترقية الإعلان وتثبيته في قمة نتائج البحث",
-            price: paymentTypePrices.BOOST_LISTING,
+            type: "BOOST_7D" as CheckoutPaymentType,
+            label: `Boost لمدة ${catalog?.products.BOOST_7D?.durationDays ?? 7} أيام`,
+            description: `زيادة ظهور الإعلان وترتيبه لمدة ${catalog?.products.BOOST_7D?.durationDays ?? 7} أيام`,
+            price: price("BOOST_7D"),
             icon: TrendingUp,
             additions: [
-              "تثبيت العقار في أولوية نتائج البحث لـ 30 يوماً",
-              "إضافة شارة مميزة للإعلان لزيادة مشاهداته والتواصل",
+              `أولوية ظهور لمدة ${catalog?.products.BOOST_7D?.durationDays ?? 7} أيام`,
+              "التحليلات تبقى حقيقية ولا تُصطنع",
+            ],
+          },
+          {
+            type: "BOOST_14D" as CheckoutPaymentType,
+            label: `Boost لمدة ${catalog?.products.BOOST_14D?.durationDays ?? 14} يومًا`,
+            description: `زيادة ظهور الإعلان وترتيبه لمدة ${catalog?.products.BOOST_14D?.durationDays ?? 14} يومًا`,
+            price: price("BOOST_14D"),
+            icon: TrendingUp,
+            additions: [
+              `أولوية ظهور لمدة ${catalog?.products.BOOST_14D?.durationDays ?? 14} يومًا`,
+              "يبدأ بعد أي Boost قائم تلقائيًا",
+            ],
+          },
+          {
+            type: "BOOST_30D" as CheckoutPaymentType,
+            label: `Boost لمدة ${catalog?.products.BOOST_30D?.durationDays ?? 30} يومًا`,
+            description: `زيادة ظهور الإعلان وترتيبه لمدة ${catalog?.products.BOOST_30D?.durationDays ?? 30} يومًا`,
+            price: price("BOOST_30D"),
+            icon: TrendingUp,
+            additions: [
+              `أولوية ظهور لمدة ${catalog?.products.BOOST_30D?.durationDays ?? 30} يومًا`,
+              "يبدأ بعد أي Boost قائم تلقائيًا",
             ],
           },
         ]
@@ -159,28 +226,38 @@ export function PaymentSheet({
   ];
 
   // Filter packages according to trigger paywall context:
+  const availablePackages = allPackages.filter((item) => enabled(item.type));
   const packages = isAiPaywall
-    ? allPackages.filter((p) => p.type === "AI_ADDON")
+    ? availablePackages.filter((p) => p.type === "AI_USES_10_90D")
     : isOfferPaywall
-      ? allPackages.filter(
-          (p) => p.type === "SINGLE_OFFER" || p.type === "PREMIUM_OWNER" || p.type === "OWNER_PLUS",
+      ? availablePackages.filter(
+          (p) =>
+            p.type === "OFFERS_10_60D" ||
+            p.type.includes("OWNER_PLUS") ||
+            p.type.includes("PREMIUM"),
         )
-      : allPackages.filter((p) => p.type !== "AI_ADDON" && p.type !== "SINGLE_OFFER");
+      : isBoostPaywall
+        ? availablePackages.filter((p) => p.type.startsWith("BOOST_"))
+        : availablePackages.filter(
+            (p) =>
+              p.type === "EXTRA_LISTING_60D" ||
+              p.type.includes("OWNER_PLUS") ||
+              p.type.includes("PREMIUM"),
+          );
 
   const defaultSelectedType = isAiPaywall
-    ? "AI_ADDON"
+    ? "AI_USES_10_90D"
     : isOfferPaywall
-      ? quota?.planType === "OWNER_PLUS"
-        ? "OWNER_PLUS"
-        : quota?.planType === "PREMIUM"
-          ? "PREMIUM_OWNER"
-          : "SINGLE_OFFER"
-      : quota?.planType === "OWNER_PLUS"
-        ? "OWNER_PLUS"
-        : "PREMIUM_OWNER";
+      ? "OFFERS_10_60D"
+      : isBoostPaywall
+        ? paymentType
+        : quota?.planType === "OWNER_PLUS"
+          ? "OWNER_PLUS_MONTHLY"
+          : "PREMIUM_MONTHLY";
 
   const [step, setStep] = useState<1 | 2>(1);
-  const [selectedPaymentType, setSelectedPaymentType] = useState<PaymentType>(defaultSelectedType);
+  const [selectedPaymentType, setSelectedPaymentType] =
+    useState<CheckoutPaymentType>(defaultSelectedType);
   const [paymentMethod, setPaymentMethod] = useState<"CARD" | "WALLET">("CARD");
   const [walletPhone, setWalletPhone] = useState("");
   const [walletPhoneError, setWalletPhoneError] = useState<string | null>(null);
@@ -206,21 +283,17 @@ export function PaymentSheet({
 
   useEffect(() => {
     if (isAiPaywall) {
-      setSelectedPaymentType("AI_ADDON");
+      setSelectedPaymentType("AI_USES_10_90D");
     } else if (isOfferPaywall) {
-      setSelectedPaymentType(
-        quota?.planType === "OWNER_PLUS"
-          ? "OWNER_PLUS"
-          : quota?.planType === "PREMIUM"
-            ? "PREMIUM_OWNER"
-            : "SINGLE_OFFER",
-      );
+      setSelectedPaymentType("OFFERS_10_60D");
+    } else if (isBoostPaywall) {
+      setSelectedPaymentType(paymentType);
     } else if (quota?.planType === "OWNER_PLUS") {
-      setSelectedPaymentType("OWNER_PLUS");
+      setSelectedPaymentType("OWNER_PLUS_MONTHLY");
     } else {
-      setSelectedPaymentType("PREMIUM_OWNER");
+      setSelectedPaymentType("PREMIUM_MONTHLY");
     }
-  }, [paymentType, isAiPaywall, isOfferPaywall, quota?.planType]);
+  }, [paymentType, isAiPaywall, isOfferPaywall, isBoostPaywall, quota?.planType]);
 
   useEffect(
     () =>
@@ -409,12 +482,13 @@ export function PaymentSheet({
     onClose();
   }
 
-  const currentAmount = session?.amount ?? paymentTypePrices[selectedPaymentType];
+  const currentAmount = session?.amount ?? price(selectedPaymentType);
   const busy = phase === "creating_checkout" || phase === "checking";
-  const selectedPackage = packages.find((p) => p.type === selectedPaymentType) ?? packages[0];
+  const selectedPackage =
+    packages.find((p) => p.type === selectedPaymentType) ?? packages[0] ?? allPackages[0]!;
   const isSelectedCurrentPlan =
-    (selectedPaymentType === "PREMIUM_OWNER" && quota?.planType === "PREMIUM") ||
-    (selectedPaymentType === "OWNER_PLUS" && quota?.planType === "OWNER_PLUS");
+    (selectedPaymentType.startsWith("PREMIUM_") && quota?.planType === "PREMIUM") ||
+    (selectedPaymentType.startsWith("OWNER_PLUS_") && quota?.planType === "OWNER_PLUS");
 
   return (
     <Sheet
@@ -491,8 +565,8 @@ export function PaymentSheet({
                     انتهى رصيد العروض المباشرة المجانية
                   </p>
                   <p className="mt-1 text-caption text-body-text">
-                    اختر <strong>إعادة تجديد باقتك الحالية</strong> للتواصل غير المحدود مع
-                    المستأجرين، أو <strong>شراء إرسال عرض منفرد لمرة واحدة</strong>.
+                    اشترِ <strong>10 عروض إضافية صالحة 60 يومًا</strong>، أو اختر خطة شهرية بسعة 30
+                    أو 100 عرض تتجدد بدون ترحيل.
                   </p>
                 </div>
               ) : isPaidPackage ? (
@@ -504,7 +578,7 @@ export function PaymentSheet({
                   </p>
                   <p className="mt-1 text-caption text-body-text">
                     يمكنك <strong>إعادة تجديد باقتك الحالية</strong> لشحن رصيد الوحدات والعروض
-                    بالكامل، أو الترقية لشراء باقة أعلى/إضافة عقار منفرد.
+                    شهريًا بدون ترحيل، أو الترقية لباقة أعلى وشراء إضافة مستقلة عند الحاجة.
                   </p>
                 </div>
               ) : (
@@ -514,7 +588,7 @@ export function PaymentSheet({
                     وصلت للحد الأقصى للوحدات النشطة المجانية (عقار واحد)
                   </p>
                   <p className="mt-1 text-caption text-body-text">
-                    اختر خطة اشتراك المالك المناسبة أو اشترِ إضافة عقار منفرد لنشر إعلانك الآن.
+                    اختر خطة الاشتراك المناسبة أو اشترِ سعة عقار إضافية صالحة 60 يومًا.
                   </p>
                 </div>
               )}
@@ -529,8 +603,8 @@ export function PaymentSheet({
                     const Icon = pkg.icon;
                     const isSelected = selectedPaymentType === pkg.type;
                     const isCurrentPlan =
-                      (pkg.type === "PREMIUM_OWNER" && quota?.planType === "PREMIUM") ||
-                      (pkg.type === "OWNER_PLUS" && quota?.planType === "OWNER_PLUS");
+                      (pkg.type.startsWith("PREMIUM_") && quota?.planType === "PREMIUM") ||
+                      (pkg.type.startsWith("OWNER_PLUS_") && quota?.planType === "OWNER_PLUS");
 
                     return (
                       <div
@@ -611,10 +685,13 @@ export function PaymentSheet({
               <Button
                 size="lg"
                 block
+                disabled={packages.length === 0}
                 onClick={() => setStep(2)}
                 className="mt-2 py-3.5 text-body font-bold"
               >
-                التالي: اختر طريقة الدفع ({formatEGP(selectedPackage.price)})
+                {packages.length === 0
+                  ? "هذا المنتج غير متاح حاليًا"
+                  : `التالي: اختر طريقة الدفع (${formatEGP(selectedPackage.price)})`}
               </Button>
             </div>
           )}
@@ -735,7 +812,7 @@ export function PaymentSheet({
                 )}
                 {isSelectedCurrentPlan
                   ? `تأكيد ودفع إعادة تجديد الباقة (${formatEGP(currentAmount)})`
-                  : `تأكيد ودفع ${paymentTypeLabels[selectedPaymentType]} (${formatEGP(currentAmount)})`}
+                  : `تأكيد ودفع ${selectedPackage.label} (${formatEGP(currentAmount)})`}
               </Button>
             </div>
           )}
@@ -747,7 +824,7 @@ export function PaymentSheet({
       {phase === "checkout" && (
         <div className="flex flex-col gap-4">
           <PaymentSummary
-            paymentType={selectedPaymentType}
+            label={selectedPackage.label}
             amount={currentAmount}
             additions={selectedPackage.additions}
             paymentMethod={paymentMethod}
@@ -806,13 +883,13 @@ export function PaymentSheet({
 }
 
 function PaymentSummary({
-  paymentType,
+  label,
   amount,
   additions,
   paymentMethod,
   isRepurchase,
 }: {
-  paymentType: PaymentType;
+  label: string;
   amount: number;
   additions: string[];
   paymentMethod: "CARD" | "WALLET";
@@ -823,9 +900,7 @@ function PaymentSummary({
       <div className="flex items-center justify-between border-b border-hairline/60 pb-3">
         <div>
           <p className="text-body font-bold text-ink">
-            {isRepurchase
-              ? `إعادة تجديد: ${paymentTypeLabels[paymentType]}`
-              : paymentTypeLabels[paymentType]}
+            {isRepurchase ? `إعادة تجديد: ${label}` : label}
           </p>
           <p className="text-caption text-muted">تفعيل وإضافة فورية للرصيد بعد إتمام الدفع</p>
         </div>

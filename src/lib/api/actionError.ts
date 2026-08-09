@@ -1,5 +1,5 @@
 import { isApiClientError } from "./browserClient";
-import type { PaymentType } from "./contracts/payment";
+import type { CheckoutPaymentType } from "./contracts/payment";
 
 /**
  * A domain error the UI must react to specifically rather than showing a
@@ -12,13 +12,13 @@ import type { PaymentType } from "./contracts/payment";
 export interface ActionError {
   statusCode?: number;
   code?: string;
-  paymentType?: PaymentType;
+  paymentType?: CheckoutPaymentType;
   message: string;
 }
 
 export function toActionError(e: unknown): ActionError {
   if (isApiClientError(e)) {
-    const body = e.body as { code?: string; paymentType?: PaymentType } | null;
+    const body = e.body as { code?: string; paymentType?: CheckoutPaymentType } | null;
     return { statusCode: e.statusCode, code: body?.code, paymentType: body?.paymentType, message: e.message };
   }
   return { message: "تعذر إتمام العملية، حاول مرة أخرى" };
