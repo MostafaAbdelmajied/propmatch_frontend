@@ -56,6 +56,10 @@ export function LoginForm() {
           setSuspensionNotice(e.message);
           return;
         }
+        if (code === "EMAIL_NOT_VERIFIED") {
+          router.replace(`/verify-email?email=${encodeURIComponent(values.email)}`);
+          return;
+        }
       }
       const message = isApiClientError(e) ? e.message : "تعذر تسجيل الدخول، حاول مرة أخرى";
       setError("root", { message });
