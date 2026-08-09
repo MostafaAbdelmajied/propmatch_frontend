@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Activity,
@@ -10,6 +9,7 @@ import {
   Globe,
   Headset,
   LayoutDashboard,
+  Loader2,
   Menu,
   PanelRightClose,
   PanelRightOpen,
@@ -40,15 +40,18 @@ const groups: Array<{ label: string; links: SidebarLink[] }> = [
   },
   {
     label: "التشغيل",
-    links: [
-      { href: "/admin/support", label: "دعم العملاء", Icon: Headset, cap: "ticket:reply" },
-    ],
+    links: [{ href: "/admin/support", label: "دعم العملاء", Icon: Headset, cap: "ticket:reply" }],
   },
   {
     label: "المستخدمون والفريق",
     links: [
       { href: "/admin/users", label: "المستخدمون", Icon: UserX, cap: "user:suspend" },
-      { href: "/admin/reactivations", label: "إعادة التفعيل", Icon: UserCheck, cap: "user:reactivate" },
+      {
+        href: "/admin/reactivations",
+        label: "إعادة التفعيل",
+        Icon: UserCheck,
+        cap: "user:reactivate",
+      },
       { href: "/admin/team", label: "الفريق والصلاحيات", Icon: Users, cap: "admin:manage" },
     ],
   },
@@ -84,6 +87,7 @@ export function AdminSidebar({ userName }: { userName: string }) {
   const { data: queues } = useAdminQueues();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [navigatingHref, setNavigatingHref] = useState<string | null>(null);
   const caps = session?.capabilities ?? [];
   const moderationCount = queues
     ? queues.kycQueue.length +
@@ -131,18 +135,26 @@ export function AdminSidebar({ userName }: { userName: string }) {
                     ? pathname === "/admin" && index === 0
                     : pathname.startsWith(href);
                   return (
-                    <Link
+                    <a
                       key={`${group.label}:${label}`}
                       href={href}
-                      onClick={onNavigate}
+                      onClick={() => {
+                        setNavigatingHref(href);
+                        onNavigate?.();
+                      }}
                       title={compact ? label : undefined}
+                      aria-busy={navigatingHref === href}
                       className={cn(
                         "flex min-h-10 items-center rounded-control text-small font-semibold transition-colors",
                         compact ? "justify-center px-2" : "gap-3 px-3",
                         active ? "bg-primary text-white" : "text-body-text hover:bg-background",
                       )}
                     >
-                      <Icon className="size-4 shrink-0" aria-hidden />
+                      {navigatingHref === href ? (
+                        <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden />
+                      ) : (
+                        <Icon className="size-4 shrink-0" aria-hidden />
+                      )}
                       {!compact && <span className="min-w-0 flex-1 truncate">{label}</span>}
                       {badge === "moderation" && moderationCount > 0 && (
                         <span
@@ -154,7 +166,7 @@ export function AdminSidebar({ userName }: { userName: string }) {
                           {moderationCount}
                         </span>
                       )}
-                    </Link>
+                    </a>
                   );
                 })}
               </div>
@@ -179,6 +191,18 @@ export function AdminSidebar({ userName }: { userName: string }) {
 
   return (
     <>
+      {navigatingHref && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-surface/75 backdrop-blur-sm"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="flex items-center gap-3 rounded-card border border-hairline bg-surface px-5 py-4 font-bold text-ink shadow-card">
+            <Loader2 className="size-5 animate-spin text-primary" aria-hidden />
+            جارٍ تحميل الصفحة…
+          </div>
+        </div>
+      )}
       <aside
         className={cn(
           "sticky top-0 z-30 hidden h-dvh shrink-0 flex-col border-l border-hairline bg-surface transition-[width] duration-200 lg:flex",

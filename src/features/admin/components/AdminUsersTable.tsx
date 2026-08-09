@@ -46,14 +46,8 @@ export function AdminUsersTable() {
   const canSuspend = session?.capabilities.includes("user:suspend") ?? false;
   const canDelete = session?.capabilities.includes("user:delete") ?? false;
 
-  // "active" and "suspended" are both drawn from the backend's `active`
-  // bucket (deletedAt: null) and split client-side by `suspended` — the
-  // backend has no separate suspended filter, since suspension is orthogonal
-  // to deletion, not a third deletedAt state. "deleted" fetches its own
-  // server-filtered, truly paginated bucket.
-  const fetchStatus = tab === "deleted" ? "deleted" : "active";
-  const { data, isLoading, isError, refetch } = useAdminUsers({
-    status: fetchStatus,
+  const { data, isPending, isFetching, isError, refetch } = useAdminUsers({
+    status: tab,
     search: search || undefined,
     page,
     pageSize: PAGE_SIZE,
@@ -77,9 +71,8 @@ export function AdminUsersTable() {
     );
   }
 
-  const items = (data?.items ?? []).filter((user) =>
-    tab === "suspended" ? user.suspended : tab === "active" ? !user.suspended : true,
-  );
+  const items = data?.items ?? [];
+  const loading = isPending || isFetching;
 
   function changeTab(next: TabValue) {
     setTab(next);
@@ -121,14 +114,17 @@ export function AdminUsersTable() {
           مستخدمو المنصة
         </h1>
         <p className="mt-1 text-small text-muted">
-          حذف المستخدم يؤرشف طلباته وعقاراته تلقائيًا ولا يحذفها نهائيًا. الإيقاف حالة مؤقتة أو دائمة
-          قابلة للإلغاء في أي وقت.
+          حذف المستخدم يؤرشف طلباته وعقاراته تلقائيًا ولا يحذفها نهائيًا. الإيقاف حالة مؤقتة أو
+          دائمة قابلة للإلغاء في أي وقت.
         </p>
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         {/* Status tabs */}
-        <div role="tablist" className="flex w-fit rounded-pill border border-hairline bg-surface p-1">
+        <div
+          role="tablist"
+          className="flex w-fit rounded-pill border border-hairline bg-surface p-1"
+        >
           {statusTabs.map((t) => (
             <button
               key={t.value}
@@ -165,7 +161,7 @@ export function AdminUsersTable() {
 
       {isError ? (
         <ErrorState onRetry={() => refetch()} />
-      ) : isLoading ? (
+      ) : loading ? (
         <div className="flex flex-col gap-2">
           {Array.from({ length: 5 }).map((_, i) => (
             <Skeleton key={i} className="h-16 w-full" />
@@ -197,9 +193,7 @@ export function AdminUsersTable() {
                     <th className="p-3 text-start font-semibold">السبب</th>
                   </>
                 )}
-                {tab === "deleted" && (
-                  <th className="p-3 text-start font-semibold">تاريخ الحذف</th>
-                )}
+                {tab === "deleted" && <th className="p-3 text-start font-semibold">تاريخ الحذف</th>}
                 <th className="p-3 text-start font-semibold">إجراءات</th>
               </tr>
             </thead>
@@ -223,7 +217,13 @@ export function AdminUsersTable() {
                             : "bg-error-tint text-error",
                       )}
                     >
-                      {user.deletedAt ? "معلّق" : user.suspended ? "موقوف" : user.isActive ? "نشط" : "معطّل"}
+                      {user.deletedAt
+                        ? "معلّق"
+                        : user.suspended
+                          ? "موقوف"
+                          : user.isActive
+                            ? "نشط"
+                            : "معطّل"}
                     </span>
                   </td>
                   {tab === "suspended" && (
@@ -362,7 +362,12 @@ function SuspendModal({ user, onClose }: { user: AdminUserListItem; onClose: () 
               </p>
             </div>
           </div>
-          <button type="button" onClick={onClose} aria-label="إغلاق" className="text-muted hover:text-ink">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="إغلاق"
+            className="text-muted hover:text-ink"
+          >
             <X className="size-5" />
           </button>
         </div>

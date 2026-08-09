@@ -3,7 +3,16 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Home, ScanFace, Clock, ChevronLeft, FileText, Star, ShieldAlert, Pencil } from "lucide-react";
+import {
+  Home,
+  ScanFace,
+  Clock,
+  ChevronLeft,
+  FileText,
+  Star,
+  ShieldAlert,
+  Pencil,
+} from "lucide-react";
 import { useAdminQueues, useModerateReview, useReviewTenantRequest } from "../hooks/useAdmin";
 import { useAdminSession } from "../hooks/useTeam";
 import { InputField } from "@/src/components/ui/Field";
@@ -24,7 +33,7 @@ import type { Capability } from "@/src/lib/api/contracts/common";
  * capability guard is what actually enforces it.
  */
 export function AdminDashboard() {
-  const { data, isLoading } = useAdminQueues();
+  const { data, isPending, isFetching } = useAdminQueues();
   const { data: session } = useAdminSession();
   const caps = session?.capabilities ?? [];
   const can = (c: Capability) => caps.includes(c);
@@ -91,7 +100,7 @@ export function AdminDashboard() {
       ) : (
         <div className="grid gap-5 lg:grid-cols-2">
           {columns.map((col) => (
-            <QueueColumn key={col.title} {...col} loading={isLoading} />
+            <QueueColumn key={col.title} {...col} loading={isPending || isFetching} />
           ))}
         </div>
       )}
@@ -123,7 +132,9 @@ function QueueColumn({
         <Icon className="size-5 text-primary" aria-hidden />
         {title}
         {items && items.length > 0 && (
-          <span className="rounded-pill bg-primary px-2 py-0.5 text-caption font-bold text-white">{items.length}</span>
+          <span className="rounded-pill bg-primary px-2 py-0.5 text-caption font-bold text-white">
+            {items.length}
+          </span>
         )}
       </h2>
 

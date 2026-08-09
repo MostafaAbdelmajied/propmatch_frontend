@@ -5,12 +5,31 @@ import { Skeleton } from "@/src/components/ui/Skeleton";
 import { EmptyState } from "@/src/components/ui/States";
 import { useToast } from "@/src/components/ui/Toast";
 import { streamPost } from "@/src/lib/api/browserClient";
-import { ticketStatusLabels, type ChatMessage, type TicketStatus } from "@/src/lib/api/contracts/support";
+import {
+  ticketStatusLabels,
+  type ChatMessage,
+  type TicketStatus,
+} from "@/src/lib/api/contracts/support";
 import { cn } from "@/src/utils/cn";
 import { formatRelativeTime } from "@/src/utils/format";
-import { AlertTriangle, Bot, ChevronLeft, Clock, Headset, MessageSquare, Send, UserCheck } from "lucide-react";
+import {
+  AlertTriangle,
+  Bot,
+  ChevronLeft,
+  Clock,
+  Headset,
+  MessageSquare,
+  Send,
+  UserCheck,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { useCreateSupportTicket, useMyTickets, useUserTicketDetail, useUserTicketReply } from "../hooks/useUserSupport";
+import {
+  hasOpenSupportTicket,
+  useCreateSupportTicket,
+  useMyTickets,
+  useUserTicketDetail,
+  useUserTicketReply,
+} from "../hooks/useUserSupport";
 
 const statusTone: Record<string, string> = {
   NEW: "bg-trust-blue-tint text-trust-blue",
@@ -31,7 +50,15 @@ function makeUniqueId(prefix: string): string {
 
 function analyzeSentiment(message: string): { isFrustrated: boolean; score: number } {
   const angryKeywords = [
-    "نصابين", "سيء جدا", "خدمة زبالة", "خصمتم", "اشتكي", "احتيال", "مشكلة كبيرة", "غير مقبول", "أين الدعم"
+    "نصابين",
+    "سيء جدا",
+    "خدمة زبالة",
+    "خصمتم",
+    "اشتكي",
+    "احتيال",
+    "مشكلة كبيرة",
+    "غير مقبول",
+    "أين الدعم",
   ];
   let score = 0;
   for (const word of angryKeywords) {
@@ -54,6 +81,9 @@ export function CustomerSupportWidget() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const createTicket = useCreateSupportTicket();
   const myTickets = useMyTickets();
+  const hasOpenTicket = hasOpenSupportTicket(myTickets.data?.items ?? []);
+  const escalationLoading = createTicket.isPending || myTickets.isPending || myTickets.isFetching;
+  const escalationDisabled = escalationLoading || hasOpenTicket;
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -97,18 +127,17 @@ export function CustomerSupportWidget() {
           },
         },
       );
-      setMessages((m) => m.map((msg) => (msg.id === replyId ? { ...msg, declined: done.declined } : msg)));
-      if (done.escalated) {
-        setFrustrated(false);
-        toast("success", "تم إنشاء تذكرة دعم تلقائياً وسيتم التواصل معك قريباً.");
-      }
+      setMessages((m) =>
+        m.map((msg) => (msg.id === replyId ? { ...msg, declined: done.declined } : msg)),
+      );
     } catch {
       setMessages((m) => [
         ...m,
         {
           id: replyId,
           role: "assistant",
-          content: "أنا المساعد الآلي لخدمة العملاء. كيف يمكنني مساعدتك اليوم؟ إذا كنت ترغب في التحدث مع موظف دعم فني، انقر على زر التحويل أدناه.",
+          content:
+            "أنا المساعد الآلي لخدمة العملاء. كيف يمكنني مساعدتك اليوم؟ إذا كنت ترغب في التحدث مع موظف دعم فني، انقر على زر التحويل أدناه.",
         },
       ]);
     } finally {
@@ -117,7 +146,9 @@ export function CustomerSupportWidget() {
   }
 
   function handleEscalateToHuman() {
-    const lastUserMsg = [...messages].reverse().find((m) => m.role === "user")?.content || "استفسار خدمة العملاء";
+    if (escalationDisabled) return;
+    const lastUserMsg =
+      [...messages].reverse().find((m) => m.role === "user")?.content || "استفسار خدمة العملاء";
     createTicket.mutate(
       {
         subject: lastUserMsg.slice(0, 50),
@@ -129,6 +160,7 @@ export function CustomerSupportWidget() {
           setSelectedTicketId(ticket.id);
           setActiveTab("my_tickets");
         },
+        onError: () => toast("error", "تعذر إنشاء تذكرة الدعم. حاول مرة أخرى."),
       },
     );
   }
@@ -183,26 +215,42 @@ export function CustomerSupportWidget() {
                 <AlertTriangle className="size-4 shrink-0" />
                 يبدو أنك تواجه مشكلة هامة! يمكنك التحويل مباشرة لموظف دعم فني.
               </div>
-              <Button size="sm" variant="primary" loading={createTicket.isPending} onClick={handleEscalateToHuman}>
-                تحدث مع موظف
+              <Button
+                size="sm"
+                variant="primary"
+                loading={escalationLoading}
+                disabled={escalationDisabled}
+                onClick={handleEscalateToHuman}
+              >
+                {hasOpenTicket ? "لديك تذكرة مفتوحة" : "تحدث مع موظف"}
               </Button>
             </div>
           )}
 
           {/* AI Message Thread */}
-          <div ref={scrollRef} className="flex flex-1 flex-col gap-3 overflow-y-auto rounded-card border border-hairline bg-surface p-4">
+          <div
+            ref={scrollRef}
+            className="flex flex-1 flex-col gap-3 overflow-y-auto rounded-card border border-hairline bg-surface p-4"
+          >
             {messages.length === 0 && (
               <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
                 <Bot className="size-12 text-primary" aria-hidden />
                 <div>
-                  <h3 className="text-body font-bold text-ink">مرحباً بك في خدمة عملاء PropMatch</h3>
-                  <p className="mt-1 text-small text-muted">اسأل المساعد الآلي عن أي استفسار تخص المنصة أو العقود</p>
+                  <h3 className="text-body font-bold text-ink">
+                    مرحباً بك في خدمة عملاء PropMatch
+                  </h3>
+                  <p className="mt-1 text-small text-muted">
+                    اسأل المساعد الآلي عن أي استفسار تخص المنصة أو العقود
+                  </p>
                 </div>
               </div>
             )}
 
             {messages.map((m) => (
-              <div key={m.id} className={cn("flex", m.role === "user" ? "justify-start" : "justify-end")}>
+              <div
+                key={m.id}
+                className={cn("flex", m.role === "user" ? "justify-start" : "justify-end")}
+              >
                 <div
                   className={cn(
                     "max-w-[85%] rounded-card px-4 py-2.5 text-body leading-relaxed",
@@ -220,7 +268,11 @@ export function CustomerSupportWidget() {
               <div className="flex justify-end">
                 <div className="flex gap-1 rounded-card bg-background px-4 py-3">
                   {[0, 1, 2].map((i) => (
-                    <span key={i} className="size-2 animate-bounce rounded-full bg-muted" style={{ animationDelay: `${i * 0.15}s` }} />
+                    <span
+                      key={i}
+                      className="size-2 animate-bounce rounded-full bg-muted"
+                      style={{ animationDelay: `${i * 0.15}s` }}
+                    />
                   ))}
                 </div>
               </div>
@@ -231,13 +283,18 @@ export function CustomerSupportWidget() {
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
               <span className="text-caption text-muted">هل تحتاج مساعدة بشرية؟</span>
-              <button
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                loading={escalationLoading}
+                disabled={escalationDisabled}
                 onClick={handleEscalateToHuman}
-                className="flex items-center gap-1 text-caption font-bold text-primary hover:underline"
+                className="text-caption font-bold"
               >
                 <UserCheck className="size-3.5" />
-                تحويل لموظف الدعم
-              </button>
+                {hasOpenTicket ? "لديك تذكرة دعم مفتوحة" : "تحويل لموظف الدعم"}
+              </Button>
             </div>
             <form
               onSubmit={(e) => {
@@ -296,7 +353,12 @@ function UserTicketsList({ onSelectTicket }: { onSelectTicket: (id: string) => v
           >
             <div>
               <div className="flex items-center gap-2">
-                <span className={cn("rounded-pill px-2 py-0.5 text-caption font-bold", statusTone[t.status])}>
+                <span
+                  className={cn(
+                    "rounded-pill px-2 py-0.5 text-caption font-bold",
+                    statusTone[t.status],
+                  )}
+                >
                   {ticketStatusLabels[t.status]}
                 </span>
                 <span className="text-small font-bold text-ink">{t.subject}</span>
@@ -346,7 +408,12 @@ function UserTicketThread({ id, onBack }: { id: string; onBack: () => void }) {
         <Button variant="ghost" size="sm" onClick={onBack}>
           ← العودة للتذاكر
         </Button>
-        <span className={cn("rounded-pill px-2.5 py-0.5 text-caption font-bold", statusTone[ticket.status as TicketStatus])}>
+        <span
+          className={cn(
+            "rounded-pill px-2.5 py-0.5 text-caption font-bold",
+            statusTone[ticket.status as TicketStatus],
+          )}
+        >
           {ticketStatusLabels[ticket.status as TicketStatus]}
         </span>
       </div>
@@ -363,14 +430,21 @@ function UserTicketThread({ id, onBack }: { id: string; onBack: () => void }) {
 
           return (
             <div key={m.id} className={cn("flex", isUser ? "justify-start" : "justify-end")}>
-              <div className={cn("flex max-w-[85%] flex-col gap-1", isUser ? "items-start" : "items-end")}>
+              <div
+                className={cn(
+                  "flex max-w-[85%] flex-col gap-1",
+                  isUser ? "items-start" : "items-end",
+                )}
+              >
                 <span className="text-caption text-muted">
                   {m.authorName} · {formatRelativeTime(timestamp)}
                 </span>
                 <div
                   className={cn(
                     "rounded-card px-4 py-2 text-body",
-                    isUser ? "bg-primary text-white" : "bg-background text-ink border border-hairline",
+                    isUser
+                      ? "bg-primary text-white"
+                      : "bg-background text-ink border border-hairline",
                   )}
                 >
                   {m.content}

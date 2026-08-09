@@ -53,14 +53,12 @@ describe("LoginForm — account-state error handling", () => {
 
   it("shows the reactivation button for ACCOUNT_DELETED, not the suspension notice", async () => {
     mockedLogin.mockReturnValue({
-      mutateAsync: jest
-        .fn()
-        .mockRejectedValue(
-          makeApiClientError(403, "هذا الحساب مجدول للحذف. يمكنك طلب إعادة التفعيل.", {
-            statusCode: 403,
-            code: "ACCOUNT_DELETED",
-          }),
-        ),
+      mutateAsync: jest.fn().mockRejectedValue(
+        makeApiClientError(403, "هذا الحساب مجدول للحذف. يمكنك طلب إعادة التفعيل.", {
+          statusCode: 403,
+          code: "ACCOUNT_DELETED",
+        }),
+      ),
     } as unknown as ReturnType<typeof useLogin>);
     renderForm();
 
@@ -94,14 +92,12 @@ describe("LoginForm — account-state error handling", () => {
 
   it("lets an ACCOUNT_SUSPENDED user submit an admin review ticket", async () => {
     mockedLogin.mockReturnValue({
-      mutateAsync: jest
-        .fn()
-        .mockRejectedValue(
-          makeApiClientError(403, "تم إيقاف حسابك حتى 2026-08-20. السبب: احتيال أو نصب.", {
-            statusCode: 403,
-            code: "ACCOUNT_SUSPENDED",
-          }),
-        ),
+      mutateAsync: jest.fn().mockRejectedValue(
+        makeApiClientError(403, "تم إيقاف حسابك حتى 2026-08-20. السبب: احتيال أو نصب.", {
+          statusCode: 403,
+          code: "ACCOUNT_SUSPENDED",
+        }),
+      ),
     } as unknown as ReturnType<typeof useLogin>);
     renderForm();
 
@@ -113,8 +109,11 @@ describe("LoginForm — account-state error handling", () => {
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "طلب إعادة التفعيل" })).not.toBeInTheDocument();
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText("سبب طلب المراجعة"), "أرجو مراجعة قرار إيقاف حسابي.");
-    await user.click(screen.getByRole("button", { name: "إرسال تذكرة مراجعة للإدارة" }));
+    await user.type(
+      screen.getByLabelText("رسالتك إلى خدمة العملاء"),
+      "أرجو مراجعة قرار إيقاف حسابي.",
+    );
+    await user.click(screen.getByRole("button", { name: "إرسال إلى خدمة العملاء" }));
 
     expect(requestReactivationMutate).toHaveBeenCalledWith(
       {
@@ -134,9 +133,7 @@ describe("LoginForm — account-state error handling", () => {
 
     renderForm();
 
-    expect(
-      screen.getByText("التواصل مع خدمة العملاء بشأن إيقاف الحساب"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("التواصل مع خدمة العملاء بشأن إيقاف الحساب")).toBeInTheDocument();
     expect(screen.getByText(/أدخل بيانات حسابك لتأكيد هويتك/)).toBeInTheDocument();
   });
 
@@ -144,7 +141,9 @@ describe("LoginForm — account-state error handling", () => {
     mockedLogin.mockReturnValue({
       mutateAsync: jest
         .fn()
-        .mockRejectedValue(makeApiClientError(401, "البريد الإلكتروني أو كلمة المرور غير صحيحة", null)),
+        .mockRejectedValue(
+          makeApiClientError(401, "البريد الإلكتروني أو كلمة المرور غير صحيحة", null),
+        ),
     } as unknown as ReturnType<typeof useLogin>);
     renderForm();
 

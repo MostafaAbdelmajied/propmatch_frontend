@@ -323,7 +323,7 @@ export const AdminUsersResponseSchema = z.object({
 export type AdminUsersResponse = z.infer<typeof AdminUsersResponseSchema>;
 
 /** GET /admin/users?status= — mirrors AdminService.listUsers's default. */
-export type AdminUserStatusFilter = "active" | "deleted" | "all";
+export type AdminUserStatusFilter = "active" | "suspended" | "deleted" | "all";
 
 /**
  * GET /admin/reactivations item — a soft-deleted user's self-service
