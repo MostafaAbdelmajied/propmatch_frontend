@@ -40,6 +40,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { AvatarCropModal } from "@/src/features/profile/components/AvatarCropModal";
+
 function compressImage(file: File, maxWidth = 300, maxHeight = 300): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -144,9 +146,11 @@ export function ProfileScreen() {
   const [showAddOnsWizard, setShowAddOnsWizard] = useState(false);
   const [showOfferInfo, setShowOfferInfo] = useState(false);
 
-  // Avatar uploading state
+  // Avatar uploading & Cropping state
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [avatarProgress, setAvatarProgress] = useState(0);
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+  const [showCropper, setShowCropper] = useState(false);
 
   // Update Account Wizard state
   const [showUpdateWizard, setShowUpdateWizard] = useState(false);
@@ -168,20 +172,33 @@ export function ProfileScreen() {
     }
   }, [user]);
 
-  async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleAvatarFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      setCropImageSrc(dataUrl);
+      setShowCropper(true);
+    };
+    reader.readAsDataURL(file);
+    // Reset file input so selecting the same file again triggers onChange
+    e.target.value = "";
+  }
+
+  async function handleCropConfirm(croppedBase64: string) {
     setUploadingAvatar(true);
-    setAvatarProgress(25);
+    setAvatarProgress(30);
     try {
-      setAvatarProgress(50);
-      const compressedBase64 = await compressImage(file);
-      setAvatarProgress(75);
-      await api.patch("auth/profile", { avatarUrl: compressedBase64 });
+      setAvatarProgress(60);
+      await api.patch("auth/profile", { avatarUrl: croppedBase64 });
       setAvatarProgress(100);
       await queryClient.invalidateQueries({ queryKey: ["session"] });
       setUploadingAvatar(false);
       setAvatarProgress(0);
+      setShowCropper(false);
+      setCropImageSrc(null);
     } catch (err) {
       console.error(err);
       setUploadingAvatar(false);
@@ -271,7 +288,7 @@ export function ProfileScreen() {
                   type="file"
                   accept="image/*"
                   className="hidden"
-                  onChange={handleAvatarChange}
+                  onChange={handleAvatarFileSelect}
                   disabled={uploadingAvatar}
                 />
               </label>
@@ -890,6 +907,20 @@ export function ProfileScreen() {
             setShowAddOnsWizard(false);
             quotaQuery.refetch();
           }}
+        />
+      )}
+
+      {/* Avatar Crop & Rotate/Flip Modal */}
+      {showCropper && cropImageSrc && (
+        <AvatarCropModal
+          open={showCropper}
+          imageSrc={cropImageSrc}
+          onClose={() => {
+            setShowCropper(false);
+            setCropImageSrc(null);
+          }}
+          onConfirm={handleCropConfirm}
+          isUploading={uploadingAvatar}
         />
       )}
     </div>
