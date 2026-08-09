@@ -33,7 +33,9 @@ export function AdminTickets() {
           <Headset className="size-6 text-primary" aria-hidden />
           الدعم الفني
         </h1>
-        <p className="mt-1 text-small text-muted">التذاكر المحوّلة من المساعد الآلي إلى موظفي الدعم.</p>
+        <p className="mt-1 text-small text-muted">
+          تذاكر العملاء وطلبات مراجعة إيقاف الحسابات المحوّلة إلى فريق الدعم.
+        </p>
       </div>
 
       {isError ? (

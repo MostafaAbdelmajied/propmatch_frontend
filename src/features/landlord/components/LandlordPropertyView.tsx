@@ -56,8 +56,8 @@ export function LandlordPropertyView({ id }: { id: string }) {
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-hairline bg-surface p-4">
           <div className="flex items-center gap-2">
             <StatusChip status={p.status} />
-            {p.status === "REJECTED" && p.rejectionReason && (
-              <span className="text-small text-error">سبب الرفض: {p.rejectionReason}</span>
+            {p.status !== "APPROVED" && p.rejectionReason && (
+              <span className="text-small text-error">سبب طلب التعديلات: {p.rejectionReason}</span>
             )}
           </div>
           <div className="flex flex-wrap gap-2">
@@ -84,7 +84,9 @@ export function LandlordPropertyView({ id }: { id: string }) {
             )}
           </div>
           {p.isBoosted && (
-            <span className="rounded-pill bg-pending-tint px-3 py-1 text-caption font-bold text-pending">إعلان مميّز</span>
+            <span className="rounded-pill bg-pending-tint px-3 py-1 text-caption font-bold text-pending">
+              إعلان مميّز
+            </span>
           )}
           <ArchivePropertyAction propertyId={p.id} status={p.status} />
         </div>
@@ -92,7 +94,7 @@ export function LandlordPropertyView({ id }: { id: string }) {
 
       <PropertyDetailView id={id} hideContact />
 
-      <PropertyAnalyticsPanel propertyId={id} />
+      {p?.status === "APPROVED" && <PropertyAnalyticsPanel propertyId={id} />}
 
       <PaymentSheet
         open={boostOpen}

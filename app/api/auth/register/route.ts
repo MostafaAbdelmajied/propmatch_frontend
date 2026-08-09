@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { backendFetch, BackendApiError } from "@/src/lib/api/client";
-import { setAuthCookies } from "@/src/lib/api/cookies";
-import { RegisterRequestSchema, BackendAuthTokensSchema, type AuthResponse } from "@/src/lib/api/contracts/auth";
+import { RegisterRequestSchema, RegistrationVerificationSchema } from "@/src/lib/api/contracts/auth";
 
 export async function POST(request: NextRequest) {
   const parsed = RegisterRequestSchema.safeParse(await request.json().catch(() => null));
@@ -18,18 +17,14 @@ export async function POST(request: NextRequest) {
       body: { ...parsed.data, role: parsed.data.role.toUpperCase() },
     });
 
-    const tokensResult = BackendAuthTokensSchema.safeParse(backendResponse);
-    if (!tokensResult.success) {
+    const result = RegistrationVerificationSchema.safeParse(backendResponse);
+    if (!result.success) {
       return NextResponse.json(
-        { statusCode: 502, message: "Invalid authentication response from backend" },
+        { statusCode: 502, message: "Invalid registration response from backend" },
         { status: 502 },
       );
     }
-
-    const body: AuthResponse = { user: tokensResult.data.user };
-    const response = NextResponse.json(body);
-    setAuthCookies(response, tokensResult.data);
-    return response;
+    return NextResponse.json(result.data);
   } catch (error) {
     if (error instanceof BackendApiError) {
       return NextResponse.json({ statusCode: error.statusCode, message: error.message }, { status: error.statusCode });

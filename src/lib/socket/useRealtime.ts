@@ -3,13 +3,13 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { io, type Socket } from "socket.io-client";
 import { SOCKET_EVENTS } from "@/src/lib/api/contracts/notification";
 import type {
   AccountSuspendedPayload,
   Notification,
   NotificationsResponse,
   RealtimeSupportMessage,
+  RealtimeSupportTicket,
   RealtimeReactivationRequest,
 } from "@/src/lib/api/contracts/notification";
 import { useSuspensionStore } from "@/src/lib/store/useSuspensionStore";
@@ -18,10 +18,10 @@ import { authApi } from "@/src/lib/api/browserClient";
 import type { AdminQueuesResponse, QueueItem } from "@/src/lib/api/contracts/admin";
 import type { MatchMessage, RealtimeMatchMessage } from "@/src/lib/api/contracts/message";
 import type { PaymentStatus } from "@/src/lib/api/contracts/payment";
+import { getSocket, reconnectSocket } from "./socketClient";
 
-const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL;
+export { reconnectSocket } from "./socketClient";
 
-let socket: Socket | null = null;
 let sharedAudioCtx: AudioContext | null = null;
 
 // Keep the socket payload-to-cache mapping explicit. Socket events are
@@ -92,35 +92,6 @@ function playNotificationChime(): void {
   } catch (e) {
     console.warn("Notification chime error:", e);
   }
-}
-
-/** One shared connection per tab, regardless of how many components subscribe. */
-function getSocket(): Socket | null {
-  if (!SOCKET_URL || typeof window === "undefined") return null;
-  socket ??= io(SOCKET_URL, {
-    withCredentials: true,
-    // Keep retrying: the singleton may first connect before the auth cookie
-    // exists (e.g. a deep link → login → back), and must recover afterwards
-    // instead of giving up permanently.
-    reconnectionAttempts: Infinity,
-    reconnectionDelay: 1000,
-    reconnectionDelayMax: 5000,
-  });
-  return socket;
-}
-
-/**
- * Force the shared socket to re-run its handshake so it authenticates with the
- * CURRENT auth cookie. Call this after login/logout: the singleton may have
- * connected anonymously (e.g. on the /login page before the cookie existed) or
- * as a previous account, and must re-auth as the new user. Reuses the same
- * socket instance, so all `.on(...)` listeners stay bound.
- */
-export function reconnectSocket(): void {
-  const s = getSocket();
-  if (!s) return;
-  s.disconnect();
-  s.connect();
 }
 
 export interface PaymentUpdatedPayload {
@@ -198,6 +169,18 @@ export function useRealtime(): RealtimeState {
       // often on another screen when a draft changes state.
       if (n.type === "NEW_REVIEW_SUBMITTED") toast("info", n.message);
       else if (n.type === "REVIEW_APPROVED") toast("success", n.message);
+      else if (n.type === "NEW_OFFER_RECEIVED" || n.type === "NEW_MATCH") {
+        // Offer updates and accepted offers both change data owned by the
+        // other participant. Refetch only the affected inboxes and the match
+        // list; React Query only requests active observers, so this remains
+        // event-driven rather than becoming background polling.
+        void qc.invalidateQueries({ queryKey: ["tenant", "offers"] });
+        void qc.invalidateQueries({ queryKey: ["landlord", "offers"] });
+        void qc.invalidateQueries({ queryKey: ["tenant", "listing-offers"] });
+        void qc.invalidateQueries({ queryKey: ["landlord", "listing-offers"] });
+        void qc.invalidateQueries({ queryKey: ["matches"] });
+        toast("info", n.message);
+      }
     };
 
     const onQueueItem = (item: QueueItem) => {
@@ -229,11 +212,21 @@ export function useRealtime(): RealtimeState {
               senderId: message.senderId,
               body: message.body,
               createdAt: message.createdAt,
+              editedAt: message.editedAt,
+              attachmentUrl: message.attachmentUrl,
+              attachmentType: message.attachmentType,
+              attachmentName: message.attachmentName,
+              attachmentDurationMs: message.attachmentDurationMs,
               isMine: false,
             },
           ];
         },
       );
+      // The socket is deliberately a delivery signal, while HTTP remains the
+      // source of truth. This also fills any fields a newer backend may add.
+      void qc.invalidateQueries({
+        queryKey: ["matches", message.matchConnectionId, "messages"],
+      });
       qc.invalidateQueries({ queryKey: ["matches"] });
       playNotificationChime();
     };
@@ -262,6 +255,12 @@ export function useRealtime(): RealtimeState {
       qc.invalidateQueries({ queryKey: ["user", "support", "ticket", payload.ticketId] });
       qc.invalidateQueries({ queryKey: ["user", "support", "tickets"] });
       qc.invalidateQueries({ queryKey: ["admin", "ticket", payload.ticketId] });
+      qc.invalidateQueries({ queryKey: ["admin", "tickets"] });
+      playNotificationChime();
+    };
+
+    const onSupportTicketCreated = (payload: RealtimeSupportTicket) => {
+      toast("info", `تذكرة دعم جديدة من ${payload.userName}: ${payload.subject}`);
       qc.invalidateQueries({ queryKey: ["admin", "tickets"] });
       playNotificationChime();
     };
@@ -318,6 +317,7 @@ export function useRealtime(): RealtimeState {
     s.on(SOCKET_EVENTS.messageEdited, onMessageEdited);
     s.on(SOCKET_EVENTS.messageDeleted, onMessageDeleted);
     s.on(SOCKET_EVENTS.supportMessageReceived, onSupportMessage);
+    s.on(SOCKET_EVENTS.supportTicketCreated, onSupportTicketCreated);
     s.on(SOCKET_EVENTS.forceLogout, onForceLogout);
     s.on(SOCKET_EVENTS.newReactivationRequest, onReactivationRequested);
     s.on(SOCKET_EVENTS.accountSuspended, onAccountSuspended);
@@ -329,6 +329,7 @@ export function useRealtime(): RealtimeState {
       s.off(SOCKET_EVENTS.messageEdited, onMessageEdited);
       s.off(SOCKET_EVENTS.messageDeleted, onMessageDeleted);
       s.off(SOCKET_EVENTS.supportMessageReceived, onSupportMessage);
+      s.off(SOCKET_EVENTS.supportTicketCreated, onSupportTicketCreated);
       s.off(SOCKET_EVENTS.forceLogout, onForceLogout);
       s.off(SOCKET_EVENTS.newReactivationRequest, onReactivationRequested);
       s.off(SOCKET_EVENTS.accountSuspended, onAccountSuspended);

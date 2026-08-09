@@ -11,7 +11,7 @@ export function MarketingFooter() {
         <div>
           <Logo href="/" size="lg" />
           <p className="mt-4 max-w-sm text-sm leading-7 text-landing-muted">
-            نساعدك تلاقي بيت ترتاح فيه، أو مستأجر تطمئن له — بشكل مباشر، وبدون سمسار أو عمولة.
+            نساعدك تلاقي بيت ترتاح فيه، أو مستأجر تطمئن له — بوضوح وسهولة عبر المنصة.
           </p>
           <div className="mt-6">
             <SocialLinks />

@@ -1,8 +1,8 @@
 {
   "brand": {
     "name": "PropMatch AI",
-    "tagline": "استأجر مباشرة من المالك. بدون سمسار، وبدون عمولة.",
-    "noBrokerCommission": "بدون عمولة سمسار"
+    "tagline": "اعثر على سكنك بثقة عبر إعلانات واضحة ومطابقة ذكية.",
+    "noBrokerCommission": "تواصل واضح عبر المنصة"
   },
   "roles": {
     "tenant": "مستأجر",

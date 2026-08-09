@@ -21,11 +21,30 @@ const backendUser = {
 
 describe("auth contracts", () => {
   it("accepts a valid login payload", () => {
-    expect(LoginRequestSchema.safeParse({ email: "a@b.com", password: "12345678" }).success).toBe(true);
+    expect(LoginRequestSchema.safeParse({ email: "a@b.com", password: "12345678" }).success).toBe(
+      true,
+    );
+  });
+
+  it("normalizes login and registration emails", () => {
+    expect(
+      LoginRequestSchema.parse({ email: "  User@Example.COM ", password: "12345678" }).email,
+    ).toBe("user@example.com");
+    expect(
+      RegisterRequestSchema.parse({
+        fullName: "Test User",
+        email: " New.User@Example.COM ",
+        phoneNumber: "01012345678",
+        password: "12345678",
+        role: "tenant",
+      }).email,
+    ).toBe("new.user@example.com");
   });
 
   it("rejects an invalid email", () => {
-    expect(LoginRequestSchema.safeParse({ email: "not-an-email", password: "12345678" }).success).toBe(false);
+    expect(
+      LoginRequestSchema.safeParse({ email: "not-an-email", password: "12345678" }).success,
+    ).toBe(false);
   });
 
   const registerBase = {
@@ -46,11 +65,13 @@ describe("auth contracts", () => {
   it.each(["NOT_SUBMITTED", "PENDING", "APPROVED", "REJECTED", "RESUBMISSION_REQUIRED"])(
     "accepts the canonical backend verification status %s",
     (verificationStatus) => {
-      expect(BackendAuthTokensSchema.safeParse({
-        accessToken: "access-token",
-        refreshToken: "refresh-token",
-        user: { ...backendUser, verificationStatus },
-      }).success).toBe(true);
+      expect(
+        BackendAuthTokensSchema.safeParse({
+          accessToken: "access-token",
+          refreshToken: "refresh-token",
+          user: { ...backendUser, verificationStatus },
+        }).success,
+      ).toBe(true);
     },
   );
 
@@ -80,11 +101,32 @@ describe("auth contracts", () => {
   });
 
   it("rejects obsolete backend user fields and missing access tokens", () => {
-    const obsoleteUser = { ...backendUser, phone: backendUser.phoneNumber, verificationStatus: "verified" };
+    const obsoleteUser = {
+      ...backendUser,
+      phone: backendUser.phoneNumber,
+      verificationStatus: "verified",
+    };
     delete (obsoleteUser as Partial<typeof obsoleteUser>).phoneNumber;
-    expect(BackendAuthTokensSchema.safeParse({ accessToken: "access-token", refreshToken: "refresh-token", user: obsoleteUser }).success).toBe(false);
-    expect(BackendAuthTokensSchema.safeParse({ accessToken: "access-token", refreshToken: "refresh-token", user: { ...backendUser, verificationStatus: "verified" } }).success).toBe(false);
-    expect(BackendAuthTokensSchema.safeParse({ refreshToken: "refresh-token", user: { ...backendUser, verificationStatus: "PENDING" } }).success).toBe(false);
+    expect(
+      BackendAuthTokensSchema.safeParse({
+        accessToken: "access-token",
+        refreshToken: "refresh-token",
+        user: obsoleteUser,
+      }).success,
+    ).toBe(false);
+    expect(
+      BackendAuthTokensSchema.safeParse({
+        accessToken: "access-token",
+        refreshToken: "refresh-token",
+        user: { ...backendUser, verificationStatus: "verified" },
+      }).success,
+    ).toBe(false);
+    expect(
+      BackendAuthTokensSchema.safeParse({
+        refreshToken: "refresh-token",
+        user: { ...backendUser, verificationStatus: "PENDING" },
+      }).success,
+    ).toBe(false);
   });
 
   it("documents the local NestJS API prefix and port", () => {

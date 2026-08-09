@@ -68,17 +68,14 @@ export function useLoginHistory() {
 }
 
 export interface AdminUsersQuery {
-  /** Mirrors AdminService.listUsers's default — 'active' keeps the main tab
-   * clean; 'deleted' is the Deleted tab; 'all' also backs the Suspended tab
-   * (suspended users aren't deletedAt, so they're filtered client-side out
-   * of the 'active' bucket — see AdminUsersTable). */
+  /** Mirrors AdminService.listUsers's server-side lifecycle buckets. */
   status?: AdminUserStatusFilter;
   search?: string;
   page?: number;
   pageSize?: number;
 }
 
-/** Platform accounts (tenants, landlords, admins), searchable + paginated. */
+/** Non-admin platform accounts, searchable and paginated by the server. */
 export function useAdminUsers(query: AdminUsersQuery = {}) {
   const { status = "active", search, page, pageSize } = query;
   const params = new URLSearchParams({ status });

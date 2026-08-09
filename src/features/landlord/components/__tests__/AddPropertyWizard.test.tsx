@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AddPropertyWizard } from "../AddPropertyWizard";
 import { loadPropertyDraft } from "../../propertyDraftDb";
@@ -81,7 +81,7 @@ function restoreMediaStep(overrides: Record<string, unknown> = {}) {
   });
 }
 
-async function reachReviewStep() {
+async function reachReviewStep({ waitUntilArmed = true } = {}) {
   restoreMediaStep();
   const user = userEvent.setup();
   const view = render(<AddPropertyWizard />);
@@ -93,7 +93,8 @@ async function reachReviewStep() {
   const image = new File(["image"], "property.jpg", { type: "image/jpeg" });
   await user.upload(imageInput, image);
   await user.click(screen.getByRole("button", { name: "التالي" }));
-  await screen.findByText("تحسين صيغة الوصف بالذكاء الاصطناعي (الخطوة الأخيرة)");
+  const reviewButton = await screen.findByRole("button", { name: "إرسال للمراجعة" });
+  if (waitUntilArmed) await waitFor(() => expect(reviewButton).toBeEnabled());
   return { ...view, image, user };
 }
 
@@ -133,15 +134,6 @@ describe("AddPropertyWizard", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("runs the AI optimizer once the form is complete", async () => {
-    const { user } = await reachReviewStep();
-
-    await user.click(screen.getByRole("button", { name: "تحسين الوصف بالذكاء الاصطناعي" }));
-
-    await waitFor(() => expect(mockOptimizeRun).toHaveBeenCalledTimes(1));
-    expect(mockCreateMutate).not.toHaveBeenCalled();
-  });
-
   it("blocks the AI optimizer and toasts the missing fields when the form is incomplete", async () => {
     mockLoadDraft.mockResolvedValue({
       step: 2,
@@ -166,10 +158,74 @@ describe("AddPropertyWizard", () => {
     expect(mockOptimizeRun).not.toHaveBeenCalled();
   });
 
-  it("submits the property with the uploaded image once the form validates", async () => {
+  it("optimizes the description without creating a property", async () => {
+    const { user } = await reachReviewStep();
+
+    await user.click(
+      screen.getByRole("button", { name: "تحسين الوصف بالذكاء الاصطناعي" }),
+    );
+
+    await waitFor(() => expect(mockOptimizeRun).toHaveBeenCalledTimes(1));
+    expect(mockCreateMutate).not.toHaveBeenCalled();
+  });
+
+  it("ignores native or implicit form submission", async () => {
+    const { container } = await reachReviewStep();
+    const form = container.querySelector("form");
+    expect(form).not.toBeNull();
+
+    fireEvent.submit(form!);
+
+    expect(mockCreateMutate).not.toHaveBeenCalled();
+  });
+
+  it("blocks a carry-over click immediately after advancing to the review step", async () => {
+    await reachReviewStep({ waitUntilArmed: false });
+    const reviewButton = screen.getByRole("button", { name: "إرسال للمراجعة" });
+
+    expect(reviewButton).toBeDisabled();
+    fireEvent.click(reviewButton);
+    expect(mockCreateMutate).not.toHaveBeenCalled();
+
+    await waitFor(() => expect(reviewButton).toBeEnabled());
+  });
+
+  it("keeps review submission disabled until optimization finishes", async () => {
+    let finishOptimization: (() => void) | undefined;
+    mockOptimizeRun.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishOptimization = resolve;
+        }),
+    );
+    const { user } = await reachReviewStep();
+
+    await user.click(
+      screen.getByRole("button", { name: "تحسين الوصف بالذكاء الاصطناعي" }),
+    );
+
+    expect(
+      screen.getByRole("button", { name: "جارٍ تحسين الوصف..." }),
+    ).toBeDisabled();
+    expect(mockCreateMutate).not.toHaveBeenCalled();
+
+    finishOptimization?.();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "إرسال للمراجعة" })).toBeEnabled(),
+    );
+  });
+
+  it("asks for confirmation and creates only after the user confirms", async () => {
     const { image, user } = await reachReviewStep();
 
     await user.click(screen.getByRole("button", { name: "إرسال للمراجعة" }));
+
+    expect(
+      screen.getByRole("dialog", { name: "إرسال العقار للمراجعة" }),
+    ).toBeInTheDocument();
+    expect(mockCreateMutate).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "نعم، إرسال للمراجعة" }));
 
     await waitFor(() => expect(mockCreateMutate).toHaveBeenCalledTimes(1));
     expect(mockCreateMutate).toHaveBeenCalledWith(
@@ -179,5 +235,17 @@ describe("AddPropertyWizard", () => {
       }),
       expect.any(Object),
     );
+  });
+
+  it("returns to editing when the confirmation is cancelled", async () => {
+    const { user } = await reachReviewStep();
+
+    await user.click(screen.getByRole("button", { name: "إرسال للمراجعة" }));
+    await user.click(screen.getByRole("button", { name: "العودة للتعديل" }));
+
+    expect(
+      screen.queryByRole("dialog", { name: "إرسال العقار للمراجعة" }),
+    ).not.toBeInTheDocument();
+    expect(mockCreateMutate).not.toHaveBeenCalled();
   });
 });

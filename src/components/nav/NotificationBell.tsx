@@ -3,7 +3,21 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell, BellOff, BadgeCheck, Home, Sparkles, Star, CreditCard, FileText, Inbox, MessageCircle, X } from "lucide-react";
+import {
+  Bell,
+  BellOff,
+  BadgeCheck,
+  CircleAlert,
+  Home,
+  Sparkles,
+  Star,
+  CreditCard,
+  FileText,
+  Inbox,
+  MessageCircle,
+  UserCheck,
+  X,
+} from "lucide-react";
 import { api } from "@/src/lib/api/browserClient";
 import { cn } from "@/src/utils/cn";
 import { formatNumber, formatRelativeTime } from "@/src/utils/format";
@@ -11,17 +25,27 @@ import type { NotificationType, NotificationsResponse } from "@/src/lib/api/cont
 
 const typeIcon: Record<NotificationType, typeof Bell> = {
   EKYC_APPROVED: BadgeCheck,
+  EKYC_RESUBMISSION_REQUIRED: CircleAlert,
   PROPERTY_APPROVED: Home,
+  PROPERTY_REJECTED: CircleAlert,
   NEW_MATCH: Sparkles,
   PAYMENT_SUCCESS: CreditCard,
   NEW_REVIEW_SUBMITTED: Star,
   REVIEW_APPROVED: Star,
+  REVIEW_REJECTED: CircleAlert,
   NEW_TENANT_REQUEST: FileText,
+  TENANT_REQUEST_APPROVED: FileText,
+  TENANT_REQUEST_REJECTED: CircleAlert,
   NEW_OFFER_RECEIVED: Inbox,
   NEW_MESSAGE: MessageCircle,
   CONTRACT_READY_FOR_REVIEW: FileText,
   CONTRACT_APPROVED: FileText,
   CONTRACT_REJECTED: FileText,
+  USER_REVIEW_RECEIVED: Star,
+  HIGH_MATCH_TENANT_REQUEST: Sparkles,
+  ACCOUNT_REACTIVATED: UserCheck,
+  ACCOUNT_REACTIVATION_REJECTED: CircleAlert,
+  REACTIVATION_REQUEST: UserCheck,
 };
 
 export function NotificationBell({
@@ -139,13 +163,22 @@ export function NotificationBell({
                       <Icon className="size-4" aria-hidden />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className={cn("block text-small", n.isRead ? "text-body-text" : "font-semibold text-ink")}>
+                      <span
+                        className={cn(
+                          "block text-small",
+                          n.isRead ? "text-body-text" : "font-semibold text-ink",
+                        )}
+                      >
                         {n.title}
                       </span>
                       <span className="block truncate text-caption text-muted">{n.message}</span>
-                      <span className="block text-caption text-muted mt-0.5">{formatRelativeTime(n.createdAt)}</span>
+                      <span className="block text-caption text-muted mt-0.5">
+                        {formatRelativeTime(n.createdAt)}
+                      </span>
                     </span>
-                    {!n.isRead && <span className="mt-2 size-2 shrink-0 rounded-full bg-primary" aria-hidden />}
+                    {!n.isRead && (
+                      <span className="mt-2 size-2 shrink-0 rounded-full bg-primary" aria-hidden />
+                    )}
                   </>
                 );
 

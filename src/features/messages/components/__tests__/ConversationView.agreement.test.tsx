@@ -4,7 +4,9 @@ import { ConversationView } from "../ConversationView";
 let mockPathname = "/tenant/messages/match-id";
 let mockAgreementReachedAt: string | null = null;
 let mockCanConfirmAgreement = true;
+let mockMessages: Array<Record<string, unknown>> = [];
 const mockConfirmAgreement = jest.fn();
+const mockSendMessage = jest.fn();
 
 jest.mock("next/navigation", () => ({
   usePathname: () => mockPathname,
@@ -27,13 +29,13 @@ jest.mock("../../hooks/useMessages", () => ({
       },
     ],
   }),
-  useMatchMessages: () => ({ data: [], isLoading: false }),
+  useMatchMessages: () => ({ data: mockMessages, isLoading: false }),
   useConfirmMatchAgreement: () => ({
     mutate: mockConfirmAgreement,
     isPending: false,
     isError: false,
   }),
-  useSendMatchMessage: () => ({ mutate: jest.fn(), isPending: false }),
+  useSendMatchMessage: () => ({ mutate: mockSendMessage, isPending: false }),
   useUpdateMatchMessage: () => ({ mutate: jest.fn(), isPending: false }),
   useDeleteMatchMessage: () => ({ mutate: jest.fn(), isPending: false }),
 }));
@@ -47,7 +49,9 @@ describe("ConversationView agreement gate", () => {
     mockPathname = "/tenant/messages/match-id";
     mockAgreementReachedAt = null;
     mockCanConfirmAgreement = true;
+    mockMessages = [];
     mockConfirmAgreement.mockReset();
+    mockSendMessage.mockReset();
   });
 
   it("requires the tenant to explicitly acknowledge the final agreement", () => {
@@ -94,5 +98,59 @@ describe("ConversationView agreement gate", () => {
     render(<ConversationView matchConnectionId="match-id" />);
     fireEvent.click(screen.getByRole("button", { name: /تم التوصل إلى اتفاق/ }));
     expect(screen.getByRole("dialog")).toHaveTextContent("أرشفة العقار");
+  });
+
+  it("sends with Enter and keeps Shift+Enter available for a new line", () => {
+    render(<ConversationView matchConnectionId="match-id" />);
+    const messageBox = screen.getByRole("textbox");
+
+    fireEvent.change(messageBox, { target: { value: "Hello" } });
+    fireEvent.keyDown(messageBox, { key: "Enter", shiftKey: true });
+    expect(mockSendMessage).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(messageBox, { key: "Enter" });
+    expect(mockSendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ body: "Hello" }),
+      expect.any(Object),
+    );
+  });
+
+  it("clamps long messages to three lines and expands them without horizontal scrolling", () => {
+    const scrollHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollHeight");
+    const clientHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientHeight");
+    Object.defineProperty(HTMLElement.prototype, "scrollHeight", {
+      configurable: true,
+      get: () => 80,
+    });
+    Object.defineProperty(HTMLElement.prototype, "clientHeight", {
+      configurable: true,
+      get: () => 48,
+    });
+    mockMessages = [
+      {
+        id: "message-1",
+        body: "رسالة طويلة جداً ".repeat(20),
+        isMine: false,
+        createdAt: "2026-08-09T12:00:00.000Z",
+        editedAt: null,
+        attachmentUrl: null,
+        attachmentType: null,
+        attachmentName: null,
+        attachmentDurationMs: null,
+      },
+    ];
+
+    const { container } = render(<ConversationView matchConnectionId="match-id" />);
+    const more = screen.getByRole("button", { name: "عرض المزيد" });
+    const paragraph = more.previousElementSibling;
+    expect(paragraph).toHaveClass("line-clamp-3");
+    expect(container.querySelector('[role="log"]')).toHaveClass("overflow-x-hidden");
+
+    fireEvent.click(more);
+    expect(paragraph).not.toHaveClass("line-clamp-3");
+    expect(screen.getByRole("button", { name: "عرض أقل" })).toBeInTheDocument();
+
+    if (scrollHeight) Object.defineProperty(HTMLElement.prototype, "scrollHeight", scrollHeight);
+    if (clientHeight) Object.defineProperty(HTMLElement.prototype, "clientHeight", clientHeight);
   });
 });

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useRef, useState } from "react";
+import { FormEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { ArrowRight, Check, Edit3, FileText, Paperclip, Send, Trash2, X } from "lucide-react";
 import { Button } from "@/src/components/ui/Button";
@@ -72,6 +72,45 @@ function canEditOrDelete(createdAtStr: string): boolean {
   return diffMinutes <= 15;
 }
 
+function ExpandableMessageBody({ body, isMine }: { body: string; isMine: boolean }) {
+  const paragraphRef = useRef<HTMLParagraphElement>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [canExpand, setCanExpand] = useState(false);
+
+  useLayoutEffect(() => {
+    const paragraph = paragraphRef.current;
+    if (!paragraph || expanded) return;
+    setCanExpand(paragraph.scrollHeight > paragraph.clientHeight + 1);
+  }, [body, expanded]);
+
+  return (
+    <div className="min-w-0 max-w-full overflow-x-hidden">
+      <p
+        ref={paragraphRef}
+        className={cn(
+          "max-w-full whitespace-pre-wrap break-words text-body leading-relaxed [overflow-wrap:anywhere]",
+          !expanded && "line-clamp-3",
+        )}
+        dir="auto"
+      >
+        {body}
+      </p>
+      {canExpand && (
+        <button
+          type="button"
+          onClick={() => setExpanded((value) => !value)}
+          className={cn(
+            "mt-1 text-caption font-bold underline underline-offset-2",
+            isMine ? "text-white/90" : "text-primary",
+          )}
+        >
+          {expanded ? "عرض أقل" : "عرض المزيد"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function ConversationView({ matchConnectionId }: { matchConnectionId: string }) {
   const pathname = usePathname();
   const role = pathname.startsWith("/landlord") ? "landlord" : "tenant";
@@ -86,6 +125,7 @@ export function ConversationView({ matchConnectionId }: { matchConnectionId: str
   const upload = useChatUpload();
   const confirmAgreement = useConfirmMatchAgreement(matchConnectionId);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const messageListRef = useRef<HTMLElement>(null);
 
   const [body, setBody] = useState("");
   const [pending, setPending] = useState<(UploadedAttachment & { durationMs?: number }) | null>(
@@ -116,6 +156,12 @@ export function ConversationView({ matchConnectionId }: { matchConnectionId: str
 
   const busy = send.isPending || upload.uploading;
   const valid = (Boolean(body.trim()) || Boolean(pending)) && body.length <= 1000;
+
+  useEffect(() => {
+    const messageList = messageListRef.current;
+    if (!messageList) return;
+    messageList.scrollTop = messageList.scrollHeight;
+  }, [data.length]);
 
   async function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -172,8 +218,8 @@ export function ConversationView({ matchConnectionId }: { matchConnectionId: str
   }
 
   return (
-    <div className="mx-auto flex min-h-[calc(100dvh-10rem)] w-full max-w-3xl flex-col gap-4">
-      <header className="flex items-center gap-3 rounded-card border border-hairline bg-surface p-4">
+    <div className="mx-auto flex h-[calc(100dvh-10rem)] min-h-0 w-full max-w-3xl flex-col gap-4 overflow-hidden md:h-[calc(100dvh-8rem)]">
+      <header className="flex shrink-0 items-center gap-3 rounded-card border border-hairline bg-surface p-4">
         <Link
           href={`/${role}/messages`}
           className="inline-flex size-10 shrink-0 items-center justify-center rounded-control text-primary hover:bg-primary-tint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
@@ -271,7 +317,9 @@ export function ConversationView({ matchConnectionId }: { matchConnectionId: str
       )}
 
       <section
-        className="flex min-h-72 flex-1 flex-col gap-3 rounded-card border border-hairline bg-background p-4"
+        ref={messageListRef}
+        className="flex min-h-0 flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto overscroll-contain rounded-card border border-hairline bg-background p-4"
+        role="log"
         aria-live="polite"
       >
         {isLoading ? (
@@ -285,7 +333,7 @@ export function ConversationView({ matchConnectionId }: { matchConnectionId: str
               <div
                 key={message.id}
                 className={cn(
-                  "relative group flex max-w-[85%] flex-col gap-1.5 rounded-card px-4 py-2.5 shadow-xs transition-all",
+                  "relative group flex min-w-0 max-w-[85%] flex-col gap-1.5 overflow-x-hidden rounded-card px-4 py-2.5 shadow-xs transition-all",
                   message.isMine
                     ? "self-end bg-primary text-white"
                     : "self-start bg-surface text-ink shadow-card border border-hairline",
@@ -369,9 +417,7 @@ export function ConversationView({ matchConnectionId }: { matchConnectionId: str
                   </div>
                 ) : (
                   message.body && (
-                    <p className="text-body leading-relaxed" dir="auto">
-                      {message.body}
-                    </p>
+                    <ExpandableMessageBody body={message.body} isMine={message.isMine} />
                   )
                 )}
 
@@ -395,7 +441,10 @@ export function ConversationView({ matchConnectionId }: { matchConnectionId: str
         )}
       </section>
 
-      <form onSubmit={submit} className="rounded-card border border-hairline bg-surface p-4">
+      <form
+        onSubmit={submit}
+        className="shrink-0 rounded-card border border-hairline bg-surface p-4"
+      >
         {pending && (
           <div className="mb-3 flex items-center gap-2 rounded-control border border-hairline bg-background p-2">
             <div className="min-w-0 flex-1">
@@ -427,6 +476,11 @@ export function ConversationView({ matchConnectionId }: { matchConnectionId: str
           rows={3}
           placeholder="اكتب رسالتك..."
           onChange={(event) => setBody(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
+            event.preventDefault();
+            event.currentTarget.form?.requestSubmit();
+          }}
           className="w-full resize-y rounded-control border border-hairline bg-background px-3 py-2.5 text-body text-ink outline-none placeholder:text-muted focus:border-primary focus:ring-2 focus:ring-primary/20"
           disabled={send.isPending}
         />

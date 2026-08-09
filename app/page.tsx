@@ -70,7 +70,7 @@ const trust = [
 ];
 
 const proof = [
-  { value: "٠٪", label: "عمولة سمسار" },
+  { value: "مرن", label: "تواصل عبر المنصة" },
   { value: "٣", label: "خطوات من البحث للعقد" },
   { value: "٢٤/٧", label: "مطابقة ذكية تعمل لأجلك" },
 ];
@@ -208,7 +208,7 @@ export default async function LandingPage() {
             </div>
 
             <div className="mt-8 flex flex-wrap gap-x-5 gap-y-3 text-sm font-bold text-landing-muted">
-              {["تسجيل مجاني", "بدون عمولة", "بياناتك في أمان"].map((item) => (
+              {["تسجيل مجاني", "إعلانات موثوقة", "بياناتك في أمان"].map((item) => (
                 <span key={item} className="inline-flex items-center gap-2">
                   <span className="flex size-5 items-center justify-center rounded-full bg-mist text-landing-teal">
                     <Check className="size-3" strokeWidth={3} aria-hidden />
@@ -394,7 +394,7 @@ export default async function LandingPage() {
             </p>
             <p className="mt-4 max-w-2xl text-base leading-8 text-landing-muted">
               بروب ماتش ليس مجرد مكان لعرض العقارات. نحن نبني مساحة تساعد المستأجر أن يجد مكانًا
-              يناسب حياته، وتساعد المالك أن يصل لشخص جاد يطمئن له — بوضوح، وبشكل مباشر، وبدون عمولة.
+              يناسب حياته، وتساعد المالك أن يصل لشخص جاد يطمئن له — بوضوح وثقة.
             </p>
           </div>
 

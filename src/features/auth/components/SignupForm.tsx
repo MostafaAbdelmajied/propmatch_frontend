@@ -9,8 +9,6 @@ import { signupFormSchema, type SignupForm as SignupFormValues } from "../valida
 import { InputField, SelectField } from "@/src/components/ui/Field";
 import { Button } from "@/src/components/ui/Button";
 import { isApiClientError } from "@/src/lib/api/browserClient";
-import { landingAfterLogin } from "../roleRouting";
-import type { AuthResponse } from "@/src/lib/api/contracts/auth";
 
 export function SignupForm() {
   const router = useRouter();
@@ -27,9 +25,10 @@ export function SignupForm() {
 
   async function onSubmit(values: SignupFormValues) {
     try {
-      const res = (await registerUser.mutateAsync(values)) as AuthResponse;
-      const target = landingAfterLogin(res.user.role);
-      window.location.replace(target);
+      const res = await registerUser.mutateAsync(values);
+      router.push(
+        `/verify-email?email=${encodeURIComponent(res.email)}&resendAvailableAt=${encodeURIComponent(res.resendAvailableAt)}`,
+      );
     } catch (e) {
       const message = isApiClientError(e) ? e.message : "تعذر إنشاء الحساب، حاول مرة أخرى";
       setError("root", { message });

@@ -2,6 +2,7 @@
 
 import { Button } from "@/src/components/ui/Button";
 import { ChipGroup } from "@/src/components/ui/Chip";
+import { ConfirmDialog } from "@/src/components/ui/ConfirmDialog";
 import { InputField, SelectField, TextAreaField } from "@/src/components/ui/Field";
 import { QuotaChip } from "@/src/components/ui/QuotaChip";
 import { useToast } from "@/src/components/ui/Toast";
@@ -32,6 +33,8 @@ import { addPropertyFormSchema, stepFields, type AddPropertyForm } from "../vali
 import { clearPropertyDraft, loadPropertyDraft, savePropertyDraft } from "../propertyDraftDb";
 
 const steps = ["تفاصيل العقار", "الصور والخدمات", "تحسين الوصف والإنهاء"] as const;
+const REVIEW_STEP_INDEX = steps.length - 1;
+const REVIEW_SUBMISSION_ARM_DELAY_MS = 600;
 type StepKey = keyof typeof stepFields;
 const stepKeys: StepKey[] = ["propertyDetails", "mediaAndServices", "aiOptimization"];
 const MAX_PROPERTY_IMAGES = 10;
@@ -81,6 +84,9 @@ function AddPropertyWizardContent() {
   const [step, setStep] = useState(0);
   const [draftRestored, setDraftRestored] = useState(false);
   const [optimizerUsesLeft, setOptimizerUsesLeft] = useState(0);
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [reviewSubmissionReady, setReviewSubmissionReady] = useState(false);
+  const [reviewConfirmationOpen, setReviewConfirmationOpen] = useState(false);
   const create = useCreateProperty();
   const [paywall, setPaywall] = useState<CheckoutPaymentType | null>(null);
 
@@ -117,6 +123,20 @@ function AddPropertyWizardContent() {
   }, [quota.data]);
 
   useEffect(() => {
+    if (step !== REVIEW_STEP_INDEX) return;
+
+    // The next and review buttons occupy the same place. Arm the consequential
+    // action only after the click/tap that advanced the wizard has fully
+    // finished, so a rapid second click cannot land on the newly mounted
+    // review button and create a property accidentally.
+    const timer = window.setTimeout(
+      () => setReviewSubmissionReady(true),
+      REVIEW_SUBMISSION_ARM_DELAY_MS,
+    );
+    return () => window.clearTimeout(timer);
+  }, [step]);
+
+  useEffect(() => {
     if (!draftRestored) return;
 
     let debounceTimer: number | null = null;
@@ -141,7 +161,9 @@ function AddPropertyWizardContent() {
   async function next() {
     const fields = stepFields[stepKeys[step]] as unknown as (keyof AddPropertyForm)[];
     if (await form.trigger(fields)) {
-      setStep((s) => Math.min(s + 1, steps.length - 1));
+      const nextStep = Math.min(step + 1, REVIEW_STEP_INDEX);
+      if (nextStep === REVIEW_STEP_INDEX) setReviewSubmissionReady(false);
+      setStep(nextStep);
     } else {
       // Never leave the button feeling dead — tell the user why it didn't advance.
       const firstError = Object.keys(form.formState.errors)[0];
@@ -174,14 +196,20 @@ function AddPropertyWizardContent() {
   }
 
   function submit(values: AddPropertyForm) {
+    if (isOptimizing) {
+      toast("info", "انتظر حتى يكتمل تحسين الوصف قبل إرسال العقار للمراجعة");
+      return;
+    }
     create.mutate(values, {
       onSuccess: () => {
+        setReviewConfirmationOpen(false);
         void clearPropertyDraft();
         // ERD: PROPERTY.status defaults to PENDING — admin must approve (PRO-04).
         toast("success", "تم إرسال إعلانك للمراجعة");
         router.push("/landlord");
       },
       onError: (e) => {
+        setReviewConfirmationOpen(false);
         if (e.code === "VERIFICATION_REQUIRED") {
           toast("info", e.message);
         } else if (e.code === "PLAN_LIMIT_REACHED") {
@@ -191,6 +219,31 @@ function AddPropertyWizardContent() {
         }
       },
     });
+  }
+
+  /** Native form submission is intentionally disabled. Property creation is
+   * a consequential action and may only start from the dedicated review
+   * button below — never from Enter, an optimizer click, or another control
+   * inside the wizard. Keyboard activation of that button still calls its
+   * onClick handler, so the explicit action remains accessible. */
+  function preventImplicitSubmission(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+  }
+
+  function requestReviewConfirmation() {
+    if (!reviewSubmissionReady) return;
+    if (isOptimizing) {
+      toast("info", "انتظر حتى يكتمل تحسين الوصف قبل إرسال العقار للمراجعة");
+      return;
+    }
+    void form.handleSubmit(() => setReviewConfirmationOpen(true), onInvalid)();
+  }
+
+  function confirmSubmitForReview() {
+    void form.handleSubmit(submit, (errors) => {
+      setReviewConfirmationOpen(false);
+      onInvalid(errors);
+    })();
   }
 
   return (
@@ -211,7 +264,7 @@ function AddPropertyWizardContent() {
         <Stepper current={step} />
       </div>
 
-      <form onSubmit={form.handleSubmit(submit, onInvalid)} className="flex flex-col gap-5">
+      <form onSubmit={preventImplicitSubmission} className="flex flex-col gap-5">
         {step === 0 && <PropertyDetailsStep form={form} />}
         {step === 1 && <MediaAndServicesStep form={form} />}
         {step === 2 && (
@@ -220,6 +273,7 @@ function AddPropertyWizardContent() {
             optimizerUsesLeft={optimizerUsesLeft}
             onOptimizerUse={() => setOptimizerUsesLeft((uses) => Math.max(0, uses - 1))}
             onAiPaywall={() => setPaywall("AI_USES_10_90D")}
+            onOptimizerStateChange={setIsOptimizing}
           />
         )}
 
@@ -228,7 +282,10 @@ function AddPropertyWizardContent() {
             type="button"
             variant="ghost"
             disabled={step === 0}
-            onClick={() => setStep((s) => Math.max(0, s - 1))}
+            onClick={() => {
+              setReviewSubmissionReady(false);
+              setStep((s) => Math.max(0, s - 1));
+            }}
           >
             <ArrowRight className="size-4" aria-hidden />
             السابق
@@ -239,9 +296,14 @@ function AddPropertyWizardContent() {
               <ArrowLeft className="size-4" aria-hidden />
             </Button>
           ) : (
-            <Button type="submit" loading={create.isPending}>
+            <Button
+              type="button"
+              onClick={requestReviewConfirmation}
+              loading={create.isPending}
+              disabled={isOptimizing || !reviewSubmissionReady}
+            >
               <Check className="size-4" aria-hidden />
-              إرسال للمراجعة
+              {isOptimizing ? "جارٍ تحسين الوصف..." : "إرسال للمراجعة"}
             </Button>
           )}
         </div>
@@ -262,6 +324,17 @@ function AddPropertyWizardContent() {
           );
           quota.refetch();
         }}
+      />
+
+      <ConfirmDialog
+        open={reviewConfirmationOpen}
+        title="إرسال العقار للمراجعة"
+        message="هل أنت متأكد من اكتمال بيانات العقار وترغب في إرساله الآن؟ بعد الإرسال سيظهر العقار لفريق الإدارة للمراجعة قبل نشره."
+        confirmLabel="نعم، إرسال للمراجعة"
+        cancelLabel="العودة للتعديل"
+        loading={create.isPending}
+        onConfirm={confirmSubmitForReview}
+        onCancel={() => setReviewConfirmationOpen(false)}
       />
     </div>
   );
@@ -842,6 +915,7 @@ type OptimizationAndReviewStepProps = StepProps & {
   optimizerUsesLeft: number;
   onOptimizerUse: () => void;
   onAiPaywall: () => void;
+  onOptimizerStateChange: (isOptimizing: boolean) => void;
 };
 
 /** Arabic labels for the toast listing which required fields are still
@@ -872,6 +946,7 @@ function OptimizationAndReviewStep({
   optimizerUsesLeft,
   onOptimizerUse,
   onAiPaywall,
+  onOptimizerStateChange,
 }: OptimizationAndReviewStepProps) {
   const toast = useToast();
   const optimize = useStreamOptimizeDescription();
@@ -879,7 +954,9 @@ function OptimizationAndReviewStep({
   const description = form.watch("description");
   const [previous, setPrevious] = useState<string | null>(null);
 
-  async function runOptimize() {
+  async function runOptimize(event: React.MouseEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    event.stopPropagation();
     if (optimize.isStreaming) return;
 
     // Hard gate: the optimizer needs every other field as context, so it
@@ -910,6 +987,7 @@ function OptimizationAndReviewStep({
     const original = description || "عقار للإيجار";
     setPrevious(original);
     const { description: _desc, images: _images, ...context } = form.getValues();
+    onOptimizerStateChange(true);
     try {
       await optimize.run(original, context, (soFar) =>
         form.setValue("description", soFar, { shouldValidate: false }),
@@ -932,6 +1010,8 @@ function OptimizationAndReviewStep({
         return;
       }
       toast("error", err.message);
+    } finally {
+      onOptimizerStateChange(false);
     }
   }
 

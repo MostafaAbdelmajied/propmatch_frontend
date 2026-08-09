@@ -4,6 +4,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/src/lib/api/browserClient";
 import type { TicketDetail, TicketSummary } from "@/src/lib/api/contracts/support";
 
+export function hasOpenSupportTicket(tickets: TicketSummary[]): boolean {
+  return tickets.some((ticket) => ticket.status.toUpperCase() !== "CLOSED");
+}
+
 export function useMyTickets() {
   return useQuery({
     queryKey: ["user", "support", "tickets"],
