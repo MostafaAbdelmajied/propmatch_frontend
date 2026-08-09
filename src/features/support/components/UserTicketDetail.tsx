@@ -9,7 +9,7 @@ import { cn } from "@/src/utils/cn";
 import { formatRelativeTime } from "@/src/utils/format";
 import { ArrowRight, Bot, Send, User as UserIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useUserTicketDetail, useUserTicketReply } from "../hooks/useUserSupport";
 import { AttachmentBar, type PendingAttachment } from "@/src/features/messages/components/AttachmentBar";
 import { ChatAttachmentView } from "@/src/features/messages/components/ChatAttachmentView";
@@ -30,6 +30,13 @@ export function UserTicketDetail({ id }: { id: string }) {
   const reply = useUserTicketReply(id);
   const [text, setText] = useState("");
   const [pending, setPending] = useState<PendingAttachment | null>(null);
+  const messageListRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const messageList = messageListRef.current;
+    if (!messageList) return;
+    messageList.scrollTop = messageList.scrollHeight;
+  }, [ticket?.messages.length]);
 
   if (isError) return <ErrorState onRetry={() => refetch()} />;
   if (isLoading || !ticket) return <Skeleton className="h-96 w-full" />;
@@ -60,8 +67,8 @@ export function UserTicketDetail({ id }: { id: string }) {
   }
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-4 p-4">
-      <div className="flex items-center justify-between gap-3">
+    <div className="mx-auto flex h-[calc(100dvh-12rem)] min-h-0 max-w-2xl flex-col gap-4 overflow-hidden p-4 md:h-[calc(100dvh-10rem)]">
+      <div className="flex shrink-0 items-center justify-between gap-3">
         <Button variant="ghost" onClick={() => router.back()}>
           <ArrowRight className="size-4" aria-hidden />
           رجوع
@@ -71,7 +78,7 @@ export function UserTicketDetail({ id }: { id: string }) {
         </span>
       </div>
 
-      <div className="rounded-card border border-hairline bg-surface p-4">
+      <div className="shrink-0 rounded-card border border-hairline bg-surface p-4">
         <h1 className="text-title font-bold text-ink">{ticket.subject}</h1>
         {ticket.assignedAdminName && (
           <p className="mt-0.5 text-caption text-muted">فريق الدعم: {ticket.assignedAdminName}</p>
@@ -79,7 +86,12 @@ export function UserTicketDetail({ id }: { id: string }) {
       </div>
 
       {/* Thread */}
-      <div className="flex max-h-[60vh] flex-col gap-3 overflow-y-auto overscroll-contain rounded-card border border-hairline bg-surface p-4">
+      <div
+        ref={messageListRef}
+        className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain rounded-card border border-hairline bg-surface p-4"
+        role="log"
+        aria-live="polite"
+      >
         {visibleMessages.map((m) => {
           const authorVal = String(m.authorType || m.author || "").toLowerCase();
           const isMine = authorVal === "user";
@@ -112,10 +124,16 @@ export function UserTicketDetail({ id }: { id: string }) {
       </div>
 
       {/* Reply box */}
-      <form onSubmit={submit} className="flex flex-col gap-2 rounded-card border border-hairline bg-surface p-4">
+      <form onSubmit={submit} className="flex shrink-0 flex-col gap-2 rounded-card border border-hairline bg-surface p-4">
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              event.currentTarget.form?.requestSubmit();
+            }
+          }}
           placeholder="اكتب رسالتك لفريق الدعم…"
           className="min-h-20 w-full rounded-control border border-hairline bg-surface px-3.5 py-2.5 text-body focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
         />

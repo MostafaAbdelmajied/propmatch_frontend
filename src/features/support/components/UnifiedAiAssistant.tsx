@@ -3,10 +3,17 @@
 import { Button } from "@/src/components/ui/Button";
 import { Skeleton } from "@/src/components/ui/Skeleton";
 import { useToast } from "@/src/components/ui/Toast";
-import { AttachmentBar, type PendingAttachment } from "@/src/features/messages/components/AttachmentBar";
+import {
+  AttachmentBar,
+  type PendingAttachment,
+} from "@/src/features/messages/components/AttachmentBar";
 import { ChatAttachmentView } from "@/src/features/messages/components/ChatAttachmentView";
 import { streamPost } from "@/src/lib/api/browserClient";
-import { ticketStatusLabels, type ChatMessage, type TicketStatus } from "@/src/lib/api/contracts/support";
+import {
+  ticketStatusLabels,
+  type ChatMessage,
+  type TicketStatus,
+} from "@/src/lib/api/contracts/support";
 import { cn } from "@/src/utils/cn";
 import { formatRelativeTime } from "@/src/utils/format";
 import {
@@ -29,6 +36,7 @@ import {
 import React, { useEffect, useRef, useState } from "react";
 import {
   useCreateSupportTicket,
+  hasOpenSupportTicket,
   useMyTickets,
   useUserTicketDetail,
   useUserTicketReply,
@@ -60,7 +68,15 @@ function makeUniqueId(prefix: string): string {
 
 function analyzeSentiment(message: string): { isFrustrated: boolean; score: number } {
   const angryKeywords = [
-    "نصابين", "سيء جدا", "خدمة زبالة", "خصمتم", "اشتكي", "احتيال", "مشكلة كبيرة", "غير مقبول", "أين الدعم"
+    "نصابين",
+    "سيء جدا",
+    "خدمة زبالة",
+    "خصمتم",
+    "اشتكي",
+    "احتيال",
+    "مشكلة كبيرة",
+    "غير مقبول",
+    "أين الدعم",
   ];
   let score = 0;
   for (const word of angryKeywords) {
@@ -70,7 +86,11 @@ function analyzeSentiment(message: string): { isFrustrated: boolean; score: numb
 }
 
 /** Memoized Rich Markdown & Table Formatter for 60fps performance */
-const FormattedMarkdownText = React.memo(function FormattedMarkdownText({ text }: { text: string }) {
+const FormattedMarkdownText = React.memo(function FormattedMarkdownText({
+  text,
+}: {
+  text: string;
+}) {
   const lines = text.split("\n");
   const elements: React.ReactNode[] = [];
   let i = 0;
@@ -106,12 +126,18 @@ const FormattedMarkdownText = React.memo(function FormattedMarkdownText({ text }
         const bodyRows = (hasDivider ? tableLines.slice(2) : tableLines.slice(1)).map(splitRow);
 
         elements.push(
-          <div key={`table_${i}`} className="my-3 overflow-x-auto rounded-card border border-hairline bg-surface shadow-xs">
+          <div
+            key={`table_${i}`}
+            className="my-3 overflow-x-auto rounded-card border border-hairline bg-surface shadow-xs"
+          >
             <table className="w-full text-start text-caption border-collapse">
               <thead>
                 <tr className="border-b border-hairline bg-background/80 font-bold text-ink">
                   {headers.map((h, hIdx) => (
-                    <th key={hIdx} className="px-3.5 py-2.5 text-start border-e border-hairline last:border-e-0">
+                    <th
+                      key={hIdx}
+                      className="px-3.5 py-2.5 text-start border-e border-hairline last:border-e-0"
+                    >
                       {renderInlineFormatting(h)}
                     </th>
                   ))}
@@ -119,9 +145,15 @@ const FormattedMarkdownText = React.memo(function FormattedMarkdownText({ text }
               </thead>
               <tbody>
                 {bodyRows.map((r, rIdx) => (
-                  <tr key={rIdx} className="border-b border-hairline/60 last:border-b-0 hover:bg-background/50 transition-colors">
+                  <tr
+                    key={rIdx}
+                    className="border-b border-hairline/60 last:border-b-0 hover:bg-background/50 transition-colors"
+                  >
                     {r.map((cell, cIdx) => (
-                      <td key={cIdx} className="px-3.5 py-2 border-e border-hairline/60 last:border-e-0">
+                      <td
+                        key={cIdx}
+                        className="px-3.5 py-2 border-e border-hairline/60 last:border-e-0"
+                      >
                         {renderInlineFormatting(cell)}
                       </td>
                     ))}
@@ -129,7 +161,7 @@ const FormattedMarkdownText = React.memo(function FormattedMarkdownText({ text }
                 ))}
               </tbody>
             </table>
-          </div>
+          </div>,
         );
         continue;
       }
@@ -144,12 +176,20 @@ const FormattedMarkdownText = React.memo(function FormattedMarkdownText({ text }
 
     // Headers
     if (trimmed.startsWith("### ")) {
-      elements.push(<h4 key={`h4_${i}`} className="mt-1 font-bold text-ink">{trimmed.slice(4)}</h4>);
+      elements.push(
+        <h4 key={`h4_${i}`} className="mt-1 font-bold text-ink">
+          {trimmed.slice(4)}
+        </h4>,
+      );
       i++;
       continue;
     }
     if (trimmed.startsWith("## ")) {
-      elements.push(<h3 key={`h3_${i}`} className="mt-1 font-bold text-title text-ink">{trimmed.slice(3)}</h3>);
+      elements.push(
+        <h3 key={`h3_${i}`} className="mt-1 font-bold text-title text-ink">
+          {trimmed.slice(3)}
+        </h3>,
+      );
       i++;
       continue;
     }
@@ -160,7 +200,7 @@ const FormattedMarkdownText = React.memo(function FormattedMarkdownText({ text }
         <div key={`bullet_${i}`} className="flex items-start gap-2 ps-2">
           <span className="mt-2 size-1.5 shrink-0 rounded-full bg-current opacity-70" />
           <span>{renderInlineFormatting(trimmed.slice(2))}</span>
-        </div>
+        </div>,
       );
       i++;
       continue;
@@ -173,7 +213,7 @@ const FormattedMarkdownText = React.memo(function FormattedMarkdownText({ text }
         <div key={`num_${i}`} className="flex items-start gap-2 ps-2">
           <span className="font-bold opacity-80">{numMatch[1]}.</span>
           <span>{renderInlineFormatting(numMatch[2])}</span>
-        </div>
+        </div>,
       );
       i++;
       continue;
@@ -209,7 +249,11 @@ function renderInlineFormatting(str: string) {
   const parts = str.split(/(\*\*.*?\*\*|`.*?`|!\[.*?\]\(.*?\))/g);
   return parts.map((part, i) => {
     if (part.startsWith("**") && part.endsWith("**")) {
-      return <strong key={i} className="font-bold">{part.slice(2, -2)}</strong>;
+      return (
+        <strong key={i} className="font-bold">
+          {part.slice(2, -2)}
+        </strong>
+      );
     }
     if (part.startsWith("`") && part.endsWith("`")) {
       return (
@@ -248,7 +292,11 @@ export interface UnifiedAiAssistantProps {
   onClose?: () => void;
 }
 
-export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }: UnifiedAiAssistantProps) {
+export function UnifiedAiAssistant({
+  isFullscreen,
+  onToggleFullscreen,
+  onClose,
+}: UnifiedAiAssistantProps) {
   const toast = useToast();
   const [mode, setMode] = useState<ChatMode>("SUPPORT");
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => {
@@ -277,6 +325,10 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
   const scrollRef = useRef<HTMLDivElement>(null);
   const createTicket = useCreateSupportTicket();
   const myTickets = useMyTickets();
+  const tickets = myTickets.data?.items ?? [];
+  const hasOpenTicket = hasOpenSupportTicket(tickets);
+  const escalationLoading = createTicket.isPending || myTickets.isPending || myTickets.isFetching;
+  const escalationDisabled = escalationLoading || hasOpenTicket;
 
   // Active state based on current mode
   const activeMessages = mode === "LEGAL" ? legalMessages : supportMessages;
@@ -373,9 +425,7 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
         attachment
           ? {
               message: trimmed,
-              attachments: [
-                { url: attachment.url, type: attachment.type, name: attachment.name },
-              ],
+              attachments: [{ url: attachment.url, type: attachment.type, name: attachment.name }],
             }
           : {
               message: trimmed,
@@ -399,24 +449,32 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
             }
             if (mode === "LEGAL") {
               setLegalMessages((m) =>
-                m.map((msg) => (msg.id === replyId ? { ...msg, content: msg.content + token } : msg)),
+                m.map((msg) =>
+                  msg.id === replyId ? { ...msg, content: msg.content + token } : msg,
+                ),
               );
             } else {
               setSupportMessages((m) =>
-                m.map((msg) => (msg.id === replyId ? { ...msg, content: msg.content + token } : msg)),
+                m.map((msg) =>
+                  msg.id === replyId ? { ...msg, content: msg.content + token } : msg,
+                ),
               );
             }
           },
         },
       );
       if (mode === "LEGAL") {
-        setLegalMessages((m) => m.map((msg) => (msg.id === replyId ? { ...msg, declined: done.declined } : msg)));
+        setLegalMessages((m) =>
+          m.map((msg) => (msg.id === replyId ? { ...msg, declined: done.declined } : msg)),
+        );
       } else {
-        setSupportMessages((m) => m.map((msg) => (msg.id === replyId ? { ...msg, declined: done.declined, suggestedGuide: done.suggestedGuide } : msg)));
-        if (done.escalated) {
-          setFrustrated(false);
-          toast("success", "تم إنشاء تذكرة دعم تلقائياً وسيتم التواصل معك قريباً.");
-        }
+        setSupportMessages((m) =>
+          m.map((msg) =>
+            msg.id === replyId
+              ? { ...msg, declined: done.declined, suggestedGuide: done.suggestedGuide }
+              : msg,
+          ),
+        );
       }
     } catch {
       const fallbackMsg: ChatMessage = {
@@ -438,7 +496,10 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
   }
 
   function handleEscalateToHuman() {
-    const lastUserMsg = [...supportMessages].reverse().find((m) => m.role === "user")?.content || "استفسار خدمة العملاء";
+    if (escalationDisabled) return;
+    const lastUserMsg =
+      [...supportMessages].reverse().find((m) => m.role === "user")?.content ||
+      "استفسار خدمة العملاء";
     createTicket.mutate(
       {
         subject: lastUserMsg.slice(0, 50),
@@ -447,19 +508,21 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
       {
         onSuccess: (ticket) => {
           toast("success", "تم إنشاء التذكرة وتحويلك لموظف الدعم الفني");
+          setFrustrated(false);
           setSelectedTicketId(ticket.id);
         },
+        onError: () => toast("error", "تعذر إنشاء تذكرة الدعم. حاول مرة أخرى."),
       },
     );
   }
-
-  const tickets = myTickets.data?.items ?? [];
 
   return (
     <div
       className={cn(
         "relative mx-auto flex w-full overflow-hidden rounded-card border border-hairline bg-surface shadow-card",
-        isFullscreen ? "h-full max-w-none rounded-none border-none shadow-none" : "h-[calc(100dvh-5rem)] max-w-7xl",
+        isFullscreen
+          ? "h-full max-w-none rounded-none border-none shadow-none"
+          : "h-[calc(100dvh-5rem)] max-w-7xl",
       )}
     >
       {/* On mobile the sidebar overlays the chat — a backdrop closes it. */}
@@ -481,7 +544,12 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
       >
         {/* Sidebar Header & New Chat */}
         <div className="flex items-center justify-between border-b border-hairline p-3">
-          <Button variant="secondary" size="sm" onClick={handleNewChat} className="w-full justify-start gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleNewChat}
+            className="w-full justify-start gap-2"
+          >
             <Plus className="size-4" />
             <span>محادثة جديدة</span>
           </Button>
@@ -499,7 +567,9 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
                 <Headset className="size-4 text-primary" />
                 <span>تذاكر الدعم الفني ({tickets.length})</span>
               </div>
-              <ChevronDown className={cn("size-4 transition-transform", ticketsAccordionOpen && "rotate-180")} />
+              <ChevronDown
+                className={cn("size-4 transition-transform", ticketsAccordionOpen && "rotate-180")}
+              />
             </button>
 
             {ticketsAccordionOpen && (
@@ -519,7 +589,9 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
                       )}
                     >
                       <div className="flex items-center gap-2 overflow-hidden">
-                        <span className={cn("size-2 shrink-0 rounded-full", statusTone[t.status])} />
+                        <span
+                          className={cn("size-2 shrink-0 rounded-full", statusTone[t.status])}
+                        />
                         <span className="truncate">{t.subject}</span>
                       </div>
                       <ChevronLeft className="size-3 shrink-0 text-muted" />
@@ -545,7 +617,11 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
               title={sidebarOpen ? "إخفاء القائمة" : "عرض القائمة"}
               className="p-1.5"
             >
-              {sidebarOpen ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />}
+              {sidebarOpen ? (
+                <PanelLeftClose className="size-4" />
+              ) : (
+                <PanelLeftOpen className="size-4" />
+              )}
             </Button>
 
             <div className="flex items-center gap-1.5 text-primary font-bold text-caption shrink-0">
@@ -571,7 +647,12 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
           {/* End Side: Return button + Maximize/Minimize button + Close button */}
           <div className="flex items-center gap-1 shrink-0">
             {selectedTicketId && (
-              <Button variant="ghost" size="sm" onClick={() => setSelectedTicketId(null)} className="text-caption">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedTicketId(null)}
+                className="text-caption"
+              >
                 العودة للمساعد
               </Button>
             )}
@@ -616,14 +697,23 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
                   <AlertTriangle className="size-4 shrink-0" />
                   يبدو أنك تواجه مشكلة هامة! يمكنك التحويل مباشرة لموظف دعم فني.
                 </div>
-                <Button size="sm" variant="primary" loading={createTicket.isPending} onClick={handleEscalateToHuman}>
-                  تحدث مع موظف
+                <Button
+                  size="sm"
+                  variant="primary"
+                  loading={escalationLoading}
+                  disabled={escalationDisabled}
+                  onClick={handleEscalateToHuman}
+                >
+                  {hasOpenTicket ? "لديك تذكرة مفتوحة" : "تحدث مع موظف"}
                 </Button>
               </div>
             )}
 
             {/* Messages Thread with Wide Bubble Layout & Fast Rendering */}
-            <div ref={scrollRef} className="flex flex-1 flex-col gap-4 overflow-y-auto rounded-card border border-hairline bg-surface p-5 min-h-0">
+            <div
+              ref={scrollRef}
+              className="flex flex-1 flex-col gap-4 overflow-y-auto rounded-card border border-hairline bg-surface p-5 min-h-0"
+            >
               {activeMessages.length === 0 && (
                 <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center py-8">
                   {mode === "LEGAL" ? (
@@ -664,7 +754,10 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
               )}
 
               {activeMessages.map((m) => (
-                <div key={m.id} className={cn("flex", m.role === "user" ? "justify-start" : "justify-end")}>
+                <div
+                  key={m.id}
+                  className={cn("flex", m.role === "user" ? "justify-start" : "justify-end")}
+                >
                   <div
                     className={cn(
                       "flex max-w-[92%] flex-col gap-2 rounded-card px-5 py-3 text-body leading-relaxed shadow-xs sm:max-w-[85%]",
@@ -674,7 +767,11 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
                     )}
                   >
                     {m.attachmentUrl && m.attachmentType && (
-                      <ChatAttachmentView url={m.attachmentUrl} type={m.attachmentType} name={m.attachmentName} />
+                      <ChatAttachmentView
+                        url={m.attachmentUrl}
+                        type={m.attachmentType}
+                        name={m.attachmentName}
+                      />
                     )}
                     {m.role === "assistant" ? (
                       <FormattedMarkdownText text={m.content} />
@@ -690,7 +787,7 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
                                 key={guide}
                                 variant="secondary"
                                 size="sm"
-                                onClick={() => window.location.href = "/verify"}
+                                onClick={() => (window.location.href = "/verify")}
                                 className="text-caption font-bold"
                               >
                                 💳 بدء عملية التوثيق الإلكتروني
@@ -703,7 +800,7 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
                                 key={guide}
                                 variant="secondary"
                                 size="sm"
-                                onClick={() => window.location.href = "/landlord/properties/new"}
+                                onClick={() => (window.location.href = "/landlord/properties/new")}
                                 className="text-caption font-bold"
                               >
                                 🏠 إضافة عقار جديد
@@ -716,7 +813,7 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
                                 key={guide}
                                 variant="secondary"
                                 size="sm"
-                                onClick={() => window.location.href = "/tenant/requests/new"}
+                                onClick={() => (window.location.href = "/tenant/requests/new")}
                                 className="text-caption font-bold"
                               >
                                 📋 نشر طلب سكن جديد
@@ -735,7 +832,11 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
                 <div className="flex justify-end">
                   <div className="flex gap-1.5 rounded-card bg-background px-5 py-3.5 border border-hairline">
                     {[0, 1, 2].map((i) => (
-                      <span key={i} className="size-2 animate-bounce rounded-full bg-muted" style={{ animationDelay: `${i * 0.15}s` }} />
+                      <span
+                        key={i}
+                        className="size-2 animate-bounce rounded-full bg-muted"
+                        style={{ animationDelay: `${i * 0.15}s` }}
+                      />
                     ))}
                   </div>
                 </div>
@@ -746,14 +847,18 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
             <div className="flex flex-col gap-2">
               {mode === "SUPPORT" && (
                 <div className="flex items-center justify-end px-1">
-                  <button
+                  <Button
                     type="button"
+                    size="sm"
+                    variant="ghost"
+                    loading={escalationLoading}
+                    disabled={escalationDisabled}
                     onClick={handleEscalateToHuman}
-                    className="flex items-center gap-1 text-caption font-bold text-primary hover:underline"
+                    className="text-caption font-bold"
                   >
                     <UserCheck className="size-3.5" />
-                    تحويل لموظف الدعم الفني
-                  </button>
+                    {hasOpenTicket ? "لديك تذكرة دعم مفتوحة" : "تحويل لموظف الدعم الفني"}
+                  </Button>
                 </div>
               )}
 
@@ -784,9 +889,7 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
                     }
                   }}
                   placeholder={
-                    mode === "LEGAL"
-                      ? "اكتب سؤالك القانوني هنا…"
-                      : "اكتب استفسارك للمساعد الذكي…"
+                    mode === "LEGAL" ? "اكتب سؤالك القانوني هنا…" : "اكتب استفسارك للمساعد الذكي…"
                   }
                   className="flex-1 border-0 bg-transparent px-3 py-2 text-body text-ink focus:outline-none focus:ring-0 placeholder:text-muted"
                 />
@@ -799,7 +902,9 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
                     }}
                     className={cn(
                       "flex items-center gap-1 rounded-pill px-3 py-1 text-caption font-bold transition-all",
-                      mode === "SUPPORT" ? "bg-primary text-white shadow-xs" : "text-muted hover:text-ink",
+                      mode === "SUPPORT"
+                        ? "bg-primary text-white shadow-xs"
+                        : "text-muted hover:text-ink",
                     )}
                   >
                     <Headset className="size-3.5" />
@@ -812,7 +917,9 @@ export function UnifiedAiAssistant({ isFullscreen, onToggleFullscreen, onClose }
                     }}
                     className={cn(
                       "flex items-center gap-1 rounded-pill px-3 py-1 text-caption font-bold transition-all",
-                      mode === "LEGAL" ? "bg-primary text-white shadow-xs" : "text-muted hover:text-ink",
+                      mode === "LEGAL"
+                        ? "bg-primary text-white shadow-xs"
+                        : "text-muted hover:text-ink",
                     )}
                   >
                     <Scale className="size-3.5" />
@@ -875,7 +982,12 @@ function UserTicketThread({ id, onBack }: { id: string; onBack: () => void }) {
         <Button variant="ghost" size="sm" onClick={onBack}>
           ← العودة للمحاورات
         </Button>
-        <span className={cn("rounded-pill px-2.5 py-0.5 text-caption font-bold", statusTone[ticket.status as TicketStatus])}>
+        <span
+          className={cn(
+            "rounded-pill px-2.5 py-0.5 text-caption font-bold",
+            statusTone[ticket.status as TicketStatus],
+          )}
+        >
           {ticketStatusLabels[ticket.status as TicketStatus]}
         </span>
       </div>
@@ -892,18 +1004,29 @@ function UserTicketThread({ id, onBack }: { id: string; onBack: () => void }) {
 
           return (
             <div key={m.id} className={cn("flex", isUser ? "justify-start" : "justify-end")}>
-              <div className={cn("flex max-w-[85%] flex-col gap-1", isUser ? "items-start" : "items-end")}>
+              <div
+                className={cn(
+                  "flex max-w-[85%] flex-col gap-1",
+                  isUser ? "items-start" : "items-end",
+                )}
+              >
                 <span className="text-caption text-muted">
                   {m.authorName} · {formatRelativeTime(timestamp)}
                 </span>
                 <div
                   className={cn(
                     "flex flex-col gap-2 rounded-card px-4 py-2.5 text-body leading-relaxed",
-                    isUser ? "bg-primary text-white" : "bg-background text-ink border border-hairline",
+                    isUser
+                      ? "bg-primary text-white"
+                      : "bg-background text-ink border border-hairline",
                   )}
                 >
                   {m.attachmentUrl && m.attachmentType && (
-                    <ChatAttachmentView url={m.attachmentUrl} type={m.attachmentType} name={m.attachmentName} />
+                    <ChatAttachmentView
+                      url={m.attachmentUrl}
+                      type={m.attachmentType}
+                      name={m.attachmentName}
+                    />
                   )}
                   {m.content && <FormattedMarkdownText text={m.content} />}
                 </div>

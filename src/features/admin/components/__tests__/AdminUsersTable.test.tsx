@@ -108,7 +108,9 @@ describe("AdminUsersTable", () => {
       isError: false,
       refetch: jest.fn(),
     } as unknown as ReturnType<typeof useAdminUsers>);
-    deleteUserHook.mockReturnValue({ mutate, isPending: false } as unknown as ReturnType<typeof useDeleteUser>);
+    deleteUserHook.mockReturnValue({ mutate, isPending: false } as unknown as ReturnType<
+      typeof useDeleteUser
+    >);
     suspendUserHook.mockReturnValue({
       mutate: suspendMutate,
       isPending: false,
@@ -130,7 +132,13 @@ describe("AdminUsersTable", () => {
 
   it("blocks the whole section for an admin with neither user:suspend nor user:delete", () => {
     getSession.mockReturnValue({
-      data: { id: "admin-2", fullName: "Admin", role: "read-only", roleName: "READ_ONLY", capabilities: [] },
+      data: {
+        id: "admin-2",
+        fullName: "Admin",
+        role: "read-only",
+        roleName: "READ_ONLY",
+        capabilities: [],
+      },
     } as unknown as ReturnType<typeof useAdminSession>);
     renderTable();
 
@@ -216,18 +224,19 @@ describe("AdminUsersTable", () => {
   });
 
   it("switches to the deleted tab and shows the deletedAt column, with no row actions", () => {
-    getUsers.mockImplementation((query) =>
-      ({
-        data: {
-          items: query?.status === "deleted" ? deletedUsers : users,
-          total: query?.status === "deleted" ? 1 : 2,
-          page: 1,
-          pageSize: 20,
-        },
-        isLoading: false,
-        isError: false,
-        refetch: jest.fn(),
-      }) as unknown as ReturnType<typeof useAdminUsers>,
+    getUsers.mockImplementation(
+      (query) =>
+        ({
+          data: {
+            items: query?.status === "deleted" ? deletedUsers : users,
+            total: query?.status === "deleted" ? 1 : 2,
+            page: 1,
+            pageSize: 20,
+          },
+          isLoading: false,
+          isError: false,
+          refetch: jest.fn(),
+        }) as unknown as ReturnType<typeof useAdminUsers>,
     );
     renderTable();
 
@@ -244,11 +253,16 @@ describe("AdminUsersTable", () => {
     expect(screen.queryByTitle("إيقاف المستخدم")).not.toBeInTheDocument();
   });
 
-  it("switches to the suspended tab, filters client-side, and shows suspension columns", () => {
+  it("requests the server-side suspended page and shows suspension columns", () => {
     getUsers.mockImplementation(
-      () =>
+      (query) =>
         ({
-          data: { items: [...users, ...suspendedUsers], total: 3, page: 1, pageSize: 20 },
+          data: {
+            items: query?.status === "suspended" ? suspendedUsers : users,
+            total: query?.status === "suspended" ? 1 : 2,
+            page: 1,
+            pageSize: 20,
+          },
           isLoading: false,
           isError: false,
           refetch: jest.fn(),
@@ -258,12 +272,35 @@ describe("AdminUsersTable", () => {
 
     fireEvent.click(screen.getByRole("tab", { name: "موقوف" }));
 
+    expect(getUsers).toHaveBeenLastCalledWith(
+      expect.objectContaining({ status: "suspended", page: 1, pageSize: 20 }),
+    );
     expect(screen.getByText("مستخدم موقوف")).toBeInTheDocument();
     expect(screen.queryByText("مستأجر تجريبي")).not.toBeInTheDocument();
     expect(screen.getByText("ينتهي الإيقاف")).toBeInTheDocument();
     expect(screen.getByText("احتيال أو نصب")).toBeInTheDocument();
     // A suspended user gets an "unsuspend" action instead of "suspend".
     expect(screen.getByTitle("إلغاء إيقاف المستخدم")).toBeInTheDocument();
+  });
+
+  it("requests the next server page instead of slicing rows in the browser", () => {
+    getUsers.mockImplementation(
+      (query) =>
+        ({
+          data: { items: users, total: 45, page: query?.page ?? 1, pageSize: 20 },
+          isLoading: false,
+          isError: false,
+          refetch: jest.fn(),
+        }) as unknown as ReturnType<typeof useAdminUsers>,
+    );
+    renderTable();
+
+    fireEvent.click(screen.getByRole("button", { name: "التالي" }));
+
+    expect(getUsers).toHaveBeenLastCalledWith(
+      expect.objectContaining({ status: "active", page: 2, pageSize: 20 }),
+    );
+    expect(screen.getByText("صفحة 2 من 3")).toBeInTheDocument();
   });
 
   it("calls the unsuspend mutation directly (no confirm dialog)", () => {

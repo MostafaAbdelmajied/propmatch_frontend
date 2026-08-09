@@ -41,6 +41,7 @@ const typeIcon: Record<NotificationType, typeof Bell> = {
   CONTRACT_READY_FOR_REVIEW: FileText,
   CONTRACT_APPROVED: FileText,
   CONTRACT_REJECTED: FileText,
+  USER_REVIEW_RECEIVED: Star,
   HIGH_MATCH_TENANT_REQUEST: Sparkles,
   ACCOUNT_REACTIVATED: UserCheck,
   ACCOUNT_REACTIVATION_REJECTED: CircleAlert,

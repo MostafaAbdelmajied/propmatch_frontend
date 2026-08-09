@@ -2,7 +2,7 @@
 
 import { Button } from "@/src/components/ui/Button";
 import { useSuspensionStore } from "@/src/lib/store/useSuspensionStore";
-import { Ban } from "lucide-react";
+import { Ban, Headset, LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -20,7 +20,7 @@ export function SuspensionModal() {
 
   if (!suspension) return null;
 
-  async function acknowledge() {
+  async function leaveSuspendedSession(destination: string) {
     setLoading(true);
     try {
       await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
@@ -28,7 +28,7 @@ export function SuspensionModal() {
       // Even if logout fails, the account is blocked server-side.
     }
     setSuspension(null);
-    router.replace("/login");
+    router.replace(destination);
   }
 
   return (
@@ -53,17 +53,29 @@ export function SuspensionModal() {
           </p>
         )}
         <p className="mt-3 text-caption text-muted">
-          بعد تسجيل الخروج، أدخل بيانات حسابك مرة أخرى لإرسال تذكرة مراجعة إلى الإدارة.
+          يمكنك التواصل مع خدمة العملاء لتقديم شكوى أو السؤال عن خطوات حل الإيقاف. سنطلب منك
+          تأكيد بيانات الحساب قبل إرسال التذكرة.
         </p>
-        <Button
-          variant="primary"
-          block
-          loading={loading}
-          onClick={acknowledge}
-          className="mt-6"
-        >
-          تسجيل الخروج وطلب مراجعة
-        </Button>
+        <div className="mt-6 flex flex-col gap-2">
+          <Button
+            variant="primary"
+            block
+            loading={loading}
+            onClick={() => leaveSuspendedSession("/login?suspensionAppeal=1")}
+          >
+            <Headset className="size-4" aria-hidden />
+            التواصل مع خدمة العملاء
+          </Button>
+          <Button
+            variant="secondary"
+            block
+            disabled={loading}
+            onClick={() => leaveSuspendedSession("/login")}
+          >
+            <LogOut className="size-4" aria-hidden />
+            تسجيل الخروج
+          </Button>
+        </div>
       </div>
     </div>
   );
