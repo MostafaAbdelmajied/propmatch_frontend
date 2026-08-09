@@ -39,7 +39,7 @@ export function legalAnswer(message: string): LegalAnswer {
 }
 
 export function optimizedDescription(description: string): string {
-  return `${description.trim()}\n\nفرصة مميزة لن تتكرر! وحدة بموقع استراتيجي وتشطيبات عالية الجودة، على بعد خطوات من الخدمات والمواصلات. تعامل مباشر مع المالك — بدون وسطاء وبدون عمولة.`;
+  return `${description.trim()}\n\nفرصة مميزة لن تتكرر! وحدة بموقع استراتيجي وتشطيبات عالية الجودة، على بعد خطوات من الخدمات والمواصلات.`;
 }
 
 /**
