@@ -18,6 +18,7 @@ import { useToast } from "@/src/components/ui/Toast";
 import { cn } from "@/src/utils/cn";
 import { formatDate } from "@/src/utils/format";
 import type { AdminUserListItem } from "@/src/lib/api/contracts/admin";
+import { AdminPagination } from "./AdminPagination";
 
 const roleLabels: Record<AdminUserListItem["role"], string> = {
   TENANT: "مستأجر",
@@ -280,28 +281,14 @@ export function AdminUsersTable() {
         </div>
       )}
 
-      {data && (data.total ?? 0) > PAGE_SIZE && (
-        <div className="flex items-center justify-center gap-3">
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={page <= 1}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-          >
-            السابق
-          </Button>
-          <span className="text-small text-muted">
-            صفحة {data.page ?? page} من {Math.max(1, Math.ceil((data.total ?? 0) / PAGE_SIZE))}
-          </span>
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={page >= Math.ceil((data.total ?? 0) / PAGE_SIZE)}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            التالي
-          </Button>
-        </div>
+      {data && (
+        <AdminPagination
+          page={page}
+          pageSize={data.pageSize ?? PAGE_SIZE}
+          total={data.total ?? 0}
+          isFetching={isFetching}
+          onPageChange={setPage}
+        />
       )}
 
       <ConfirmDialog

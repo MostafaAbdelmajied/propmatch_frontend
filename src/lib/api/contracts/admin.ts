@@ -274,6 +274,14 @@ export const AuditLogEntrySchema = z.object({
 });
 export type AuditLogEntry = z.infer<typeof AuditLogEntrySchema>;
 
+export const AuditLogResponseSchema = z.object({
+  items: z.array(AuditLogEntrySchema),
+  total: z.number().int().nonnegative(),
+  page: z.number().int().positive(),
+  pageSize: z.number().int().positive(),
+});
+export type AuditLogResponse = z.infer<typeof AuditLogResponseSchema>;
+
 export const LoginHistoryEntrySchema = z.object({
   id: z.string(),
   adminName: z.string(),
@@ -282,6 +290,14 @@ export const LoginHistoryEntrySchema = z.object({
   success: z.boolean(),
 });
 export type LoginHistoryEntry = z.infer<typeof LoginHistoryEntrySchema>;
+
+export const LoginHistoryResponseSchema = z.object({
+  items: z.array(LoginHistoryEntrySchema),
+  total: z.number().int().nonnegative(),
+  page: z.number().int().positive(),
+  pageSize: z.number().int().positive(),
+});
+export type LoginHistoryResponse = z.infer<typeof LoginHistoryResponseSchema>;
 
 /**
  * GET /admin/users item — platform accounts (tenants, landlords, admins).

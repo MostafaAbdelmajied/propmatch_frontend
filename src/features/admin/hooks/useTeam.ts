@@ -9,9 +9,9 @@ import type {
   AdminUserListItem,
   AdminUsersResponse,
   AdminUserStatusFilter,
-  AuditLogEntry,
+  AuditLogResponse,
   CreateAdminRequest,
-  LoginHistoryEntry,
+  LoginHistoryResponse,
   UpdateAdminRequest,
 } from "@/src/lib/api/contracts/admin";
 
@@ -53,17 +53,28 @@ export function useResetAdminPassword() {
   });
 }
 
-export function useAuditLog() {
+interface AdminActivityQuery {
+  page?: number;
+  pageSize?: number;
+}
+
+export function useAuditLog(query: AdminActivityQuery = {}) {
+  const { page = 1, pageSize = 20 } = query;
+  const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
   return useQuery({
-    queryKey: ["admin", "audit-log"],
-    queryFn: () => api.get<{ items: AuditLogEntry[] }>("admin/audit-log"),
+    queryKey: ["admin", "audit-log", page, pageSize],
+    queryFn: () => api.get<AuditLogResponse>(`admin/audit-log?${params.toString()}`),
+    placeholderData: (previousData) => previousData,
   });
 }
 
-export function useLoginHistory() {
+export function useLoginHistory(query: AdminActivityQuery = {}) {
+  const { page = 1, pageSize = 20 } = query;
+  const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
   return useQuery({
-    queryKey: ["admin", "login-history"],
-    queryFn: () => api.get<{ items: LoginHistoryEntry[] }>("admin/login-history"),
+    queryKey: ["admin", "login-history", page, pageSize],
+    queryFn: () => api.get<LoginHistoryResponse>(`admin/login-history?${params.toString()}`),
+    placeholderData: (previousData) => previousData,
   });
 }
 
