@@ -323,11 +323,23 @@ function toTeamMember(u: MockUser) {
 
 function toTicketSummary(t: MockTicket) {
   const assignee = t.assignedAdminId ? db.users.find((u) => u.id === t.assignedAdminId) : null;
+  const quota = quotaFor(t.userId);
+  const paidPlanActive = Boolean(
+    quota?.planExpiresAt && new Date(quota.planExpiresAt) > new Date(),
+  );
+  const commercialPriority = paidPlanActive
+    ? quota?.planType === "PREMIUM"
+      ? "PREMIUM"
+      : quota?.planType === "OWNER_PLUS"
+        ? "OWNER_PLUS"
+        : "FREEMIUM"
+    : "FREEMIUM";
   return {
     id: t.id,
     subject: t.subject,
     userName: db.users.find((u) => u.id === t.userId)?.fullName ?? "مستخدم",
     status: t.status,
+    commercialPriority,
     assignedAdminName: assignee?.fullName ?? null,
     lastMessageAt: t.lastMessageAt,
     createdAt: t.createdAt,
@@ -1815,10 +1827,17 @@ export function dispatch(
   if (path === "/admin/tickets" && method === "GET") {
     const denied = requireCap("ticket:reply");
     if (denied) return denied;
-    const items = [...db.tickets]
+    const status = query.get("status");
+    const commercialPriority = query.get("commercialPriority");
+    const page = Math.max(1, Number(query.get("page")) || 1);
+    const pageSize = Math.min(50, Math.max(1, Number(query.get("pageSize")) || 20));
+    const matching = [...db.tickets]
       .sort((a, b) => b.lastMessageAt.localeCompare(a.lastMessageAt))
-      .map(toTicketSummary);
-    return ok({ items });
+      .map(toTicketSummary)
+      .filter((ticket) => !status || ticket.status === status)
+      .filter((ticket) => !commercialPriority || ticket.commercialPriority === commercialPriority);
+    const items = matching.slice((page - 1) * pageSize, page * pageSize);
+    return ok({ items, total: matching.length, page, pageSize });
   }
   if (seg[0] === "admin" && seg[1] === "tickets" && seg.length === 3 && method === "GET") {
     const denied = requireCap("ticket:reply");

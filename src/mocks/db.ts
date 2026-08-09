@@ -63,7 +63,7 @@ export interface MockVerification {
 export interface MockQuota {
   id: string;
   userId: string;
-  planType: "FREE" | "PREMIUM";
+  planType: "FREE" | "OWNER_PLUS" | "PREMIUM";
   planExpiresAt: string | null;
   maxActiveListings: number;
   freeListingsLeft: number;
