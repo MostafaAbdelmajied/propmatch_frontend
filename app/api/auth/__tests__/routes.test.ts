@@ -5,6 +5,7 @@ import { POST as login } from "../login/route";
 import { GET as me } from "../me/route";
 import { POST as refresh } from "../refresh/route";
 import { POST as register } from "../register/route";
+import { POST as verifyEmail } from "../verify-email/route";
 
 jest.mock("@/src/lib/api/client", () => {
   const actual = jest.requireActual("@/src/lib/api/client");
@@ -25,6 +26,11 @@ const backendUser = {
   verificationStatus: "NOT_SUBMITTED",
 };
 const validTokens = { accessToken: "access-token", refreshToken: "refresh-token", user: backendUser };
+const registrationVerification = {
+  verificationRequired: true,
+  email: "sara@example.com",
+  resendAvailableAt: "2026-08-09T12:01:00.000Z",
+};
 
 function authRequest(url: string, body: unknown) {
   return new Request(url, { method: "POST", body: JSON.stringify(body), headers: { "Content-Type": "application/json" } }) as unknown as NextRequest;
@@ -66,14 +72,14 @@ describe("auth BFF routes", () => {
     await expect(response.json()).resolves.toEqual({ statusCode: 401, message: "Unauthorized" });
   });
 
-  it("maps a registration to the backend and keeps tokens cookie-only", async () => {
-    mockedBackendFetch.mockResolvedValue(validTokens);
+  it("maps a registration to the backend and returns the verification requirement without cookies", async () => {
+    mockedBackendFetch.mockResolvedValue(registrationVerification);
     const response = await register(authRequest("http://localhost/api/auth/register", registration));
 
     expect(mockedBackendFetch).toHaveBeenCalledWith("/auth/register", { method: "POST", body: { ...registration, role: "TENANT" } });
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ user: expect.any(Object) });
-    expect(response.headers.get("set-cookie")).toContain("HttpOnly");
+    await expect(response.json()).resolves.toEqual(registrationVerification);
+    expect(response.headers.get("set-cookie")).toBeNull();
   });
 
   it("returns 502 without cookies for an invalid successful registration contract", async () => {
@@ -81,6 +87,22 @@ describe("auth BFF routes", () => {
     const response = await register(authRequest("http://localhost/api/auth/register", registration));
     expect(response.status).toBe(502);
     expect(response.headers.get("set-cookie")).toBeNull();
+  });
+
+  it("sets cookie-only tokens after a valid email verification", async () => {
+    mockedBackendFetch.mockResolvedValue(validTokens);
+    const response = await verifyEmail(authRequest("http://localhost/api/auth/verify-email", {
+      email: registration.email,
+      code: "123456",
+    }));
+
+    expect(mockedBackendFetch).toHaveBeenCalledWith("/auth/verify-email", {
+      method: "POST",
+      body: { email: registration.email, code: "123456" },
+    });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ user: expect.any(Object) });
+    expect(response.headers.get("set-cookie")).toContain("HttpOnly");
   });
 
   it("preserves registration validation and backend conflicts", async () => {

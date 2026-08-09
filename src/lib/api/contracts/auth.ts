@@ -35,6 +35,24 @@ export const LoginRequestSchema = z.object({
 });
 export type LoginRequest = z.infer<typeof LoginRequestSchema>;
 
+export const EmailVerificationRequestSchema = z.object({
+  email: z.string().email(),
+  code: z.string().regex(/^\d{6}$/),
+});
+export type EmailVerificationRequest = z.infer<typeof EmailVerificationRequestSchema>;
+
+export const ResendEmailVerificationRequestSchema = z.object({
+  email: z.string().email(),
+});
+export type ResendEmailVerificationRequest = z.infer<typeof ResendEmailVerificationRequestSchema>;
+
+export const RegistrationVerificationSchema = z.object({
+  verificationRequired: z.literal(true),
+  email: z.string().email(),
+  resendAvailableAt: z.string().datetime(),
+});
+export type RegistrationVerification = z.infer<typeof RegistrationVerificationSchema>;
+
 export const RequestAccountReviewSchema = LoginRequestSchema.extend({
   message: z.string().min(10).max(1000).optional(),
 });

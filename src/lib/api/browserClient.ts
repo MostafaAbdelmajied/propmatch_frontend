@@ -26,6 +26,8 @@ const REFRESH_PATH = "/api/auth/refresh";
 const AUTH_MUTATION_PATHS = new Set([
   "/api/auth/login",
   "/api/auth/register",
+  "/api/auth/verify-email",
+  "/api/auth/resend-email-verification",
   "/api/auth/logout",
   REFRESH_PATH,
   // Public, credential-based (email+password in the body) — called by a user
@@ -119,6 +121,8 @@ export async function downloadProtectedPdf(path: string): Promise<{ blob: Blob; 
 export const authApi = {
   login: <T>(body: unknown) => request<T>("POST", "/api/auth/login", body),
   register: <T>(body: unknown) => request<T>("POST", "/api/auth/register", body),
+  verifyEmail: <T>(body: unknown) => request<T>("POST", "/api/auth/verify-email", body),
+  resendEmailVerification: <T>(body: unknown) => request<T>("POST", "/api/auth/resend-email-verification", body),
   logout: () => request<{ success: boolean }>("POST", "/api/auth/logout", {}),
   me: <T>() => request<T>("GET", "/api/auth/me"),
   refresh: <T>() => request<T>("POST", REFRESH_PATH),
