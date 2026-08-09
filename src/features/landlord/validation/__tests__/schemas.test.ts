@@ -36,7 +36,7 @@ describe("add property wizard schema", () => {
         "hasElevator",
         "hasParking",
       ],
-      mediaAndServices: ["images", "propertyAroundServices", "description"],
+      mediaAndServices: ["images", "propertyAroundServices"],
       aiOptimization: ["description"],
     });
   });
