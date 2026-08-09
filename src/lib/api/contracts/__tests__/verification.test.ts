@@ -49,7 +49,7 @@ describe("verification API contract", () => {
     const form = options.body as FormData;
     expect([...form.keys()]).toEqual(["nationalId", "nationalIdFront", "nationalIdBack", "selfie"]);
     expect(form.get("nationalId")).toBe("29001011234567");
-    expect(options.headers).toBeUndefined();
+    expect(options.headers).toEqual({ "Accept-Language": "ar" });
   });
 
   it("includes nationalId and preserves a backend 409", async () => {
@@ -75,7 +75,7 @@ describe("verification API contract", () => {
 
     expect(fetchMock).toHaveBeenCalledWith("/api/backend/verification/example", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Accept-Language": "ar", "Content-Type": "application/json" },
       body: JSON.stringify({ example: true }),
     });
   });
@@ -90,7 +90,7 @@ describe("verification API contract", () => {
 
     await backendFetch("/verification/me", { method: "GET", accessToken: "token" });
     expect(fetchMock).toHaveBeenLastCalledWith("https://backend.example.test/verification/me", expect.objectContaining({
-      headers: { Authorization: "Bearer token" },
+      headers: { "Accept-Language": "ar", Authorization: "Bearer token" },
       body: undefined,
     }));
 
@@ -108,7 +108,7 @@ describe("verification API contract", () => {
     await backendFetch("/verification/submit", { method: "POST", accessToken: "token", body: formData });
     const [, options] = fetchMock.mock.calls.at(-1) as [string, RequestInit];
     expect(options.body).toBe(formData);
-    expect(options.headers).toEqual({ Authorization: "Bearer token" });
+    expect(options.headers).toEqual({ "Accept-Language": "ar", Authorization: "Bearer token" });
 
     if (previousUrl === undefined) delete process.env.NESTJS_API_URL;
     else process.env.NESTJS_API_URL = previousUrl;

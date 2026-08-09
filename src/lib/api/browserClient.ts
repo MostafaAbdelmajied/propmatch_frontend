@@ -1,6 +1,6 @@
 "use client";
 
-import { reconnectSocket } from "@/src/lib/socket/useRealtime";
+import { reconnectSocket } from "@/src/lib/socket/socketClient";
 
 /**
  * Browser-side fetch wrapper. Talks only to our own Next.js Route Handlers

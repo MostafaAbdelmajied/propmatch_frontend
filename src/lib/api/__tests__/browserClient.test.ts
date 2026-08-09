@@ -1,8 +1,8 @@
 import { api, authApi, downloadProtectedPdf, isApiClientError, streamPost } from "../browserClient";
-import { reconnectSocket } from "@/src/lib/socket/useRealtime";
+import { reconnectSocket } from "@/src/lib/socket/socketClient";
 import { TextDecoderStream as NodeTextDecoderStream } from "node:stream/web";
 
-jest.mock("@/src/lib/socket/useRealtime", () => ({
+jest.mock("@/src/lib/socket/socketClient", () => ({
   reconnectSocket: jest.fn(),
 }));
 
