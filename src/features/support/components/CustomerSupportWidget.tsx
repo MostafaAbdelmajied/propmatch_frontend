@@ -130,6 +130,13 @@ export function CustomerSupportWidget() {
       setMessages((m) =>
         m.map((msg) => (msg.id === replyId ? { ...msg, declined: done.declined } : msg)),
       );
+      if (done.escalated && done.ticketId) {
+        setFrustrated(false);
+        setSelectedTicketId(done.ticketId);
+        setActiveTab("my_tickets");
+        void myTickets.refetch();
+        toast("success", "تم إنشاء التذكرة وتحويلك لموظف الدعم الفني");
+      }
     } catch {
       setMessages((m) => [
         ...m,
