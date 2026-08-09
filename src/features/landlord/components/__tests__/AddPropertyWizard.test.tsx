@@ -134,6 +134,27 @@ describe("AddPropertyWizard", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("recreates preview URLs for restored images and revokes them on unmount", async () => {
+    const createObjectUrl = URL.createObjectURL as jest.Mock;
+    const revokeObjectUrl = URL.revokeObjectURL as jest.Mock;
+    createObjectUrl.mockClear();
+    revokeObjectUrl.mockClear();
+    createObjectUrl.mockImplementation((file: File) => `blob:restored-${file.name}`);
+    const restoredImage = new File(["image"], "restored-property.jpg", { type: "image/jpeg" });
+    restoreMediaStep({ images: [restoredImage] });
+
+    const view = render(<AddPropertyWizard />);
+
+    expect(await screen.findByRole("img", { name: "معاينة صورة العقار 1" })).toHaveAttribute(
+      "src",
+      "blob:restored-restored-property.jpg",
+    );
+    expect(createObjectUrl).toHaveBeenCalledWith(restoredImage);
+
+    view.unmount();
+    expect(revokeObjectUrl).toHaveBeenCalledWith("blob:restored-restored-property.jpg");
+  });
+
   it("blocks the AI optimizer and toasts the missing fields when the form is incomplete", async () => {
     mockLoadDraft.mockResolvedValue({
       step: 2,

@@ -26,7 +26,7 @@ import {
   X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Controller, useForm, type UseFormReturn } from "react-hook-form";
 import { useCreateProperty, useQuota, useStreamOptimizeDescription } from "../hooks/useLandlord";
 import { addPropertyFormSchema, stepFields, type AddPropertyForm } from "../validation/schemas";
@@ -87,8 +87,24 @@ function AddPropertyWizardContent() {
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [reviewSubmissionReady, setReviewSubmissionReady] = useState(false);
   const [reviewConfirmationOpen, setReviewConfirmationOpen] = useState(false);
+  const [imagePreviewUrls, setImagePreviewUrls] = useState<string[]>([]);
+  const imagePreviewUrlsRef = useRef<string[]>([]);
   const create = useCreateProperty();
   const [paywall, setPaywall] = useState<CheckoutPaymentType | null>(null);
+
+  const replaceImagePreviews = useCallback((images: File[]) => {
+    imagePreviewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    const nextPreviewUrls = images.map((file) => URL.createObjectURL(file));
+    imagePreviewUrlsRef.current = nextPreviewUrls;
+    setImagePreviewUrls(nextPreviewUrls);
+  }, []);
+
+  useEffect(
+    () => () => {
+      imagePreviewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    },
+    [],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -97,7 +113,11 @@ function AddPropertyWizardContent() {
         const draft = await loadPropertyDraft();
         if (cancelled) return;
         if (draft?.values && typeof draft.step === "number") {
-          form.reset({ ...defaults, ...draft.values } as AddPropertyForm);
+          const restoredImages = Array.isArray(draft.values.images)
+            ? draft.values.images.filter((image): image is File => image instanceof File)
+            : [];
+          replaceImagePreviews(restoredImages);
+          form.reset({ ...defaults, ...draft.values, images: restoredImages } as AddPropertyForm);
           setStep(Math.max(0, Math.min(draft.step, steps.length - 1)));
           if (
             typeof draft.optimizerUsesLeft === "number" &&
@@ -116,7 +136,7 @@ function AddPropertyWizardContent() {
     return () => {
       cancelled = true;
     };
-  }, [form]);
+  }, [form, replaceImagePreviews]);
 
   useEffect(() => {
     if (quota.data) setOptimizerUsesLeft(quota.data.optimizerUsesLeft);
@@ -266,7 +286,9 @@ function AddPropertyWizardContent() {
 
       <form onSubmit={preventImplicitSubmission} className="flex flex-col gap-5">
         {step === 0 && <PropertyDetailsStep form={form} />}
-        {step === 1 && <MediaAndServicesStep form={form} />}
+        {step === 1 && (
+          <MediaAndServicesStep form={form} previews={imagePreviewUrls} onImagesChange={replaceImagePreviews} />
+        )}
         {step === 2 && (
           <OptimizationAndReviewStep
             form={form}
@@ -377,6 +399,10 @@ function Stepper({ current }: { current: number }) {
 }
 
 type StepProps = { form: UseFormReturn<AddPropertyForm> };
+type MediaAndServicesStepProps = StepProps & {
+  previews: string[];
+  onImagesChange: (images: File[]) => void;
+};
 
 function Card({ children }: { children: React.ReactNode }) {
   return (
@@ -563,13 +589,9 @@ function PropertyDetailsStep({
   );
 }
 
-function MediaAndServicesStep({ form }: StepProps) {
+function MediaAndServicesStep({ form, previews, onImagesChange }: MediaAndServicesStepProps) {
   const toast = useToast();
   const images = form.watch("images");
-  const previews = useMemo(
-    () => images.map((file) => ({ file, url: URL.createObjectURL(file) })),
-    [images],
-  );
   const [draggedImageIndex, setDraggedImageIndex] = useState<number | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
 
@@ -670,14 +692,17 @@ function MediaAndServicesStep({ form }: StepProps) {
       toast("info", "يمكنك إضافة 10 صور كحد أقصى");
     }
 
+    updateImages(nextImages);
+  }
+
+  function updateImages(nextImages: File[]) {
     form.setValue("images", nextImages, {
       shouldDirty: true,
       shouldTouch: true,
       shouldValidate: true,
     });
+    onImagesChange(nextImages);
   }
-
-  useEffect(() => () => previews.forEach(({ url }) => URL.revokeObjectURL(url)), [previews]);
 
   function selectImages(event: React.ChangeEvent<HTMLInputElement>) {
     const selected = Array.from(event.target.files ?? []);
@@ -696,20 +721,12 @@ function MediaAndServicesStep({ form }: StepProps) {
       toast("info", "يمكنك إضافة 10 صور كحد أقصى");
     }
 
-    form.setValue("images", nextImages, {
-      shouldDirty: true,
-      shouldTouch: true,
-      shouldValidate: true,
-    });
+    updateImages(nextImages);
     event.target.value = "";
   }
 
   function removeImage(index: number) {
-    form.setValue(
-      "images",
-      images.filter((_, imageIndex) => imageIndex !== index),
-      { shouldDirty: true, shouldTouch: true, shouldValidate: true },
-    );
+    updateImages(images.filter((_, imageIndex) => imageIndex !== index));
   }
 
   function reorderImages(fromIndex: number, toIndex: number) {
@@ -717,11 +734,7 @@ function MediaAndServicesStep({ form }: StepProps) {
     const reordered = [...images];
     const [movedImage] = reordered.splice(fromIndex, 1);
     reordered.splice(toIndex, 0, movedImage);
-    form.setValue("images", reordered, {
-      shouldDirty: true,
-      shouldTouch: true,
-      shouldValidate: true,
-    });
+    updateImages(reordered);
   }
 
   function startDragging(event: React.DragEvent<HTMLElement>, index: number) {
@@ -866,8 +879,8 @@ function MediaAndServicesStep({ form }: StepProps) {
                 الصورة الرئيسية للإعلان
               </div>
               <PropertyImagePreview
-                file={previews[0].file}
-                url={previews[0].url}
+                file={images[0]}
+                url={previews[0]}
                 index={0}
                 isMain
                 isDragging={draggedImageIndex === 0}
@@ -882,8 +895,9 @@ function MediaAndServicesStep({ form }: StepProps) {
               <div>
                 <p className="mb-2 text-small font-semibold text-ink">باقي صور العقار</p>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  {previews.slice(1).map(({ file, url }, previewIndex) => {
+                  {previews.slice(1).map((url, previewIndex) => {
                     const index = previewIndex + 1;
+                    const file = images[index];
                     return (
                       <PropertyImagePreview
                         key={`${file.name}-${file.lastModified}-${index}`}
