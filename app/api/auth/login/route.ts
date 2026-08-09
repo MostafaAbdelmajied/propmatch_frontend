@@ -28,7 +28,13 @@ export async function POST(request: NextRequest) {
     return response;
   } catch (error) {
     if (error instanceof BackendApiError) {
-      return NextResponse.json({ statusCode: error.statusCode, message: error.message }, { status: error.statusCode });
+      // Forward the full backend body (not just statusCode/message) so a
+      // domain-specific payload like ACCOUNT_SUSPENDED's { code } survives
+      // the proxy — see BackendApiError's own doc comment for this exact
+      // precedent (the quota-exhausted 403).
+      const body =
+        error.body && typeof error.body === "object" ? error.body : { statusCode: error.statusCode, message: error.message };
+      return NextResponse.json(body, { status: error.statusCode });
     }
     throw error;
   }

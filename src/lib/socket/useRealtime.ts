@@ -1,24 +1,23 @@
 "use client";
 
 import { useEffect, useSyncExternalStore } from "react";
+import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { io, type Socket } from "socket.io-client";
 import { SOCKET_EVENTS } from "@/src/lib/api/contracts/notification";
-import type { AccountSuspendedPayload, Notification, NotificationsResponse, RealtimeSupportMessage } from "@/src/lib/api/contracts/notification";
-import { useSuspensionStore } from "@/src/lib/store/useSuspensionStore";
-import { useToast } from "@/src/components/ui/Toast";
-import type { AdminQueuesResponse, QueueItem } from "@/src/lib/api/contracts/admin";
-import type { MatchMessage, RealtimeMatchMessage } from "@/src/lib/api/contracts/message";
 import type {
+  AccountSuspendedPayload,
   Notification,
   NotificationsResponse,
   RealtimeSupportMessage,
+  RealtimeReactivationRequest,
 } from "@/src/lib/api/contracts/notification";
-import { SOCKET_EVENTS } from "@/src/lib/api/contracts/notification";
+import { useSuspensionStore } from "@/src/lib/store/useSuspensionStore";
+import { useToast } from "@/src/components/ui/Toast";
+import { authApi } from "@/src/lib/api/browserClient";
+import type { AdminQueuesResponse, QueueItem } from "@/src/lib/api/contracts/admin";
+import type { MatchMessage, RealtimeMatchMessage } from "@/src/lib/api/contracts/message";
 import type { PaymentStatus } from "@/src/lib/api/contracts/payment";
-import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useSyncExternalStore } from "react";
-import { io, type Socket } from "socket.io-client";
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL;
 
@@ -154,6 +153,7 @@ export interface RealtimeState {
 export function useRealtime(): RealtimeState {
   const qc = useQueryClient();
   const toast = useToast();
+  const router = useRouter();
   const connected = useSyncExternalStore(subscribeToStatus, getStatus, getServerStatus);
 
   // Attach global user interaction listeners to unlock Web Audio API on first click/keypress
@@ -250,6 +250,39 @@ export function useRealtime(): RealtimeState {
       playNotificationChime();
     };
 
+    // Active invalidation: an admin just soft-deleted this exact session's
+    // account. Passive invalidation (401 on next request) would leave an
+    // already-open tab working until it happens to hit the network again —
+    // this drops it immediately instead. authApi.logout() clears the httpOnly
+    // cookie server-side (the socket payload can't do that itself); the qc
+    // reset + redirect mirror useLogout()'s onSuccess. Distinct from
+    // onAccountSuspended below — a delete is a "ghost" account with its own
+    // reactivation flow, a suspension is a temporary/permanent block with its
+    // own end date/reason, surfaced via the blocking SuspensionModal instead.
+    const onForceLogout = () => {
+      toast("error", "تم حذف حسابك من قبل أحد المشرفين");
+      void authApi.logout().finally(() => {
+        qc.setQueryData(["session"], null);
+        qc.clear();
+        reconnectSocket();
+        router.push("/login");
+      });
+    };
+
+    // Dedicated alert for a new reactivation request — separate from the
+    // generic admin:queue:item stream because no queue widget renders
+    // type:'reactivation' yet; this toasts immediately and refetches both
+    // the admin reactivations table AND the notification bell (the backend
+    // also persists a REACTIVATION_REQUEST row per admin, so the bell's own
+    // GET /notifications has it — this just makes the badge update live
+    // instead of waiting for the bell's own poll/next open).
+    const onReactivationRequested = (payload: RealtimeReactivationRequest) => {
+      toast("info", `طلب إعادة تفعيل حساب جديد من ${payload.userEmail}`);
+      qc.invalidateQueries({ queryKey: ["admin", "reactivations"] });
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+      playNotificationChime();
+    };
+
     // Admin suspended this account → surface a blocking modal (RealtimeProvider)
     // and log the user out. This is what makes suspension feel real-time.
     const onAccountSuspended = (payload: AccountSuspendedPayload) => {
@@ -269,6 +302,8 @@ export function useRealtime(): RealtimeState {
     s.on(SOCKET_EVENTS.messageEdited, onMessageEdited);
     s.on(SOCKET_EVENTS.messageDeleted, onMessageDeleted);
     s.on(SOCKET_EVENTS.supportMessageReceived, onSupportMessage);
+    s.on(SOCKET_EVENTS.forceLogout, onForceLogout);
+    s.on(SOCKET_EVENTS.newReactivationRequest, onReactivationRequested);
     s.on(SOCKET_EVENTS.accountSuspended, onAccountSuspended);
     s.on(SOCKET_EVENTS.paymentUpdated, onPaymentUpdated);
     return () => {
@@ -278,10 +313,12 @@ export function useRealtime(): RealtimeState {
       s.off(SOCKET_EVENTS.messageEdited, onMessageEdited);
       s.off(SOCKET_EVENTS.messageDeleted, onMessageDeleted);
       s.off(SOCKET_EVENTS.supportMessageReceived, onSupportMessage);
+      s.off(SOCKET_EVENTS.forceLogout, onForceLogout);
+      s.off(SOCKET_EVENTS.newReactivationRequest, onReactivationRequested);
       s.off(SOCKET_EVENTS.accountSuspended, onAccountSuspended);
       s.off(SOCKET_EVENTS.paymentUpdated, onPaymentUpdated);
     };
-  }, [qc, toast]);
+  }, [qc, toast, router]);
 
   return { connected };
 }

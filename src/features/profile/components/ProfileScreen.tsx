@@ -143,9 +143,13 @@ export function ProfileScreen() {
     if (deleteConfirmInput !== "حذف" && deleteConfirmInput.toUpperCase() !== "DELETE") return;
     setIsDeletingAccount(true);
     try {
+      // Now a soft-delete server-side (was hard-deleting and 500ing on FK
+      // constraints). logout.mutateAsync() clears the httpOnly cookie, the
+      // query cache, and the socket auth — this account's tokenVersion was
+      // just bumped, so any lingering token is dead either way.
       await api.delete("auth/account");
       await logout.mutateAsync();
-      router.push("/");
+      router.push("/login");
     } catch {
       setIsDeletingAccount(false);
     }
