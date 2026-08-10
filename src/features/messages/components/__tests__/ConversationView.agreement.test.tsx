@@ -161,6 +161,42 @@ describe("ConversationView agreement gate", () => {
     expect(screen.getByRole("button", { name: "عرض أقل" })).toBeInTheDocument();
 
     if (scrollHeight) Object.defineProperty(HTMLElement.prototype, "scrollHeight", scrollHeight);
+    else delete (HTMLElement.prototype as { scrollHeight?: number }).scrollHeight;
     if (clientHeight) Object.defineProperty(HTMLElement.prototype, "clientHeight", clientHeight);
+    else delete (HTMLElement.prototype as { clientHeight?: number }).clientHeight;
+  });
+
+  it("does not show the expansion control for a short message", () => {
+    const scrollHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollHeight");
+    const clientHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientHeight");
+    Object.defineProperty(HTMLElement.prototype, "scrollHeight", {
+      configurable: true,
+      get: () => 24,
+    });
+    Object.defineProperty(HTMLElement.prototype, "clientHeight", {
+      configurable: true,
+      get: () => 24,
+    });
+    mockMessages = [
+      {
+        id: "message-short",
+        body: "مش شايفك",
+        isMine: false,
+        createdAt: "2026-08-09T12:00:00.000Z",
+        editedAt: null,
+        attachmentUrl: null,
+        attachmentType: null,
+        attachmentName: null,
+        attachmentDurationMs: null,
+      },
+    ];
+
+    render(<ConversationView matchConnectionId="match-id" />);
+    expect(screen.queryByRole("button", { name: "عرض المزيد" })).not.toBeInTheDocument();
+
+    if (scrollHeight) Object.defineProperty(HTMLElement.prototype, "scrollHeight", scrollHeight);
+    else delete (HTMLElement.prototype as { scrollHeight?: number }).scrollHeight;
+    if (clientHeight) Object.defineProperty(HTMLElement.prototype, "clientHeight", clientHeight);
+    else delete (HTMLElement.prototype as { clientHeight?: number }).clientHeight;
   });
 });

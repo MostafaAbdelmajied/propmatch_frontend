@@ -80,7 +80,28 @@ function ExpandableMessageBody({ body, isMine }: { body: string; isMine: boolean
   useLayoutEffect(() => {
     const paragraph = paragraphRef.current;
     if (!paragraph || expanded) return;
-    setCanExpand(paragraph.scrollHeight > paragraph.clientHeight + 1);
+
+    const measureOverflow = () => {
+      // A hidden chat panel reports a zero client height during its first
+      // layout. Treat it as not measured yet instead of marking every message
+      // as expandable; ResizeObserver measures it again when it becomes visible.
+      if (paragraph.clientHeight === 0) {
+        setCanExpand(false);
+        return;
+      }
+      setCanExpand(paragraph.scrollHeight > paragraph.clientHeight + 2);
+    };
+
+    measureOverflow();
+    const observer =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measureOverflow);
+    observer?.observe(paragraph);
+    window.addEventListener("resize", measureOverflow);
+
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", measureOverflow);
+    };
   }, [body, expanded]);
 
   return (
