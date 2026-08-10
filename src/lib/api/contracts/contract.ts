@@ -3,10 +3,11 @@ import { z } from "zod";
 /**
  * Mirrors the ERD's `LEASE_CONTRACT` (PRO-15 / SRS 3.5). Handshake model:
  * only the landlord may draft/edit (POST .../draft, .../send-for-review);
- * only the tenant may approve or reject a draft sent for review (POST
- * .../approve, .../reject) — approval is the only path that ever produces
- * a PDF, so `generatedByUserId` on the backend reflects the tenant as
- * final approver, not whoever drafted it. Owner/tenant names + property
+ * only the tenant may approve or reject a draft. The current ID-addressed
+ * review/confirm endpoint performs the approval and produces the PDF, while
+ * the match-addressed approve endpoint remains compatible with older clients.
+ * `generatedByUserId` therefore reflects the tenant as final approver, not
+ * whoever drafted it. Owner/tenant names + property
  * address are always server-derived, never accepted from the client.
  * National IDs come from both parties' verified eKYC and appear in the
  * generated PDF only — the API always returns them masked to the last 4
@@ -34,23 +35,49 @@ export const SaveContractDraftInputSchema = z.object({
 export type SaveContractDraftInput = z.infer<typeof SaveContractDraftInputSchema>;
 
 export const ContractDisclaimerSchema = z.object({
-  isDraft: z.boolean(), isElectronicSignature: z.literal(false), isLegallyAuthenticated: z.literal(false), message: z.string(),
+  isDraft: z.boolean(),
+  isElectronicSignature: z.literal(false),
+  isLegallyAuthenticated: z.literal(false),
+  message: z.string(),
 });
 export type ContractDisclaimer = z.infer<typeof ContractDisclaimerSchema>;
 export const RentalContractDraftResponseSchema = z.object({
-  id: z.string(), matchConnectionId: z.string(), status: LeaseContractStatusSchema,
-  ownerName: z.string(), tenantName: z.string(), propertyAddress: z.string(), rentAmount: z.number(),
-  startDate: z.string(), endDate: z.string(), customClauses: z.array(z.string()), createdAt: z.string(), updatedAt: z.string(), disclaimer: ContractDisclaimerSchema,
+  id: z.string(),
+  matchConnectionId: z.string(),
+  status: LeaseContractStatusSchema,
+  ownerName: z.string(),
+  tenantName: z.string(),
+  propertyAddress: z.string(),
+  rentAmount: z.number(),
+  startDate: z.string(),
+  endDate: z.string(),
+  customClauses: z.array(z.string()),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  disclaimer: ContractDisclaimerSchema,
 });
 export type RentalContractDraftResponse = z.infer<typeof RentalContractDraftResponseSchema>;
 
-export const ContractReviewStatusSchema = z.enum(["PENDING_REVIEW", "CHANGES_REQUESTED", "REVIEW_CONFIRMED"]);
+export const ContractReviewStatusSchema = z.enum([
+  "PENDING_REVIEW",
+  "CHANGES_REQUESTED",
+  "REVIEW_CONFIRMED",
+]);
 export type ContractReviewStatus = z.infer<typeof ContractReviewStatusSchema>;
 export const ContractListItemSchema = RentalContractDraftResponseSchema.extend({
-  propertyId: z.string(), propertyTitle: z.string(), tenantReviewStatus: ContractReviewStatusSchema,
-  draftRevision: z.number().int().positive(), tenantReviewedRevision: z.number().int().nullable(),
-  tenantChangeRequest: z.string().nullable(), tenantChangeRequestedAt: z.string().nullable(), tenantReviewConfirmedAt: z.string().nullable(),
-  canEdit: z.boolean(), canRequestChanges: z.boolean(), canConfirmReview: z.boolean(), canDownloadPdf: z.boolean(),
+  propertyId: z.string(),
+  propertyTitle: z.string(),
+  tenantReviewStatus: ContractReviewStatusSchema,
+  draftRevision: z.number().int().positive(),
+  tenantReviewedRevision: z.number().int().nullable(),
+  tenantChangeRequest: z.string().nullable(),
+  tenantChangeRequestedAt: z.string().nullable(),
+  tenantReviewConfirmedAt: z.string().nullable(),
+  canEdit: z.boolean(),
+  canRequestChanges: z.boolean(),
+  canConfirmReview: z.boolean(),
+  canDownloadPdf: z.boolean(),
+  hasSubmittedUserReview: z.boolean(),
 });
 export type ContractListItem = z.infer<typeof ContractListItemSchema>;
 export const ContractListResponseSchema = z.object({ items: z.array(ContractListItemSchema) });

@@ -84,7 +84,7 @@ function ExpandableMessageBody({ body, isMine }: { body: string; isMine: boolean
   }, [body, expanded]);
 
   return (
-    <div className="min-w-0 max-w-full overflow-x-hidden">
+    <div className="min-w-0 max-w-full">
       <p
         ref={paragraphRef}
         className={cn(
@@ -318,7 +318,7 @@ export function ConversationView({ matchConnectionId }: { matchConnectionId: str
 
       <section
         ref={messageListRef}
-        className="flex min-h-0 flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto overscroll-contain rounded-card border border-hairline bg-background p-4"
+        className="flex min-h-0 flex-1 touch-pan-y flex-col gap-3 overflow-x-hidden overflow-y-auto overscroll-contain rounded-card border border-hairline bg-background p-4 [scrollbar-gutter:stable]"
         role="log"
         aria-live="polite"
       >
@@ -333,7 +333,7 @@ export function ConversationView({ matchConnectionId }: { matchConnectionId: str
               <div
                 key={message.id}
                 className={cn(
-                  "relative group flex min-w-0 max-w-[85%] flex-col gap-1.5 overflow-x-hidden rounded-card px-4 py-2.5 shadow-xs transition-all",
+                  "group relative flex w-fit min-w-48 max-w-[85%] shrink-0 flex-col gap-1.5 rounded-card px-4 py-2.5 shadow-xs transition-all",
                   message.isMine
                     ? "self-end bg-primary text-white"
                     : "self-start bg-surface text-ink shadow-card border border-hairline",
@@ -481,7 +481,7 @@ export function ConversationView({ matchConnectionId }: { matchConnectionId: str
             event.preventDefault();
             event.currentTarget.form?.requestSubmit();
           }}
-          className="w-full resize-y rounded-control border border-hairline bg-background px-3 py-2.5 text-body text-ink outline-none placeholder:text-muted focus:border-primary focus:ring-2 focus:ring-primary/20"
+          className="min-h-20 max-h-32 w-full resize-none rounded-control border border-hairline bg-background px-3 py-2.5 text-body text-ink outline-none placeholder:text-muted focus:border-primary focus:ring-2 focus:ring-primary/20"
           disabled={send.isPending}
         />
 

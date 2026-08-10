@@ -8,12 +8,23 @@ import { useToast } from "@/src/components/ui/Toast";
 import { ticketStatusLabels, type TicketStatus } from "@/src/lib/api/contracts/support";
 import { cn } from "@/src/utils/cn";
 import { formatRelativeTime } from "@/src/utils/format";
-import { ArrowRight, Bot, Send, StickyNote, User as UserIcon, UserCheck, UserPlus } from "lucide-react";
+import {
+  ArrowRight,
+  Bot,
+  Send,
+  StickyNote,
+  User as UserIcon,
+  UserCheck,
+  UserPlus,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useTicket, useTicketActions } from "../hooks/useTickets";
 import { useAdminSession, useUnsuspendUser } from "../hooks/useTeam";
-import { AttachmentBar, type PendingAttachment } from "@/src/features/messages/components/AttachmentBar";
+import {
+  AttachmentBar,
+  type PendingAttachment,
+} from "@/src/features/messages/components/AttachmentBar";
 import { ChatAttachmentView } from "@/src/features/messages/components/ChatAttachmentView";
 
 const statuses: TicketStatus[] = ["new", "assigned", "in_progress", "waiting", "closed"];
@@ -96,7 +107,12 @@ export function AdminTicketDetail({ id }: { id: string }) {
             </Button>
           )}
           {!ticket.assignedAdminId && (
-            <Button size="sm" variant="secondary" loading={assign.isPending} onClick={() => assign.mutate()}>
+            <Button
+              size="sm"
+              variant="secondary"
+              loading={assign.isPending}
+              onClick={() => assign.mutate()}
+            >
               <UserPlus className="size-4" aria-hidden />
               تعيين لي
             </Button>
@@ -124,7 +140,7 @@ export function AdminTicketDetail({ id }: { id: string }) {
       {/* Thread */}
       <div
         ref={messageListRef}
-        className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain rounded-card border border-hairline bg-surface p-4"
+        className="flex min-h-0 flex-1 touch-pan-y flex-col gap-3 overflow-x-hidden overflow-y-auto overscroll-contain rounded-card border border-hairline bg-surface p-4 [scrollbar-gutter:stable]"
         role="log"
         aria-live="polite"
       >
@@ -136,17 +152,31 @@ export function AdminTicketDetail({ id }: { id: string }) {
           const timestamp = m.createdAt || m.at || new Date().toISOString();
 
           return (
-            <div key={m.id} className={cn("flex", isUser ? "justify-start" : "justify-end")}>
-              <div className={cn("flex max-w-[85%] flex-col gap-1", isUser ? "items-start" : "items-end")}>
+            <div
+              key={m.id}
+              className={cn("flex shrink-0", isUser ? "justify-start" : "justify-end")}
+            >
+              <div
+                className={cn(
+                  "flex min-w-48 max-w-[85%] flex-col gap-1",
+                  isUser ? "items-start" : "items-end",
+                )}
+              >
                 <span className="flex items-center gap-1 text-caption text-muted">
-                  {isAi ? <Bot className="size-3" aria-hidden /> : <UserIcon className="size-3" aria-hidden />}
+                  {isAi ? (
+                    <Bot className="size-3" aria-hidden />
+                  ) : (
+                    <UserIcon className="size-3" aria-hidden />
+                  )}
                   {isAdmin ? "الدعم الفني" : m.authorName}
-                  {m.internal && <span className="rounded bg-pending-tint px-1 text-pending">ملاحظة داخلية</span>}
+                  {m.internal && (
+                    <span className="rounded bg-pending-tint px-1 text-pending">ملاحظة داخلية</span>
+                  )}
                   <span>· {formatRelativeTime(timestamp)}</span>
                 </span>
                 <div
                   className={cn(
-                    "flex flex-col gap-2 whitespace-pre-line rounded-card px-4 py-2.5 text-body leading-relaxed",
+                    "flex w-full min-w-0 flex-col gap-2 whitespace-pre-wrap rounded-card px-4 py-2.5 text-body leading-relaxed [overflow-wrap:anywhere]",
                     m.internal
                       ? "border border-dashed border-pending/40 bg-pending-tint/40 text-ink"
                       : isUser
@@ -157,7 +187,12 @@ export function AdminTicketDetail({ id }: { id: string }) {
                   )}
                 >
                   {m.attachmentUrl && m.attachmentType && (
-                    <ChatAttachmentView url={m.attachmentUrl} type={m.attachmentType} name={m.attachmentName} durationMs={m.attachmentDurationMs} />
+                    <ChatAttachmentView
+                      url={m.attachmentUrl}
+                      type={m.attachmentType}
+                      name={m.attachmentName}
+                      durationMs={m.attachmentDurationMs}
+                    />
                   )}
                   {m.content && <span>{m.content}</span>}
                 </div>
@@ -168,7 +203,10 @@ export function AdminTicketDetail({ id }: { id: string }) {
       </div>
 
       {/* Reply box */}
-      <form onSubmit={submit} className="flex shrink-0 flex-col gap-2 rounded-card border border-hairline bg-surface p-4">
+      <form
+        onSubmit={submit}
+        className="flex shrink-0 flex-col gap-2 rounded-card border border-hairline bg-surface p-4"
+      >
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -179,12 +217,17 @@ export function AdminTicketDetail({ id }: { id: string }) {
             }
           }}
           placeholder={internal ? "اكتب ملاحظة داخلية (لا تظهر للعميل)…" : "اكتب ردك للعميل…"}
-          className="min-h-20 w-full rounded-control border border-hairline bg-surface px-3.5 py-2.5 text-body focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+          className="min-h-20 max-h-32 w-full resize-none rounded-control border border-hairline bg-surface px-3.5 py-2.5 text-body focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
         />
         <AttachmentBar pending={pending} onChange={setPending} disabled={reply.isPending} />
         <div className="flex items-center justify-between">
           <label className="flex cursor-pointer items-center gap-1.5 text-small text-body-text">
-            <input type="checkbox" checked={internal} onChange={(e) => setInternal(e.target.checked)} className="size-4 accent-primary" />
+            <input
+              type="checkbox"
+              checked={internal}
+              onChange={(e) => setInternal(e.target.checked)}
+              className="size-4 accent-primary"
+            />
             <StickyNote className="size-4 text-muted" aria-hidden />
             ملاحظة داخلية
           </label>

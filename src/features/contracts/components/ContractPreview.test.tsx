@@ -13,6 +13,9 @@ jest.mock("@/src/components/ui/Toast", () => ({ useToast: () => jest.fn() }));
 jest.mock("../hooks/usePartnerLead", () => ({
   useCreatePartnerLead: () => ({ mutate: jest.fn(), isPending: false }),
 }));
+jest.mock("@/src/features/reviews/components/UserReviewPanel", () => ({
+  UserReviewPanel: () => <div>تقييم الطرف الآخر</div>,
+}));
 
 const contract = (overrides: Record<string, unknown> = {}) => ({
   id: "contract-id",
@@ -51,12 +54,12 @@ describe("ContractPreview review permissions", () => {
       />,
     );
     expect(screen.getByText("طلب تعديل")).toBeTruthy();
-    expect(screen.getByText("تأكيد مراجعة المسودة")).toBeTruthy();
+    expect(screen.getByText("اعتماد العقد وإنشاء PDF")).toBeTruthy();
     expect(screen.queryByText("تعديل المسودة")).toBeNull();
     expect(screen.getByText("تحميل نسخة PDF")).toBeTruthy();
   });
 
-  it("shows tenant waiting/confirmed messages without review actions", () => {
+  it("shows tenant waiting state and lets a previously confirmed draft finish", () => {
     const { rerender } = render(
       <ContractPreview contract={contract({ tenantReviewStatus: "CHANGES_REQUESTED" }) as any} />,
     );
@@ -64,12 +67,34 @@ describe("ContractPreview review permissions", () => {
     expect(screen.queryByText("طلب تعديل")).toBeNull();
     rerender(
       <ContractPreview
-        contract={contract({ tenantReviewStatus: "REVIEW_CONFIRMED", canEdit: false }) as any}
+        contract={
+          contract({
+            tenantReviewStatus: "REVIEW_CONFIRMED",
+            canEdit: false,
+            canConfirmReview: true,
+          }) as any
+        }
       />,
     );
     expect(screen.getByText(/تم تأكيد مراجعتك/)).toBeTruthy();
-    expect(screen.queryByText("تأكيد مراجعة المسودة")).toBeNull();
+    expect(screen.getByText("إكمال إنشاء العقد")).toBeTruthy();
     expect(screen.getByText("تحميل نسخة PDF")).toBeTruthy();
+  });
+
+  it("shows bilateral user reviews after the contract is completed", () => {
+    render(
+      <ContractPreview
+        contract={
+          contract({
+            status: "generated",
+            tenantReviewStatus: "REVIEW_CONFIRMED",
+            canDownloadPdf: true,
+          }) as any
+        }
+      />,
+    );
+    expect(screen.getAllByText(/تم اعتماد العقد/)).toHaveLength(2);
+    expect(screen.getByText("تقييم الطرف الآخر")).toBeTruthy();
   });
 
   it("keeps a landlord editable after requested changes and locks after confirmation", () => {

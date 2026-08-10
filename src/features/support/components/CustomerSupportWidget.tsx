@@ -173,9 +173,9 @@ export function CustomerSupportWidget() {
   }
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-8rem)] max-w-3xl flex-col gap-4">
+    <div className="mx-auto flex h-[calc(100dvh-8rem)] min-h-0 max-w-3xl flex-col gap-4 overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between gap-3 border-b border-hairline pb-3">
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-hairline pb-3">
         <div className="flex items-center gap-2.5">
           <span className="flex size-10 items-center justify-center rounded-full bg-primary-tint text-primary">
             <Headset className="size-5" aria-hidden />
@@ -214,10 +214,10 @@ export function CustomerSupportWidget() {
 
       {/* Main Tab Content */}
       {activeTab === "ai_chat" ? (
-        <div className="flex flex-1 flex-col gap-3 overflow-hidden">
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
           {/* Sentiment Frustration Alert */}
           {frustrated && (
-            <div className="flex items-center justify-between gap-3 rounded-card border border-error/30 bg-error-tint p-3 text-error">
+            <div className="flex shrink-0 items-center justify-between gap-3 rounded-card border border-error/30 bg-error-tint p-3 text-error">
               <div className="flex items-center gap-2 text-small font-bold">
                 <AlertTriangle className="size-4 shrink-0" />
                 يبدو أنك تواجه مشكلة هامة! يمكنك التحويل مباشرة لموظف دعم فني.
@@ -237,7 +237,7 @@ export function CustomerSupportWidget() {
           {/* AI Message Thread */}
           <div
             ref={scrollRef}
-            className="flex flex-1 flex-col gap-3 overflow-y-auto rounded-card border border-hairline bg-surface p-4"
+            className="flex min-h-0 flex-1 touch-pan-y flex-col gap-3 overflow-x-hidden overflow-y-auto overscroll-contain rounded-card border border-hairline bg-surface p-4 [scrollbar-gutter:stable]"
           >
             {messages.length === 0 && (
               <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
@@ -256,11 +256,11 @@ export function CustomerSupportWidget() {
             {messages.map((m) => (
               <div
                 key={m.id}
-                className={cn("flex", m.role === "user" ? "justify-start" : "justify-end")}
+                className={cn("flex shrink-0", m.role === "user" ? "justify-start" : "justify-end")}
               >
                 <div
                   className={cn(
-                    "max-w-[85%] rounded-card px-4 py-2.5 text-body leading-relaxed",
+                    "min-w-48 max-w-[85%] whitespace-pre-wrap rounded-card px-4 py-2.5 text-body leading-relaxed [overflow-wrap:anywhere]",
                     m.role === "user"
                       ? "bg-primary text-white"
                       : "bg-background text-ink border border-hairline",
@@ -272,7 +272,7 @@ export function CustomerSupportWidget() {
             ))}
 
             {typing && (
-              <div className="flex justify-end">
+              <div className="flex shrink-0 justify-end">
                 <div className="flex gap-1 rounded-card bg-background px-4 py-3">
                   {[0, 1, 2].map((i) => (
                     <span
@@ -308,7 +308,7 @@ export function CustomerSupportWidget() {
                 e.preventDefault();
                 sendAiMessage(input);
               }}
-              className="flex items-center gap-2"
+              className="flex shrink-0 items-center gap-2"
             >
               <input
                 value={input}
@@ -410,7 +410,7 @@ function UserTicketThread({ id, onBack }: { id: string; onBack: () => void }) {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-3">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
       <div className="flex items-center justify-between border-b border-hairline pb-2">
         <Button variant="ghost" size="sm" onClick={onBack}>
           ← العودة للتذاكر
@@ -429,17 +429,20 @@ function UserTicketThread({ id, onBack }: { id: string; onBack: () => void }) {
         <h2 className="text-small font-bold text-ink">{ticket.subject}</h2>
       </div>
 
-      <div className="flex flex-1 flex-col gap-2 overflow-y-auto rounded-card border border-hairline bg-surface p-3">
+      <div className="flex min-h-0 flex-1 touch-pan-y flex-col gap-2 overflow-x-hidden overflow-y-auto overscroll-contain rounded-card border border-hairline bg-surface p-3 [scrollbar-gutter:stable]">
         {ticket.messages.map((m) => {
           const authorVal = String(m.authorType || m.author || "").toLowerCase();
           const isUser = authorVal === "user";
           const timestamp = m.createdAt || m.at || new Date().toISOString();
 
           return (
-            <div key={m.id} className={cn("flex", isUser ? "justify-start" : "justify-end")}>
+            <div
+              key={m.id}
+              className={cn("flex shrink-0", isUser ? "justify-start" : "justify-end")}
+            >
               <div
                 className={cn(
-                  "flex max-w-[85%] flex-col gap-1",
+                  "flex min-w-48 max-w-[85%] flex-col gap-1",
                   isUser ? "items-start" : "items-end",
                 )}
               >
@@ -448,7 +451,7 @@ function UserTicketThread({ id, onBack }: { id: string; onBack: () => void }) {
                 </span>
                 <div
                   className={cn(
-                    "rounded-card px-4 py-2 text-body",
+                    "w-full min-w-0 whitespace-pre-wrap rounded-card px-4 py-2 text-body [overflow-wrap:anywhere]",
                     isUser
                       ? "bg-primary text-white"
                       : "bg-background text-ink border border-hairline",
@@ -463,7 +466,7 @@ function UserTicketThread({ id, onBack }: { id: string; onBack: () => void }) {
       </div>
 
       {ticket.status !== "closed" ? (
-        <form onSubmit={submit} className="flex gap-2">
+        <form onSubmit={submit} className="flex shrink-0 gap-2">
           <input
             value={text}
             onChange={(e) => setText(e.target.value)}

@@ -17,7 +17,7 @@ function makeUniqueId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 }
 
-export function LegalChatbot({ }: { onBack?: () => void }) {
+export function LegalChatbot({}: { onBack?: () => void }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
@@ -38,10 +38,7 @@ export function LegalChatbot({ }: { onBack?: () => void }) {
     setInput("");
 
     const replyId = makeUniqueId("legal_reply");
-    setMessages((m) => [
-      ...m,
-      { id: makeUniqueId("user_msg"), role: "user", content: trimmed },
-    ]);
+    setMessages((m) => [...m, { id: makeUniqueId("user_msg"), role: "user", content: trimmed }]);
     setTyping(true);
 
     let started = false;
@@ -70,7 +67,11 @@ export function LegalChatbot({ }: { onBack?: () => void }) {
     } catch {
       setMessages((m) => [
         ...m.filter((msg) => msg.id !== replyId || msg.content),
-        { id: makeUniqueId("legal_reply"), role: "assistant", content: "تعذر الاتصال، حاول مرة أخرى." },
+        {
+          id: makeUniqueId("legal_reply"),
+          role: "assistant",
+          content: "تعذر الاتصال، حاول مرة أخرى.",
+        },
       ]);
     } finally {
       setTyping(false);
@@ -78,8 +79,8 @@ export function LegalChatbot({ }: { onBack?: () => void }) {
   }
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-8rem)] max-w-2xl flex-col gap-3">
-      <div className="flex items-center gap-2">
+    <div className="mx-auto flex h-[calc(100dvh-8rem)] min-h-0 max-w-2xl flex-col gap-3 overflow-hidden">
+      <div className="flex shrink-0 items-center gap-2">
         <span className="flex size-10 items-center justify-center rounded-full bg-primary-tint text-primary">
           <Scale className="size-5" aria-hidden />
         </span>
@@ -91,7 +92,7 @@ export function LegalChatbot({ }: { onBack?: () => void }) {
 
       <div
         ref={scrollRef}
-        className="flex flex-1 flex-col gap-3 overflow-y-auto rounded-card border border-hairline bg-surface p-4"
+        className="flex min-h-0 flex-1 touch-pan-y flex-col gap-3 overflow-x-hidden overflow-y-auto overscroll-contain rounded-card border border-hairline bg-surface p-4 [scrollbar-gutter:stable]"
       >
         {messages.length === 0 && (
           <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
@@ -116,11 +117,11 @@ export function LegalChatbot({ }: { onBack?: () => void }) {
         {messages.map((m) => (
           <div
             key={m.id}
-            className={cn("flex", m.role === "user" ? "justify-start" : "justify-end")}
+            className={cn("flex shrink-0", m.role === "user" ? "justify-start" : "justify-end")}
           >
             <div
               className={cn(
-                "min-w-0 max-w-[85%] wrap-break-word rounded-card px-4 py-2.5 text-body leading-relaxed",
+                "min-w-48 max-w-[85%] whitespace-pre-wrap rounded-card px-4 py-2.5 text-body leading-relaxed [overflow-wrap:anywhere]",
                 m.role === "user"
                   ? "bg-primary text-white"
                   : m.declined
@@ -134,7 +135,7 @@ export function LegalChatbot({ }: { onBack?: () => void }) {
         ))}
 
         {typing && (
-          <div className="flex justify-end">
+          <div className="flex shrink-0 justify-end">
             <div className="flex gap-1 rounded-card bg-background px-4 py-3">
               {[0, 1, 2].map((i) => (
                 <span
@@ -153,7 +154,7 @@ export function LegalChatbot({ }: { onBack?: () => void }) {
           e.preventDefault();
           send(input);
         }}
-        className="flex items-center gap-2"
+        className="flex shrink-0 items-center gap-2"
       >
         <input
           value={input}

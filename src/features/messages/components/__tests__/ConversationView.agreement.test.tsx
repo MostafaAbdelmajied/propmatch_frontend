@@ -143,8 +143,18 @@ describe("ConversationView agreement gate", () => {
     const { container } = render(<ConversationView matchConnectionId="match-id" />);
     const more = screen.getByRole("button", { name: "عرض المزيد" });
     const paragraph = more.previousElementSibling;
+    const messageBody = paragraph?.parentElement;
+    const bubble = messageBody?.parentElement;
     expect(paragraph).toHaveClass("line-clamp-3");
-    expect(container.querySelector('[role="log"]')).toHaveClass("overflow-x-hidden");
+    expect(container.querySelector('[role="log"]')).toHaveClass(
+      "overflow-x-hidden",
+      "overflow-y-auto",
+      "min-h-0",
+    );
+    expect(messageBody).not.toHaveClass("overflow-x-hidden");
+    expect(bubble).toHaveClass("w-fit", "min-w-48", "shrink-0");
+    expect(bubble).not.toHaveClass("overflow-x-hidden");
+    expect(screen.getByRole("textbox")).toHaveClass("resize-none");
 
     fireEvent.click(more);
     expect(paragraph).not.toHaveClass("line-clamp-3");

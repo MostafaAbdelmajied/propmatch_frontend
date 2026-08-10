@@ -11,7 +11,10 @@ import { ArrowRight, Bot, Send, User as UserIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useUserTicketDetail, useUserTicketReply } from "../hooks/useUserSupport";
-import { AttachmentBar, type PendingAttachment } from "@/src/features/messages/components/AttachmentBar";
+import {
+  AttachmentBar,
+  type PendingAttachment,
+} from "@/src/features/messages/components/AttachmentBar";
 import { ChatAttachmentView } from "@/src/features/messages/components/ChatAttachmentView";
 
 /**
@@ -88,7 +91,7 @@ export function UserTicketDetail({ id }: { id: string }) {
       {/* Thread */}
       <div
         ref={messageListRef}
-        className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain rounded-card border border-hairline bg-surface p-4"
+        className="flex min-h-0 flex-1 touch-pan-y flex-col gap-3 overflow-x-hidden overflow-y-auto overscroll-contain rounded-card border border-hairline bg-surface p-4 [scrollbar-gutter:stable]"
         role="log"
         aria-live="polite"
       >
@@ -99,21 +102,42 @@ export function UserTicketDetail({ id }: { id: string }) {
           const timestamp = m.createdAt || m.at || new Date().toISOString();
 
           return (
-            <div key={m.id} className={cn("flex", isMine ? "justify-end" : "justify-start")}>
-              <div className={cn("flex max-w-[85%] flex-col gap-1", isMine ? "items-end" : "items-start")}>
+            <div
+              key={m.id}
+              className={cn("flex shrink-0", isMine ? "justify-end" : "justify-start")}
+            >
+              <div
+                className={cn(
+                  "flex min-w-48 max-w-[85%] flex-col gap-1",
+                  isMine ? "items-end" : "items-start",
+                )}
+              >
                 <span className="flex items-center gap-1 text-caption text-muted">
-                  {isAi ? <Bot className="size-3" aria-hidden /> : <UserIcon className="size-3" aria-hidden />}
+                  {isAi ? (
+                    <Bot className="size-3" aria-hidden />
+                  ) : (
+                    <UserIcon className="size-3" aria-hidden />
+                  )}
                   {m.authorName}
                   <span>· {formatRelativeTime(timestamp)}</span>
                 </span>
                 <div
                   className={cn(
-                    "flex flex-col gap-2 whitespace-pre-line rounded-card px-4 py-2.5 text-body leading-relaxed",
-                    isMine ? "bg-primary text-white" : isAi ? "bg-primary-tint text-ink" : "bg-background text-ink",
+                    "flex w-full min-w-0 flex-col gap-2 whitespace-pre-wrap rounded-card px-4 py-2.5 text-body leading-relaxed [overflow-wrap:anywhere]",
+                    isMine
+                      ? "bg-primary text-white"
+                      : isAi
+                        ? "bg-primary-tint text-ink"
+                        : "bg-background text-ink",
                   )}
                 >
                   {m.attachmentUrl && m.attachmentType && (
-                    <ChatAttachmentView url={m.attachmentUrl} type={m.attachmentType} name={m.attachmentName} durationMs={m.attachmentDurationMs} />
+                    <ChatAttachmentView
+                      url={m.attachmentUrl}
+                      type={m.attachmentType}
+                      name={m.attachmentName}
+                      durationMs={m.attachmentDurationMs}
+                    />
                   )}
                   {m.content && <span>{m.content}</span>}
                 </div>
@@ -124,7 +148,10 @@ export function UserTicketDetail({ id }: { id: string }) {
       </div>
 
       {/* Reply box */}
-      <form onSubmit={submit} className="flex shrink-0 flex-col gap-2 rounded-card border border-hairline bg-surface p-4">
+      <form
+        onSubmit={submit}
+        className="flex shrink-0 flex-col gap-2 rounded-card border border-hairline bg-surface p-4"
+      >
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -135,7 +162,7 @@ export function UserTicketDetail({ id }: { id: string }) {
             }
           }}
           placeholder="اكتب رسالتك لفريق الدعم…"
-          className="min-h-20 w-full rounded-control border border-hairline bg-surface px-3.5 py-2.5 text-body focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+          className="min-h-20 max-h-32 w-full resize-none rounded-control border border-hairline bg-surface px-3.5 py-2.5 text-body focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
         />
         <div className="flex items-end justify-between gap-3">
           <AttachmentBar pending={pending} onChange={setPending} disabled={reply.isPending} />

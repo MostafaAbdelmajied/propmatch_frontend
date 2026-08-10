@@ -46,7 +46,9 @@ export function ContractPreview({ contract }: { contract: LeaseContract }) {
     <div dir="rtl" className="mx-auto flex max-w-3xl flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-small text-muted">
-          مسودة للمراجعة فقط، وليست توقيعًا أو توثيقًا قانونيًا.
+          {contract.status === "generated"
+            ? "تم اعتماد العقد وإنشاء نسخة PDF. العقد ليس توقيعًا إلكترونيًا أو توثيقًا قانونيًا."
+            : "مسودة للمراجعة فقط، وليست توقيعًا أو توثيقًا قانونيًا."}
         </p>
         {contract.canDownloadPdf && (
           <Button onClick={() => download.mutate()} loading={download.isPending}>
@@ -67,9 +69,11 @@ export function ContractPreview({ contract }: { contract: LeaseContract }) {
       )}
       {review === "REVIEW_CONFIRMED" && (
         <div className="rounded-card border border-primary/30 bg-primary-tint p-4 text-body">
-          {isTenant
-            ? "تم تأكيد مراجعتك للنسخة الحالية، ومينفعش تطلب تعديلات جديدة عليها."
-            : "المستأجر أكد مراجعة النسخة الحالية، لذلك المسودة مقفولة ضد التعديل."}
+          {contract.status === "generated"
+            ? "تم اعتماد العقد. يمكن لكل طرف الآن تقييم الطرف الآخر من هذه الصفحة."
+            : isTenant
+              ? "تم تأكيد مراجعتك للنسخة الحالية، ومينفعش تطلب تعديلات جديدة عليها."
+              : "المستأجر أكد مراجعة النسخة الحالية، لذلك المسودة مقفولة ضد التعديل."}
         </div>
       )}
       {review === "CHANGES_REQUESTED" && !contract.canEdit && (
@@ -93,7 +97,9 @@ export function ContractPreview({ contract }: { contract: LeaseContract }) {
           </Button>
         )}
         {contract.canConfirmReview && (
-          <Button onClick={() => setConfirmOpen(true)}>تأكيد مراجعة المسودة</Button>
+          <Button onClick={() => setConfirmOpen(true)}>
+            {review === "REVIEW_CONFIRMED" ? "إكمال إنشاء العقد" : "اعتماد العقد وإنشاء PDF"}
+          </Button>
         )}
       </div>
 
@@ -153,10 +159,10 @@ export function ContractPreview({ contract }: { contract: LeaseContract }) {
           role="dialog"
           aria-modal="true"
         >
-          <h2 className="text-title font-bold">تأكيد مراجعة النسخة الحالية</h2>
+          <h2 className="text-title font-bold">اعتماد العقد وإنشاء نسخة PDF</h2>
           <p className="mt-2 text-body">
-            بعد التأكيد، المالك مش هيقدر يعدّل المسودة، وإنت مش هتقدر تطلب تعديلات جديدة على النسخة
-            دي.
+            بعد الاعتماد، المالك مش هيقدر يعدّل المسودة، وهيتم إنشاء نسخة PDF نهائية داخل المنصة.
+            بعدها يقدر كل طرف يقيّم الطرف الآخر.
           </p>
           <p className="mt-2 text-small text-muted">
             التأكيد ده معناه إنك راجعت المسودة الحالية فقط. هو مش توقيع إلكتروني، ومش توثيق أو
@@ -168,7 +174,7 @@ export function ContractPreview({ contract }: { contract: LeaseContract }) {
               checked={acknowledged}
               onChange={(event) => setAcknowledged(event.target.checked)}
             />{" "}
-            راجعت بيانات المسودة الحالية وفاهم إن التأكيد هيقفلها ضد التعديل.
+            راجعت بيانات المسودة الحالية وفاهم إن الاعتماد هيقفلها ضد التعديل وينشئ نسخة PDF.
           </label>
           {confirm.isError && (
             <p className="mt-2 text-small text-error">
@@ -190,7 +196,7 @@ export function ContractPreview({ contract }: { contract: LeaseContract }) {
                 )
               }
             >
-              تأكيد المراجعة
+              اعتماد العقد
             </Button>
           </div>
         </section>
@@ -199,7 +205,11 @@ export function ContractPreview({ contract }: { contract: LeaseContract }) {
       <article className="flex flex-col gap-6 rounded-card border border-hairline bg-surface p-8 leading-loose shadow-card">
         <header className="border-b border-hairline pb-4 text-center">
           <h1 className="text-h1 font-bold text-ink">عقد إيجار</h1>
-          <p className="text-small text-muted">مسودة عقد إيجار سكني</p>
+          <p className="text-small text-muted">
+            {contract.status === "generated"
+              ? "عقد إيجار سكني معتمد داخل المنصة"
+              : "مسودة عقد إيجار سكني"}
+          </p>
         </header>
         <p className="text-body text-body-text">
           إنه في يوم {formatDate(contract.createdAt)}، تم الاتفاق بين كل من:
