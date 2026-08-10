@@ -71,6 +71,25 @@ export const ReceivedOfferSchema = z.object({
 export type ReceivedOffer = z.infer<typeof ReceivedOfferSchema>;
 
 /**
+ * GET /landlord/requests/:id/property-scores — the same computeHybridMatch()
+ * score browseRequests uses, broken out per property. This is the single
+ * source of truth for the "N%" shown in the Send Offer modal's property
+ * picker — it must never be recomputed client-side (that's what caused the
+ * same property to show two different percentages in two different places).
+ */
+export const PropertyScoreSchema = z.object({
+  propertyId: z.string(),
+  score: z.number().min(0).max(100),
+  reasons: z.array(z.object({ code: z.string(), text: z.string() })).optional(),
+});
+export type PropertyScore = z.infer<typeof PropertyScoreSchema>;
+
+export const PropertyScoresResponseSchema = z.object({
+  items: z.array(PropertyScoreSchema),
+});
+export type PropertyScoresResponse = z.infer<typeof PropertyScoresResponseSchema>;
+
+/**
  * Accepting an offer creates a CONNECTED MATCH_CONNECTION and reveals both
  * parties' phone numbers, then prompts the B2B opt-in (PRO-16).
  */

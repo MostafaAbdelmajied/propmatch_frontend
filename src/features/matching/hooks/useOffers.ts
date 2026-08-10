@@ -7,6 +7,7 @@ import type { BrowsableTenantRequest } from "@/src/lib/api/contracts/tenantReque
 import type {
   AcceptOfferResponse,
   CreateOfferRequest,
+  PropertyScoresResponse,
   ReceivedOffer,
   SentOffer,
 } from "@/src/lib/api/contracts/offer";
@@ -33,6 +34,23 @@ export function useBrowsableRequests() {
       }
     },
     retry: false,
+  });
+}
+
+/**
+ * Per-property score for one tenant request — the single source of truth
+ * for the Send Offer modal's property picker. Backed by the exact same
+ * computeHybridMatch() the request list card's score comes from, so the two
+ * can never disagree again (see PropertyScoresResponseSchema's doc comment).
+ * `enabled: !!requestId` — the sheet mounts with `request: null` between
+ * opens, and there's nothing to score yet at that point.
+ */
+export function usePropertyScoresForRequest(requestId: string | null) {
+  return useQuery({
+    queryKey: ["landlord", "requests", requestId, "property-scores"],
+    queryFn: () =>
+      api.get<PropertyScoresResponse>(`landlord/requests/${requestId}/property-scores`),
+    enabled: !!requestId,
   });
 }
 
